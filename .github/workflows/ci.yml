@@ -38,6 +38,9 @@ jobs:
         run: docker compose down
   database:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        postgis-schema: [public, extensions]
     steps:
       - uses: actions/checkout@v4
-      - run: sh scripts/test-database.sh
+      - run: sh scripts/test-database.sh ${{ matrix.postgis-schema }}

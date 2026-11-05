@@ -77,8 +77,9 @@ Importer `EcoDex-DAO/my-futur-town` puis choisir :
 - [Sources, licences et limites](docs/data-sources.md)
 - [Modèle de données et politiques RLS](docs/architecture.md)
 - [Exploitation et validation](docs/operations.md)
+- [Préparation du projet Supabase](docs/supabase-setup.md)
 
-Projet Supabase cible : `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`, PostGIS déjà activé. La migration versionnée est préparée, **pas appliquée à ce projet**. La faire examiner et la valider sur une base de développement avant application via Supabase CLI ou SQL Editor avec un compte autorisé. Elle ne contient aucun DROP/TRUNCATE et crée uniquement de nouvelles tables ; une collision avec des tables existantes doit être examinée, pas contournée en les supprimant.
+Projet Supabase cible : `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`, PostGIS déjà activé. La migration versionnée est préparée, **pas appliquée à ce projet**. Les migrations doivent être examinées, puis appliquées au projet existant via un accès autorisé après le précontrôle ; voir le guide Supabase. Elle ne contient aucun DROP/TRUNCATE et crée uniquement de nouvelles tables ; une collision avec des tables existantes doit être examinée, pas contournée en les supprimant.
 
 ## Contribuer
 

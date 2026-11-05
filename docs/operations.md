@@ -21,4 +21,19 @@ Aucun secret de base n’est nécessaire pour cette phase. Ne jamais placer `ser
 
 ## Validation SQL isolée
 
-`sh scripts/test-database.sh` lance une base PostGIS jetable sans port exposé, émule le contrat minimal Supabase Auth, applique la migration et vérifie la lecture du propriétaire, l’isolation entre deux utilisateurs, le refus d’écriture interutilisateur et le refus d’accès anonyme aux scénarios. Le conteneur est supprimé à la fin. Ces tests ne remplacent pas la validation sur un projet Supabase de développement avec son schéma et ses rôles réels. Ne jamais lancer `scripts/test-database.sql` sur une base existante : il crée les rôles et stubs Auth réservés aux tests.
+`sh scripts/test-database.sh public` et `sh scripts/test-database.sh extensions` lancent une base PostGIS jetable sans port exposé, émule le contrat minimal Supabase Auth, applique la migration et vérifie la lecture du propriétaire, l’isolation entre deux utilisateurs, le refus d’écriture interutilisateur et le refus d’accès anonyme aux scénarios. Le conteneur est supprimé à la fin. Ces tests ne remplacent pas la validation sur un projet Supabase de développement avec son schéma et ses rôles réels. Ne jamais lancer `scripts/test-database.sql` sur une base existante : il crée les rôles et stubs Auth réservés aux tests.
+
+
+## Test navigateur de production
+
+Dans `frontend` :
+
+```sh
+npm ci
+npx playwright install chromium
+npm run test:e2e
+```
+
+Si Chromium est déjà installé, utiliser `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/chemin/vers/chromium npm run test:e2e` à la place du téléchargement. Le test construit le frontend puis démarre `vite preview` sur le port 4173, qui doit être libre. Il vérifie les tuiles OpenFreeMap réelles, la sélection d’un bâtiment, les contrôles 2D/2.5D et la disposition mobile sans API. Il nécessite WebGL et Internet ; il n’utilise aucune géométrie cartographique fictive. Un échec réseau est un échec de ce test, pas une réussite hors ligne. La CI standard ne le lance pas automatiquement pour ne pas dépendre de la disponibilité d’un fournisseur public.
+
+Le navigateur utilise `HTTPS_PROXY` lorsqu’il est présent, avec exclusion de localhost. La vérification TLS reste active : la CA de la plateforme doit être reconnue par le navigateur. Les traces et captures d’échec restent dans les dossiers ignorés par Git ; ne pas les publier sans vérifier leur contenu.
