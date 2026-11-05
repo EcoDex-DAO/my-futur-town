@@ -1,6 +1,11 @@
 # Historique des versions
 
-## 0.2.0-dev.1 — en développement
+## 0.2.0-dev.2 — en développement
+
+- Le rollback prend désormais HEAD comme base par défaut et refuse une base qui omet ou modifie les migrations/archives de référence actuellement suivies. Cela couvre notamment le cas où main est en retard sur les migrations déjà appliquées.
+- Le tag 0.2.0-dev.1 est conservé : cette correction reçoit une nouvelle préversion, sans déplacement de tag.
+
+## 0.2.0-dev.1 — premier point de reprise
 
 - Premier import réel de voirie OSM : 522 segments et 507 nœuds du centre d’Annecy, référence du 5 novembre 2026.
 - Éditeur de profils et scénarios privés, comparaison et restauration ; recherche dans les tronçons importés.

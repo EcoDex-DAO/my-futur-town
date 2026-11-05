@@ -2,7 +2,7 @@
 
 ## Identifier ce qui tourne
 
-La version applicative suit SemVer dans `frontend/package.json` et le lockfile. La préversion actuelle est `0.2.0-dev.1`. Le suffixe indique qu’il s’agit de développement, pas d’une livraison stable.
+La version applicative suit SemVer dans `frontend/package.json` et le lockfile. La préversion actuelle est `0.2.0-dev.2`. Le suffixe indique qu’il s’agit de développement, pas d’une livraison stable.
 
 Chaque build contient un `version.json` et un bouton **Informations de version** dans l’interface :
 
@@ -19,7 +19,7 @@ Le fichier de version est servi sans cache durable sur Vercel. La date du build 
 ## Références Git
 
 - `v0.1.0` désigne le socle cartographique de `main` au commit `92ca40c…`.
-- `v0.2.0-dev.1` désigne un point de reprise de développement, pas la production.
+- `v0.2.0-dev.1` et `v0.2.0-dev.2` sont des points de reprise de développement, pas la production. Utiliser l’outil de rollback à partir de dev.2, qui vérifie également les fichiers protégés de la base choisie.
 - Un tag publié ne doit jamais être déplacé ou écrasé : toute correction reçoit un nouveau numéro/commit.
 - Garder les travaux sur leurs branches/PR et utiliser les prévisualisations Vercel. Une fusion dans `main` peut déclencher un déploiement de production.
 
@@ -48,11 +48,13 @@ Sans `--prepare`, la commande décrit seulement le plan. Pour préparer réellem
 python3 scripts/prepare-rollback.py v0.1.0 --prepare
 ```
 
-La commande exige un checkout propre, crée une branche `rollback/…` depuis `origin/main`, puis restaure uniquement :
+La commande exige un checkout propre, crée une branche `rollback/…` depuis `HEAD` par défaut, puis restaure uniquement :
 
 - `frontend/` ;
 - `backend/` ;
 - `docker-compose.yml`.
+
+Une base différente peut être choisie avec `--base`, mais elle est refusée si des migrations ou archives actuellement suivies y sont absentes ou modifiées. C’est important tant que main ne contient pas encore toutes les migrations appliquées.
 
 Elle conserve `supabase/migrations/`, les archives d’import et les données de la base, ainsi que les fichiers d’environnement ignorés. Elle crée un relevé de rollback dans `docs/rollbacks/`. Elle ne fait ni reset, ni force-push, ni commit automatique, ni déploiement.
 
@@ -66,4 +68,4 @@ Les versions de référence OSM sont des instantanés immuables. Un scénario co
 
 ## Tests de sécurité du rollback
 
-`python3 -m unittest discover -s scripts/tests -v` utilise uniquement des dépôts Git jetables : inspection sans écriture, restauration de code en conservant une migration plus récente, refus d’un checkout comportant des changements. Il ne déclenche aucun retour arrière du projet réel.
+`python3 -m unittest discover -s scripts/tests -v` utilise uniquement des dépôts Git jetables : inspection sans écriture, restauration de code en conservant une migration plus récente, refus d’un checkout comportant des changements et refus d’une base plus ancienne que les migrations actuellement suivies. Il ne déclenche aucun retour arrière du projet réel.

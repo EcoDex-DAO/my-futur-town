@@ -36,6 +36,12 @@ class RollbackTests(unittest.TestCase):
   self.assertEqual(self.git('rev-parse','HEAD'),before)
   self.assertTrue(self.git('branch','--show-current').startswith('rollback/'))
   self.assertNotIn('supabase/',self.git('diff','--cached','--name-only'))
+ def test_refuses_a_base_older_than_current_migrations(self):
+  result=self.run_script('--base','v0.1.0','--prepare')
+  self.assertNotEqual(result.returncode,0)
+  self.assertIn('current migrations or reference archives',result.stderr)
+  self.assertTrue((self.repo/'supabase/migrations/002.sql').exists())
+  self.assertEqual(self.git('branch','--show-current'),'main')
  def test_refuses_dirty_checkout(self):
   (self.repo/'frontend/app.txt').write_text('user changes')
   result=self.run_script('--prepare')

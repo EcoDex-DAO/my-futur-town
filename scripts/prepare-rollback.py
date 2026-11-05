@@ -16,7 +16,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('version', help='Existing release tag, e.g. v0.1.0')
     parser.add_argument('--repo', type=Path, default=Path.cwd())
-    parser.add_argument('--base', default='origin/main', help='Base containing the current migrations')
+    parser.add_argument('--base', default='HEAD', help='Base retaining the current migrations and reference archives (default: HEAD)')
     parser.add_argument('--prepare', action='store_true', help='Actually create the branch and stage application files; otherwise inspect only')
     args = parser.parse_args()
     if not re.fullmatch(r'v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?', args.version):
@@ -24,6 +24,14 @@ def main():
     repo = Path(git(args.repo, 'rev-parse', '--show-toplevel'))
     target = git(repo, 'rev-parse', '--verify', f'refs/tags/{args.version}^{{commit}}')
     base = git(repo, 'rev-parse', '--verify', args.base+'^{commit}')
+    # A deployed DB may already contain migrations that main does not yet track.
+    # Never base a rollback on a tree that omits or rewrites current protected files.
+    def protected_tree(ref):
+        output=git(repo,'ls-tree','-r',ref,'--','supabase/migrations','data/reference')
+        return {line.split('\t',1)[1]:line.split('\t',1)[0] for line in output.splitlines() if '\t' in line}
+    current=protected_tree('HEAD'); proposed=protected_tree(base)
+    if any(proposed.get(path)!=object_id for path,object_id in current.items()):
+        raise SystemExit('Refusing rollback base: current migrations or reference archives would be lost/changed. Use HEAD or a base retaining them.')
     for scope in SCOPES:
         git(repo, 'cat-file', '-e', f'{target}:{scope}')
     print(f'Target {args.version}: {target}\nBase: {base}\nApplication paths: '+', '.join(SCOPES))

@@ -24,7 +24,7 @@ La migration `202611050003_road_scenarios.sql` a été appliquée au projet exis
 - Build TypeScript/Vite et audit npm sans vulnérabilité signalée au contrôle.
 - Test Chromium de non-régression : carte réelle Annecy, sélection de bâtiment, contrôles 2D/2.5D et affichage mobile, sans connexion Supabase configurée.
 
-## Suite de développement — 0.2.0-dev.1
+## Suite de développement — 0.2.0-dev.2
 
 Les accès réseau sont maintenant actifs. Le secteur réel a été téléchargé depuis Overpass puis importé : **522 tronçons, 507 nœuds**, version `20261105T222406Z-b0b66162`, couche `68ad6005-85bb-511b-8129-70929dba0f1c`. L’archive OSM et son manifeste sont conservés dans `data/reference/osm/` sous ODbL. La régénération du SQL donne un fichier identique, et un second import conserve exactement 522 tronçons.
 
