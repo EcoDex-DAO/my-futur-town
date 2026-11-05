@@ -30,3 +30,8 @@ docker cp "$migrations_list" "$container":/tmp/apply-migrations.sql
 docker cp scripts/test-database.sql "$container":/tmp/test.sql
 docker cp scripts/supabase-preflight.sql "$container":/tmp/preflight.sql
 docker exec "$container" psql -U postgres -d mft_test -v ON_ERROR_STOP=1 -v "postgis_schema=$postgis_schema" -f /tmp/test.sql
+
+docker cp scripts/test-road-scenarios.sql "$container":/tmp/test-roads.sql
+docker cp scripts/test-road-reload.sql "$container":/tmp/test-road-reload.sql
+docker exec "$container" psql -U postgres -d mft_test -v ON_ERROR_STOP=1 -c "SET search_path TO public, extensions" -f /tmp/test-roads.sql
+docker exec "$container" psql -U postgres -d mft_test -v ON_ERROR_STOP=1 -c "SET search_path TO public, extensions" -f /tmp/test-road-reload.sql

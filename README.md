@@ -1,6 +1,6 @@
-# My Futur Town
+# Your Futur Town
 
-Prototype open source de jumeau numérique urbain d’Annecy. React, TypeScript, Vite et MapLibre GL JS côté navigateur ; API FastAPI facultative ; schéma Supabase/PostGIS préparé pour les futurs imports et scénarios.
+Plateforme open source d’aménagement territorial, ville pilote Annecy. Le [CDC v1](docs/cahier-des-charges-v1.md) est la référence ; voir la [reprise et la feuille de route](docs/roadmap-cdc.md). React, TypeScript, Vite et MapLibre GL JS côté navigateur ; API FastAPI facultative ; schéma Supabase/PostGIS préparé pour les futurs imports et scénarios.
 
 ## Démarrage rapide
 
@@ -55,9 +55,10 @@ Dans un cloud à proxy TLS, fournir la CA de confiance au build via un secret Bu
 
 - `VITE_MAP_STYLE_URL` : style MapLibre compatible OpenMapTiles, par défaut OpenFreeMap Liberty.
 - `VITE_API_URL` : URL publique d’une API réellement hébergée, optionnelle. Vide = carte autonome. Ne pas définir `localhost` sur Vercel.
+- `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` : configuration publique pour les références routières et les scénarios ; voir le guide voirie.
 - `CORS_ORIGINS` : liste séparée par des virgules des origines frontend autorisées par l’API.
 
-**Toutes les variables `VITE_*` sont publiques.** Ne jamais y placer `service_role`, mot de passe, URL PostgreSQL privée ou autre secret. Aucun SDK Supabase n’est embarqué dans cette phase.
+**Toutes les variables `VITE_*` sont publiques.** Ne jamais y placer `service_role`, mot de passe, URL PostgreSQL privée ou autre secret. Le client Supabase utilise uniquement la clé publique et les droits RLS.
 
 ## Vercel
 
@@ -78,11 +79,12 @@ Importer `EcoDex-DAO/my-futur-town` puis choisir :
 - [Modèle de données et politiques RLS](docs/architecture.md)
 - [Exploitation et validation](docs/operations.md)
 - [Préparation du projet Supabase](docs/supabase-setup.md)
+- [Premier éditeur de voirie et scénarios](docs/road-editor.md)
 
-Projet Supabase cible : `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`, PostGIS déjà activé. La migration versionnée est préparée, **pas appliquée à ce projet**. Les migrations doivent être examinées, puis appliquées au projet existant via un accès autorisé après le précontrôle ; voir le guide Supabase. Elle ne contient aucun DROP/TRUNCATE et crée uniquement de nouvelles tables ; une collision avec des tables existantes doit être examinée, pas contournée en les supprimant.
+Projet Supabase cible : `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`, PostGIS déjà activé. Les migrations `202611050001`, `202611050002` et `202611050003` sont appliquées et enregistrées sur ce projet ; voir les relevés dans `docs/supabase-applied.md` et `docs/cdc-progress.md`. Ne pas les rejouer. Elles ne suppriment aucune donnée de référence ; une collision avec des tables existantes doit être examinée, pas contournée en les supprimant.
 
 ## Contribuer
 
 Créer une branche depuis `main`, préserver les licences et l’attribution, ne pas committer de secrets. Vérifier `npm ci && npm test && npm run build` dans `frontend`, les tests Python et Compose pour les changements concernés, puis ouvrir une Pull Request décrivant les changements, contrôles et limites. Le code est sous licence Apache-2.0 ([LICENSE](LICENSE)) ; les données et styles conservent leurs propres licences.
 
-Le périmètre actuel couvre la consultation des données de référence. L’éditeur de scénarios est un emplacement réservé. Les simulations de trafic, agents, import IFC et intégrations BIM ne sont pas implémentés.
+Le socle cartographique est fonctionnel. Le premier incrément CDC ajoute un éditeur de profils routiers et de scénarios privés ; il nécessite une configuration Supabase publique, la migration voirie et un import OSM réel. Le fond de carte seul ne constitue pas un réseau éditable. Les simulations de trafic, agents, import IFC et intégrations BIM ne sont pas implémentés.

@@ -21,6 +21,8 @@ services:
     ports:
       - "127.0.0.1:5173:5173"
     environment:
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
       VITE_MAP_STYLE_URL: ${VITE_MAP_STYLE_URL:-https://tiles.openfreemap.org/styles/liberty}
     healthcheck:
