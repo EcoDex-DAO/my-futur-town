@@ -7,7 +7,7 @@ trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
 # Trust authentication is limited to this isolated throwaway container.
 docker run -d --name "$container" -e POSTGRES_HOST_AUTH_METHOD=trust postgis/postgis:16-3.5 >/dev/null
 attempt=0
-until docker exec "$container" pg_isready -U postgres >/dev/null 2>&1; do
+until docker exec "$container" pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; do
   attempt=$((attempt + 1))
   if [ "$attempt" -ge 30 ]; then echo 'PostGIS startup timed out' >&2; exit 1; fi
   sleep 1

@@ -63,12 +63,12 @@ Dans un cloud à proxy TLS, fournir la CA de confiance au build via un secret Bu
 
 Importer `EcoDex-DAO/my-futur-town` puis choisir :
 
-| Paramètre | Valeur |
-| --- | --- |
-| Framework | Vite |
-| Root Directory | `frontend` |
-| Build Command | `npm run build` |
-| Output Directory | `dist` |
+| Paramètre        | Valeur          |
+| ---------------- | --------------- |
+| Framework        | Vite            |
+| Root Directory   | `frontend`      |
+| Build Command    | `npm run build` |
+| Output Directory | `dist`          |
 
 `frontend/vercel.json` fixe ces réglages sauf le Root Directory, à renseigner dans Vercel. Laisser `VITE_API_URL` vide tant que FastAPI n’est pas hébergé. Le déploiement Vercel héberge uniquement le frontend. Aucune migration automatique.
 

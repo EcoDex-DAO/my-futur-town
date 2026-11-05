@@ -6,13 +6,13 @@ Le frontend charge les tuiles directement auprès du fournisseur. FastAPI expose
 
 `supabase/migrations/202611050001_reference_and_scenarios.sql` crée :
 
-| Table | Rôle |
-| --- | --- |
-| data_sources | Provenance, URL, licence, attribution, date et métadonnées |
-| geo_layers | Catalogue de couches rattachées à une source |
+| Table             | Rôle                                                                                      |
+| ----------------- | ----------------------------------------------------------------------------------------- |
+| data_sources      | Provenance, URL, licence, attribution, date et métadonnées                                |
+| geo_layers        | Catalogue de couches rattachées à une source                                              |
 | reference_objects | Bâtiments, infrastructures, arrêts et lignes ; UUID stable + clé source unique par couche |
-| scenarios | Scénarios appartenant à un utilisateur Supabase Auth |
-| scenario_changes | Création, mise à jour ou suppression virtuelle d’objets |
+| scenarios         | Scénarios appartenant à un utilisateur Supabase Auth                                      |
+| scenario_changes  | Création, mise à jour ou suppression virtuelle d’objets                                   |
 
 Les géométries sont en EPSG:4326, validées et indexées avec GiST. La typologie commune évite de multiplier prématurément les tables ; des relations spécialisées (lignes/arrêts, versions BIM, etc.) pourront être ajoutées avec les premiers imports. Les métadonnées libres restent du JSONB. La politique d’import doit préserver les UUID lors des upserts par `(layer_id, source_key)` et gérer explicitement les changements de référence.
 
