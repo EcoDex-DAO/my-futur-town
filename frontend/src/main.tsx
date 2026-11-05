@@ -1,10 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import * as maplibregl from "maplibre-gl";
+import mapWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
+
 import type { MapGeoJSONFeature } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./style.css";
 import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
+
+// Let Vite emit the module worker and its dependencies in dev and production.
+maplibregl.setWorkerUrl(mapWorkerUrl);
 
 function App() {
   const container = useRef<HTMLDivElement>(null);

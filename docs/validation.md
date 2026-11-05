@@ -13,10 +13,20 @@
 - `sh scripts/test-database.sh` exécuté avec succès. Le script attend le serveur TCP définitif : le premier contrôle par socket pouvait démarrer pendant le serveur temporaire d’initialisation de l’image PostgreSQL et être interrompu lors de son arrêt.
 - Aucun changement appliqué au projet Supabase distant.
 
-## Points non validés et blocages
+## Validation après publication des autorisations réseau
 
-La politique réseau cloud refuse les requêtes vers `tiles.openfreemap.org` (HTTP CONNECT 403). L’application affiche son état d’erreur, mais **le rendu des données réelles, les interactions avec des objets géographiques et les extrusions n’ont pas pu être validés visuellement**. Ces vérifications restent nécessaires avant de qualifier la carte de validée.
+Les autorisations pour `tiles.openfreemap.org` et `api.github.com` sont désormais actives. Le style, les sprites, les fontes et les tuiles OpenFreeMap sont accessibles.
 
-L’API GitHub refuse la création de PR sur `api.github.com/graphql`. La branche dédiée est poussée via le proxy Git HTTPS. Les domaines `tiles.openfreemap.org` et `api.github.com` sont enregistrés dans le brouillon réseau cloud, sans application ou publication revendiquée. Une fois l’accès appliqué, reprendre le contrôle de la carte et la création de la Pull Request vers `main`.
+Le premier contrôle réel a révélé un problème de résolution du worker ESM MapLibre dans Vite. Le frontend déclare maintenant son URL via l’import Vite `?worker&url`, ce qui émet le worker et ses dépendances dans le build.
 
-Le build Vite signale un bundle MapLibre volumineux (~365 ko gzip pour le JavaScript total). Aucune simulation, édition de scénario, connexion Supabase ou import BIM n’est implémenté. Aucune publication de l’environnement ou mise en production Vercel n’a été effectuée. Les workflows CI sont ajoutés, mais leur résultat distant n’est pas accessible depuis cette session.
+Vérifications Chromium réussies avec le proxy et la vérification TLS actifs :
+
+- Carte réelle d’Annecy visible, lac, routes et bâtiments extrudés.
+- 23 ressources OpenFreeMap reçues, dont 15 tuiles vectorielles ; aucune requête échouée et aucune erreur JavaScript.
+- Même contrôle réussi avec `vite preview` sur le build de production destiné à Vercel.
+- Sélection d’un bâtiment : panneau affichant la couche `building`, l’identifiant de tuile et `render_height=5`, `render_min_height=0`.
+- Boutons 2D/2.5D et recentrage actionnés ; capture mobile effectuée.
+
+## Limites restantes
+
+Le build Vite signale un bundle principal volumineux (~365 ko gzip), auquel s’ajoute le worker cartographique. Aucune simulation, édition de scénario, connexion Supabase ou import BIM n’est implémenté. Aucune migration Supabase distante ni mise en production Vercel n’a été effectuée. Les résultats CI distants restent à consulter sur la Pull Request.
