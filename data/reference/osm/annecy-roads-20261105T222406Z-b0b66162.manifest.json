@@ -1,0 +1,24 @@
+{
+  "city": "Annecy",
+  "version": "20261105T222406Z-b0b66162",
+  "osm_timestamp": "2026-11-05T22:24:06Z",
+  "bbox": [
+    45.897,
+    6.124,
+    45.903,
+    6.132
+  ],
+  "sha256": "b0b66162d5d407ebc4ca8e55109256eee562fb941fd50ba9491efec49a3ca100",
+  "segments": 522,
+  "crs": "EPSG:4326",
+  "length_crs": "EPSG:2154",
+  "immutable": true,
+  "layer_id": "68ad6005-85bb-511b-8129-70929dba0f1c",
+  "archive": "annecy-roads-20261105T222406Z-b0b66162.osm.json.gz",
+  "archive_sha256": "cf26f2042d58114d5ab3b2a7b0e5c4cdb3f23799cf225c5547cdb8b918c4a5f3",
+  "raw_sha256": "d00cfbe1fdce3dd269796a1133cf0e9e1e25b8437277b46bef25b322800ace4b",
+  "provider": "OpenStreetMap via Overpass",
+  "license": "ODbL-1.0",
+  "attribution": "© OpenStreetMap contributors",
+  "license_url": "https://www.openstreetmap.org/copyright"
+}

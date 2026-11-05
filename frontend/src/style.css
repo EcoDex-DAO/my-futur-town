@@ -581,3 +581,54 @@ section h2 span {
     width: calc(50% - 8px);
   }
 }
+.version-badge {
+  border: 0;
+  background: transparent;
+  padding: 6px 0;
+  color: #476858;
+  font: 10px monospace;
+  text-align: left;
+}
+.version-dialog {
+  max-width: 560px;
+  width: calc(100% - 32px);
+  border: 1px solid #c8d5cb;
+  border-radius: 10px;
+  padding: 25px;
+  color: #173b3b;
+}
+.version-dialog::backdrop {
+  background: #102c3270;
+}
+.version-dialog pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.7;
+  background: #eff3ed;
+  padding: 12px;
+}
+.version-dialog p {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.version-dialog button {
+  padding: 9px;
+  margin: 12px 10px 0 0;
+  border: 1px solid #a6beb1;
+  background: white;
+  color: #31594a;
+  border-radius: 5px;
+}
+@media (max-width: 760px) {
+  .sidebar-footer:has(.version-badge) {
+    display: flex;
+    padding-top: 8px;
+  }
+  .sidebar-footer small {
+    display: none;
+  }
+  .version-badge {
+    margin-left: auto;
+  }
+}

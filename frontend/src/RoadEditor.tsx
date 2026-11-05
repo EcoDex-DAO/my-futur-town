@@ -14,6 +14,8 @@ import {
   EMPTY_ROADS,
 } from "./roads";
 interface Props {
+  roads: Roads;
+  onSelectRoad: (id: string) => void;
   selected: Road | null;
   onRoads: (r: Roads) => void;
   onChanges: (c: RoadChange[]) => void;
@@ -21,6 +23,8 @@ interface Props {
   onFocus: () => void;
 }
 export function RoadEditor({
+  roads,
+  onSelectRoad,
   selected,
   onRoads,
   onChanges,
@@ -28,6 +32,7 @@ export function RoadEditor({
   onFocus,
 }: Props) {
   const [session, setSession] = useState<Session | null>(null);
+  const [roadSearch, setRoadSearch] = useState("");
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState("");
   const [layers, setLayers] = useState<RoadLayer[]>([]),
@@ -288,6 +293,7 @@ export function RoadEditor({
           <label className="field">
             Instantané de référence
             <select
+              aria-label="Instantané de référence"
               value={layer?.id ?? ""}
               disabled={busy || !!scenario}
               onChange={(e) =>
@@ -311,6 +317,41 @@ export function RoadEditor({
             <button className="secondary" onClick={onFocus}>
               Voir le secteur pilote
             </button>
+          )}
+          {roads.features.length > 0 && (
+            <>
+              <label className="field">
+                Rechercher une rue importée
+                <input
+                  type="search"
+                  value={roadSearch}
+                  onChange={(e) => setRoadSearch(e.target.value)}
+                />
+              </label>
+              <label className="field">
+                Sélectionner un tronçon
+                <select
+                  aria-label="Sélectionner un tronçon"
+                  value={selected?.properties.id ?? ""}
+                  onChange={(e) => onSelectRoad(e.target.value)}
+                >
+                  <option value="">Choisir une route réelle</option>
+                  {roads.features
+                    .filter((f) =>
+                      (f.properties.name ?? "")
+                        .toLocaleLowerCase("fr")
+                        .includes(roadSearch.toLocaleLowerCase("fr")),
+                    )
+                    .map((f) => (
+                      <option key={f.properties.id} value={f.properties.id}>
+                        {f.properties.name || "Sans nom"} ·{" "}
+                        {Math.round(f.properties.length_m)} m ·{" "}
+                        {f.properties.source_key}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </>
           )}
           {!session ? (
             <form
@@ -371,6 +412,7 @@ export function RoadEditor({
               <label className="field">
                 Scénario enregistré
                 <select
+                  aria-label="Scénario enregistré"
                   value={scenario?.id ?? ""}
                   disabled={busy}
                   onChange={(e) => {
@@ -477,6 +519,7 @@ export function RoadEditor({
                     <label className="field">
                       Sens de circulation
                       <select
+                        aria-label="Sens de circulation"
                         value={profile.direction}
                         disabled={compare}
                         onChange={(e) =>

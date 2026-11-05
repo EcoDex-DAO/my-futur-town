@@ -63,3 +63,17 @@ Les nœuds communs conservent la connectivité OSM et les tags de pont/niveau so
 Les tests SQL vérifient la transformation double sens → sens unique avec piste cyclable, la concordance du graphe, la protection des références, l’isolation utilisateur, la sauvegarde entre deux connexions et la restauration. Leurs fixtures techniques restent dans les bases jetables ; elles ne sont pas les données d’Annecy.
 
 Le test complet demandé par le CDC exige ensuite : import de vraies routes, connexion sur le frontend, sélection d’un tronçon double sens, modification, sauvegarde, rechargement du navigateur, rechargement du scénario puis restauration. Ce test de bout en bout ne peut pas être remplacé par les seuls tests unitaires ou SQL. Le statut réel de cette étape est consigné dans le compte rendu de PR.
+
+## État du secteur réel et test connecté
+
+Le premier instantané est importé : version `20261105T222406Z-b0b66162`, 522 tronçons et 507 nœuds. Sa réponse source compressée et son manifeste sont conservés dans `data/reference/osm/`. `--input` accepte également ces archives `.gz` pour reproduire exactement le même SQL sans nouvel appel Overpass.
+
+Le parcours avec authentification réelle, sens unique cyclable, sauvegarde, rechargement et restauration a été vérifié dans le navigateur cloud sur le projet existant. Il utilise un vrai tronçon de la rue Sommeiller. Le script optionnel suivant recommence ce contrôle avec une identité technique temporaire :
+
+```sh
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/chemin/vers/chromium python3 scripts/test-connected-roads.py
+```
+
+Il requiert le jeton de gestion injecté dans `SUPABASE_ACCESS_TOKEN`. Il récupère une clé publique pour le build et une clé serveur uniquement en mémoire pour créer/supprimer le compte de test. La clé serveur ne passe pas à Vite. Les traces/captures d’authentification sont désactivées et les sorties sont expurgées. Les scénarios sont supprimés uniquement pour l’identifiant fraîchement créé ; l’empreinte du référentiel doit rester identique. Ce test modifie temporairement le projet existant : ce n’est pas un contrôle en lecture seule et il n’est jamais déclenché automatiquement par la CI.
+
+La recherche de rue dans l’éditeur est limitée aux tronçons déjà importés ; elle ne remplace pas la recherche d’adresse prévue par le CDC.

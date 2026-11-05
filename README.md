@@ -80,6 +80,8 @@ Importer `EcoDex-DAO/my-futur-town` puis choisir :
 - [Exploitation et validation](docs/operations.md)
 - [Préparation du projet Supabase](docs/supabase-setup.md)
 - [Premier éditeur de voirie et scénarios](docs/road-editor.md)
+- [Versions et retours arrière](docs/versions-and-rollback.md)
+- [Historique des versions](CHANGELOG.md)
 
 Projet Supabase cible : `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`, PostGIS déjà activé. Les migrations `202611050001`, `202611050002` et `202611050003` sont appliquées et enregistrées sur ce projet ; voir les relevés dans `docs/supabase-applied.md` et `docs/cdc-progress.md`. Ne pas les rejouer. Elles ne suppriment aucune donnée de référence ; une collision avec des tables existantes doit être examinée, pas contournée en les supprimant.
 
