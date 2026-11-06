@@ -64,7 +64,7 @@ Importer `EcoDex-DAO/my-futur-town`, sélectionner le framework Next.js et la ra
 - [Modèle de données et politiques RLS](docs/architecture.md)
 - [Exploitation et validation](docs/operations.md)
 
-Projet Supabase cible : `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`, PostGIS déjà activé. La migration versionnée est préparée, **pas appliquée à ce projet**. La faire examiner et la valider sur une base de développement avant application via Supabase CLI ou SQL Editor avec un compte autorisé. Elle ne contient aucun DROP/TRUNCATE et crée uniquement de nouvelles tables ; une collision avec des tables existantes doit être examinée, pas contournée en les supprimant.
+Projet Supabase cible : `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`. Les PR #2 et #3 indiquent que des migrations ont déjà été appliquées à ce projet ; leur état n’a pas été vérifié dans cette branche. Vérifier l’historique distant avant toute intervention, puis faire examiner et valider toute nouvelle migration sur une base de développement avant application avec un compte autorisé. Ne pas contourner les collisions en supprimant des tables existantes.
 
 ## Contribuer
 
