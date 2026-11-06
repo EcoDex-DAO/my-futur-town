@@ -1,0 +1,11 @@
+node_modules
+.git
+.agents
+.codex
+.aws
+.next
+dist
+.env*
+!.env.example
+.vercel
+*.tsbuildinfo

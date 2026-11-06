@@ -5,29 +5,28 @@ permissions:
 jobs:
   frontend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
-  backend:
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm run build
+  scripts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r backend/requirements-dev.txt
-      - run: python -m unittest discover -s tests -v
-        working-directory: backend
+      - run: python -m unittest discover -s scripts/importers -v
+      - run: python -m unittest discover -s scripts/tests -v
   compose:
     runs-on: ubuntu-latest
     steps:
@@ -38,6 +37,9 @@ jobs:
         run: docker compose down
   database:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        postgis-schema: [public, extensions]
     steps:
       - uses: actions/checkout@v4
-      - run: sh scripts/test-database.sh
+      - run: sh scripts/test-database.sh ${{ matrix.postgis-schema }}
