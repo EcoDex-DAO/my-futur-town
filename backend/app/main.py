@@ -3,7 +3,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="My Futur Town", version="0.1.0")
+app = FastAPI(title="Your Futur Town", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[s.strip() for s in os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",") if s.strip()],

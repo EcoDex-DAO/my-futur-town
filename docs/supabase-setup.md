@@ -60,8 +60,10 @@ Ces contrôles émulent le contrat minimal Supabase Auth, pas sa plateforme comp
 
 Choisir un petit périmètre d’Annecy et une source dont la licence et les identifiants sont connus. Conserver la provenance et la date d’import, et faire les upserts par `(layer_id, source_key)` en conservant les UUID. Les identifiants de tuiles OpenFreeMap ne sont pas des clés métier stables.
 
-Le prochain résultat attendu est un bâtiment réel importé, affiché et sélectionnable avec sa fiche issue de la base. L’authentification de l’éditeur et les écritures de scénarios viendront après cette lecture des références. Aucune clé `service_role` ou de gestion ne doit entrer dans le frontend.
+Le CDC v1 a remplacé cette priorité initiale : le prochain résultat attendu est une route réelle modifiable dans un scénario, puis restaurable. Voir [le guide voirie](road-editor.md) et [la reprise CDC](roadmap-cdc.md). Aucune clé `service_role` ou de gestion ne doit entrer dans le frontend.
 
 ## État appliqué
 
 Les deux migrations ont été appliquées au projet existant le 5 novembre 2026 et leurs versions sont enregistrées. Voir [le relevé d’intervention](supabase-applied.md) avant toute nouvelle application ; ne pas les rejouer.
+
+La migration voirie `202611050003` est également appliquée depuis la reprise CDC. Voir [son état vérifié](cdc-progress.md).

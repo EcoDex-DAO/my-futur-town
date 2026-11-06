@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
+  testMatch: "**/*.spec.ts",
   timeout: 60_000,
   workers: 1,
   retries: 0,
@@ -26,6 +27,10 @@ export default defineConfig({
     command: "npm run build && npm run preview -- --port 4173 --strictPort",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: false,
-    env: { VITE_API_URL: "" },
+    env: {
+      VITE_API_URL: "",
+      VITE_SUPABASE_URL: "",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "",
+    },
   },
 });

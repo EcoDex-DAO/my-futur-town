@@ -486,3 +486,149 @@ section h2 span {
     display: none;
   }
 }
+.road-editor {
+  margin-top: 24px;
+  padding-top: 20px;
+}
+.road-editor .field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 12px 0;
+  font-size: 11px;
+}
+.road-editor input:not([type="checkbox"]),
+.road-editor select {
+  width: 100%;
+  padding: 9px;
+  border: 1px solid #c8d5cb;
+  border-radius: 5px;
+  background: white;
+  color: #173b3b;
+  font: inherit;
+}
+.road-editor button,
+.secondary {
+  border: 1px solid #a8bdb0;
+  border-radius: 5px;
+  padding: 9px 12px;
+  margin: 5px 5px 5px 0;
+  background: #31594a;
+  color: #fff;
+  font-size: 11px;
+}
+.road-editor button:disabled {
+  opacity: 0.5;
+}
+.road-editor .secondary,
+.secondary {
+  background: #fff;
+  color: #31594a;
+}
+.road-profile {
+  border-top: 1px solid #cad8ce;
+  margin-top: 15px;
+}
+.road-profile h3 {
+  font-size: 14px;
+}
+.hypothesis {
+  font-size: 10px;
+  line-height: 1.6;
+  background: #f5edd4;
+  padding: 10px;
+  color: #79602d;
+}
+.form-error {
+  color: #a13a2c;
+  font-size: 11px;
+}
+.editor-status {
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.info .caption {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .sidebar .road-editor {
+    display: block;
+    width: 100%;
+    max-height: 38dvh;
+    overflow: auto;
+    margin-top: 12px;
+    border-top: 1px solid #ccd7cd;
+    padding-top: 12px;
+  }
+  .sidebar .road-editor h2 {
+    display: block;
+  }
+  .sidebar .road-editor .caption {
+    display: block;
+  }
+  .map-area {
+    height: 65dvh;
+    min-height: 400px;
+  }
+  .road-editor .field {
+    display: inline-flex;
+    width: calc(50% - 8px);
+    vertical-align: top;
+    margin: 6px 8px 6px 0;
+  }
+  .road-editor .road-profile .field {
+    width: calc(50% - 8px);
+  }
+}
+.version-badge {
+  border: 0;
+  background: transparent;
+  padding: 6px 0;
+  color: #476858;
+  font: 10px monospace;
+  text-align: left;
+}
+.version-dialog {
+  max-width: 560px;
+  width: calc(100% - 32px);
+  border: 1px solid #c8d5cb;
+  border-radius: 10px;
+  padding: 25px;
+  color: #173b3b;
+}
+.version-dialog::backdrop {
+  background: #102c3270;
+}
+.version-dialog pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.7;
+  background: #eff3ed;
+  padding: 12px;
+}
+.version-dialog p {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.version-dialog button {
+  padding: 9px;
+  margin: 12px 10px 0 0;
+  border: 1px solid #a6beb1;
+  background: white;
+  color: #31594a;
+  border-radius: 5px;
+}
+@media (max-width: 760px) {
+  .sidebar-footer:has(.version-badge) {
+    display: flex;
+    padding-top: 8px;
+  }
+  .sidebar-footer small {
+    display: none;
+  }
+  .version-badge {
+    margin-left: auto;
+  }
+}
