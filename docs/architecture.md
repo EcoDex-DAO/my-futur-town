@@ -1,6 +1,6 @@
 # Architecture évolutive
 
-Le frontend charge les tuiles directement auprès du fournisseur. FastAPI expose `/health` et `/api/layers`, sans connexion PostgreSQL ni écriture. Son absence ne bloque pas la carte. Le catalogue est statique et décrit les sources ; il ne prétend pas interroger la base. Les services de simulation et connecteurs BIM pourront être ajoutés derrière l’API, sans couplage avec le rendu de carte.
+Le navigateur charge les tuiles directement auprès du fournisseur. Les routes serveur Next.js exposent `/health` et `/api/layers`, sans connexion PostgreSQL ni écriture. Leur indisponibilité ne bloque pas la carte. Le catalogue est statique et décrit les sources ; il ne prétend pas interroger la base. Les services de simulation et connecteurs BIM pourront être ajoutés derrière l’API, sans couplage avec le rendu de carte.
 
 ## PostGIS
 
@@ -18,6 +18,6 @@ Les géométries sont en EPSG:4326, validées et indexées avec GiST. La typolog
 
 Les objets de référence sont accessibles en lecture à `anon` et `authenticated`, sans droit d’écriture. Les futurs imports seront exécutés uniquement par un processus serveur autorisé. Les scénarios et changements sont privés à leur propriétaire via RLS, y compris les vérifications d’écriture. Aucun accès anonyme aux scénarios. La suppression d’un scénario supprime uniquement ses modifications virtuelles, jamais les objets réels.
 
-La migration cible Supabase (`auth.users`, `auth.uid()`, rôles `anon` et `authenticated`). Elle utilise le schéma PostGIS existant s’il est dans `public` ou `extensions`. Elle est transactionnelle et destinée à être appliquée une seule fois via le suivi des migrations. Aucun accès au projet distant n’est requis pour le prototype. L’authentification, l’édition, les imports et la connexion à Supabase sont de futures étapes, pas des fonctionnalités annoncées comme disponibles.
+Les migrations ciblent Supabase (`auth.users`, `auth.uid()`, rôles `anon` et `authenticated`) et utilisent PostGIS dans `public` ou `extensions`. L’éditeur de voirie et les scénarios privés utilisent Supabase lorsqu’il est configuré ; la carte de fond reste autonome. Les imports et migrations distants exigent une intervention autorisée.
 
-La migration `202611050002_restrict_client_privileges.sql` complète la RLS par une restriction explicite des privilèges des rôles clients. Elle retire notamment `TRUNCATE`, `TRIGGER` et `REFERENCES`, que la RLS ne régit pas, et préserve les permissions serveur attribuées directement. Voir [la préparation Supabase](supabase-setup.md) pour le précontrôle en lecture seule et l’application sur le projet retenu.
+La migration `202611050002_restrict_client_privileges.sql` complète la RLS en retirant notamment `TRUNCATE`, `TRIGGER` et `REFERENCES` aux rôles clients. La migration `202611050003_road_scenarios.sql` ajoute les tables et fonctions de voirie. Voir [la préparation Supabase](supabase-setup.md) et [le guide voirie](road-editor.md).

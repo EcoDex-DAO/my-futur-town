@@ -1,5 +1,7 @@
 # Reprise CDC — état vérifié au 5 novembre 2026
 
+> Rapport historique de la version Vite : les validations décrites ne constituent pas une validation du portage Next.js.
+
 ## Livré dans le dépôt
 
 - CDC fourni conservé dans `docs/cahier-des-charges-v1.md`, avec feuille de route recalée sur les phases 0/1/2.

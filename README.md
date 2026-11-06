@@ -1,92 +1,76 @@
-# Your Futur Town
+# My Futur Town
 
-Plateforme open source d’aménagement territorial, ville pilote Annecy. Le [CDC v1](docs/cahier-des-charges-v1.md) est la référence ; voir la [reprise et la feuille de route](docs/roadmap-cdc.md). React, TypeScript, Vite et MapLibre GL JS côté navigateur ; API FastAPI facultative ; schéma Supabase/PostGIS préparé pour les futurs imports et scénarios.
+Prototype open source de jumeau numérique urbain d’Annecy. Une application Next.js réunit l’interface React/TypeScript et les routes serveur ; MapLibre GL JS affiche la carte dans le navigateur. Un schéma Supabase/PostGIS est préparé pour les futurs imports et scénarios.
 
 ## Démarrage rapide
 
-Node.js >= 22.12 et npm sont requis.
+Node.js >= 22.12 et pnpm sont requis. Activez Corepack avec `corepack enable` pour utiliser la version de pnpm indiquée dans `package.json`. Le fichier `pnpm-lock.yaml` verrouille les dépendances ; conservez-le à jour lors de leur modification.
 
 ```sh
-cd frontend
-npm install
-npm run dev
+pnpm install --frozen-lockfile
+pnpm run dev
 ```
 
-Ouvrir l’adresse locale indiquée par Vite (port 5173). Aucun compte, aucune clé et aucun backend ne sont nécessaires pour la carte. Internet et WebGL sont requis. Les tuiles proviennent directement d’OpenFreeMap. Zoomer, déplacer, tourner et incliner avec les contrôles ou Ctrl + glisser. Cliquer sur un objet pour voir les propriétés de sa tuile. Le bouton de recentrage restaure la vue d’Annecy.
+Ouvrir http://localhost:5173. Aucun compte, aucune clé et aucune base ne sont nécessaires pour la carte. Internet et WebGL sont requis. Les tuiles proviennent directement d’OpenFreeMap. Zoomer, déplacer, tourner et incliner avec les contrôles ou Ctrl + glisser. Cliquer sur un objet pour voir les propriétés de sa tuile. Le bouton de recentrage restaure la vue d’Annecy. La carte reste utilisable si les routes API ne répondent pas.
 
 ```sh
-npm run build
-npm run preview
-npm test
+pnpm test
+pnpm run build
+pnpm run start
 ```
 
-`npm ci` est recommandé en CI pour respecter le lockfile. MapLibre représente l’essentiel du bundle ; Vite peut signaler une taille de chunk élevée.
+Le serveur de production écoute également sur le port 5173. `GET /health` et `GET /api/layers` sont servis sur la même origine que l’application.
+
+## Organisation du projet
+
+- `src/app/` : pages, layout et routes serveur Next.js.
+- `src/` : carte MapLibre, interface React, styles et tests Vitest.
+- `supabase/migrations/` : migrations SQL versionnées, sans application automatique.
+- `scripts/` : contrôle HTTP et validation PostGIS jetable ; `docs/` : architecture, sources et exploitation.
 
 ## Docker Compose
 
 Docker Engine et Docker Compose v2 sont requis. À la racine :
 
 ```sh
-docker compose up --build
-# Autre terminal :
+docker compose up --build -d --wait
 python3 scripts/smoke.py
-# Arrêt :
 docker compose down
 ```
 
-Le frontend écoute sur le port 5173 et FastAPI sur le port 8000 (interfaces loopback uniquement). Swagger est disponible sur `/docs`. Les services ont leurs propres healthchecks et le frontend ne dépend pas de la disponibilité de l’API. La base distante n’est pas démarrée ou modifiée par Compose. Aucun mot de passe de base n’est requis.
+L’application de production écoute sur le port 5173 (interface loopback uniquement). Compose ne démarre ni ne modifie de base distante. Aucun mot de passe de base n’est requis.
 
-Pour le backend hors Docker (Python 3.12) :
+Pour valider séparément les migrations et les politiques d’accès dans une base PostGIS jetable, exécuter `sh scripts/test-database.sh` depuis la racine. Ce test nécessite également Docker.
 
-```sh
-cd backend
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements-dev.txt
-python -m unittest discover -s tests -v
-uvicorn app.main:app --reload
-```
-
-Dans un cloud à proxy TLS, fournir la CA de confiance au build via un secret BuildKit `proxy_ca` pour chacun des services ; voir [exploitation](docs/operations.md). Ne jamais désactiver la vérification TLS.
+Dans un cloud à proxy TLS, fournir la CA de confiance au build via le secret BuildKit `proxy_ca` ; voir [exploitation](docs/operations.md). Ne jamais désactiver la vérification TLS.
 
 ## Configuration
 
-[.env.example](.env.example) ne contient que des valeurs publiques. Pour Vite, copier les valeurs nécessaires dans `frontend/.env.local` ou les définir dans Vercel. Pour Compose, les définir dans un `.env` racine. Les fichiers `.env` sont ignorés par Git.
+[.env.example](.env.example) ne contient aucun secret. Pour le développement local, copier les valeurs nécessaires dans `.env.local` ; pour Compose, les définir dans un `.env` racine ; pour Vercel, les définir dans les paramètres du projet. Les fichiers `.env` sont ignorés par Git.
 
-- `VITE_MAP_STYLE_URL` : style MapLibre compatible OpenMapTiles, par défaut OpenFreeMap Liberty.
-- `VITE_API_URL` : URL publique d’une API réellement hébergée, optionnelle. Vide = carte autonome. Ne pas définir `localhost` sur Vercel.
-- `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` : configuration publique pour les références routières et les scénarios ; voir le guide voirie.
-- `CORS_ORIGINS` : liste séparée par des virgules des origines frontend autorisées par l’API.
+- `NEXT_PUBLIC_MAP_STYLE_URL` : style MapLibre compatible OpenMapTiles, par défaut OpenFreeMap Liberty.
+- `NEXT_PUBLIC_API_URL` : origine d’une API alternative, optionnelle. Vide = routes Next.js sur la même origine. Ne pas définir `localhost` sur Vercel.
+- `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` : configuration publique facultative pour la voirie de référence et les scénarios privés. Sans elles, la carte reste disponible. Utiliser uniquement une clé publishable ou anon, jamais une clé secrète.
+- `CORS_ORIGINS` : liste séparée par des virgules des origines autorisées pour les requêtes API entre origines ; valeur par défaut `http://localhost:5173`. Cette variable serveur est lue à l’exécution et ne concerne pas les requêtes sur la même origine.
 
-**Toutes les variables `VITE_*` sont publiques.** Ne jamais y placer `service_role`, mot de passe, URL PostgreSQL privée ou autre secret. Le client Supabase utilise uniquement la clé publique et les droits RLS.
+**Toutes les variables `NEXT_PUBLIC_*` sont publiques et incorporées au bundle lors du build.** Toute modification nécessite une reconstruction, y compris avec Compose. Ne jamais y placer `service_role`, mot de passe, URL PostgreSQL privée ou autre secret.
 
 ## Vercel
 
-Importer `EcoDex-DAO/my-futur-town` puis choisir :
-
-| Paramètre        | Valeur          |
-| ---------------- | --------------- |
-| Framework        | Vite            |
-| Root Directory   | `frontend`      |
-| Build Command    | `npm run build` |
-| Output Directory | `dist`          |
-
-`frontend/vercel.json` fixe ces réglages sauf le Root Directory, à renseigner dans Vercel. Laisser `VITE_API_URL` vide tant que FastAPI n’est pas hébergé. Le déploiement Vercel héberge uniquement le frontend. Aucune migration automatique.
+Importer `EcoDex-DAO/my-futur-town`, sélectionner le framework Next.js et la racine du dépôt comme Root Directory. `vercel.json` indique le framework ; le Root Directory se règle dans Vercel. Le build et les routes serveur sont pris en charge par Next.js. Aucune migration automatique ou publication n’est effectuée par ce dépôt.
 
 ## Données et architecture
 
 - [Sources, licences et limites](docs/data-sources.md)
 - [Modèle de données et politiques RLS](docs/architecture.md)
 - [Exploitation et validation](docs/operations.md)
-- [Préparation du projet Supabase](docs/supabase-setup.md)
-- [Premier éditeur de voirie et scénarios](docs/road-editor.md)
-- [Versions et retours arrière](docs/versions-and-rollback.md)
-- [Historique des versions](CHANGELOG.md)
 
-Projet Supabase cible : `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`, PostGIS déjà activé. Les migrations `202611050001`, `202611050002` et `202611050003` sont appliquées et enregistrées sur ce projet ; voir les relevés dans `docs/supabase-applied.md` et `docs/cdc-progress.md`. Ne pas les rejouer. Elles ne suppriment aucune donnée de référence ; une collision avec des tables existantes doit être examinée, pas contournée en les supprimant.
+Projet Supabase cible : `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`. Les PR #2 et #3 indiquent que des migrations ont déjà été appliquées à ce projet ; leur état n’a pas été vérifié dans cette branche. Vérifier l’historique distant avant toute intervention, puis faire examiner et valider toute nouvelle migration sur une base de développement avant application avec un compte autorisé. Ne pas contourner les collisions en supprimant des tables existantes.
 
 ## Contribuer
 
-Créer une branche depuis `main`, préserver les licences et l’attribution, ne pas committer de secrets. Vérifier `npm ci && npm test && npm run build` dans `frontend`, les tests Python et Compose pour les changements concernés, puis ouvrir une Pull Request décrivant les changements, contrôles et limites. Le code est sous licence Apache-2.0 ([LICENSE](LICENSE)) ; les données et styles conservent leurs propres licences.
+Consulter le [flux de contribution](docs/workflow.md) pour passer d’une issue à une pull request.
 
-Le socle cartographique est fonctionnel. Le premier incrément CDC ajoute un éditeur de profils routiers et de scénarios privés ; il nécessite une configuration Supabase publique, la migration voirie et un import OSM réel. Le fond de carte seul ne constitue pas un réseau éditable. Les simulations de trafic, agents, import IFC et intégrations BIM ne sont pas implémentés.
+Créer une branche depuis `main`, préserver les licences et l’attribution, ne pas committer de secrets. Vérifier `pnpm install --frozen-lockfile && pnpm test && pnpm run build` à la racine, ainsi que Compose pour les changements concernés, puis ouvrir une Pull Request décrivant les changements, contrôles et limites. Le code est sous licence Apache-2.0 ([LICENSE](LICENSE)) ; les données et styles conservent leurs propres licences.
+
+L’éditeur de voirie permet de consulter les tronçons disponibles et de gérer des scénarios privés lorsque Supabase est configuré. Les simulations de trafic, agents, import IFC et intégrations BIM ne sont pas implémentés.

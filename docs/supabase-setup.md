@@ -4,14 +4,14 @@
 
 Le projet cible est **My Futur Town**, référence publique `bcvzhegvjzujlgfnbwfg`, région `eu-west-3`. Selon le choix du propriétaire, les changements sont destinés directement à ce projet, sans second environnement Supabase. Les scripts de validation ne l’utilisent pas automatiquement.
 
-Cette tranche prépare le schéma, restreint les droits clients et fournit un diagnostic en lecture seule. Elle ne connecte pas encore le frontend à la base et n’importe pas de bâtiments. Aucun déploiement cloud ou frontend n’est nécessaire pour appliquer une migration SQL.
+Cette tranche prépare le schéma, restreint les droits clients et fournit un diagnostic en lecture seule. L’éditeur de voirie peut utiliser le client Supabase si les variables publiques sont configurées ; ce guide n’importe pas de bâtiments. Aucun déploiement cloud ou frontend n’est nécessaire pour appliquer une migration SQL.
 
 ## Accès sécurisé pour exécuter les opérations
 
 L’identifiant public du projet ne permet pas d’y exécuter SQL. Pour une exécution par l’agent, un jeton de l’API de gestion Supabase est requis :
 
 1. Créer un jeton personnel depuis https://supabase.com/dashboard/account/tokens avec l’accès nécessaire au projet.
-2. Le renseigner uniquement dans le secret personnel `SUPABASE_ACCESS_TOKEN` des paramètres de l’environnement cloud, jamais dans le chat, GitHub ou une variable `VITE_*`.
+2. Le renseigner uniquement dans le secret personnel `SUPABASE_ACCESS_TOKEN` des paramètres de l’environnement cloud, jamais dans le chat, GitHub ou une variable `NEXT_PUBLIC_*`.
 3. Appliquer les réglages réseau et de secret de l’environnement. Le jeton est utilisé uniquement vers `api.supabase.com` ; il ne doit pas être copié dans un fichier de configuration du dépôt. Le révoquer après les opérations si l’accès n’est plus nécessaire.
 
 Ce jeton de gestion n’est pas une clé frontend `anon`, `publishable` ou `service_role`. Une clé frontend ne suffit pas à appliquer les migrations. Si les droits du jeton sont insuffisants, examiner l’opération refusée au lieu de demander une nouvelle clé au hasard.

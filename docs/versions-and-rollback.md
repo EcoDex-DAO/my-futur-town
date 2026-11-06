@@ -2,7 +2,7 @@
 
 ## Identifier ce qui tourne
 
-La version applicative suit SemVer dans `frontend/package.json` et le lockfile. La préversion actuelle est `0.2.0-dev.2`. Le suffixe indique qu’il s’agit de développement, pas d’une livraison stable.
+La version applicative suit SemVer dans `package.json` et le lockfile. La préversion actuelle est `0.3.0-dev.1`. Le suffixe indique qu’il s’agit de développement, pas d’une livraison stable.
 
 Chaque build contient un `version.json` et un bouton **Informations de version** dans l’interface :
 
@@ -29,7 +29,7 @@ Pour une nouvelle version, modifier package et lockfile ensemble, mettre le chan
 
 Depuis le projet Vercel, ouvrir un ancien déploiement **validé**, vérifier son commit, son environnement et ses variables publiques, puis utiliser le retour arrière/promotion de production proposé par Vercel. Cette action ne revient pas sur les migrations Supabase et ne supprime pas les scénarios.
 
-Conserver les réglages Vite et Root Directory `frontend`. Un rollback Vercel doit pointer sur un ancien déploiement déjà construit ; pour reconstruire avec les réglages actuels, utiliser un nouveau déploiement du code cible.
+Le projet actuel utilise Next.js avec le Root Directory à la racine. Un rollback Vercel doit pointer sur un ancien déploiement déjà construit ; pour reconstruire avec les réglages actuels, utiliser un nouveau déploiement du code cible.
 
 Vérifier ensuite l’URL publique et la version lorsqu’elle est disponible. La version 0.1.0 n’a pas encore l’écran de diagnostic ajouté en 0.2 ; utiliser son SHA de déploiement pour l’identifier.
 
@@ -39,26 +39,22 @@ Commencer par préserver tout travail en cours et actualiser les références Gi
 
 ```sh
 git fetch origin main --tags
-python3 scripts/prepare-rollback.py v0.1.0
+python3 scripts/prepare-rollback.py v0.3.0
 ```
 
 Sans `--prepare`, la commande décrit seulement le plan. Pour préparer réellement une branche :
 
 ```sh
-python3 scripts/prepare-rollback.py v0.1.0 --prepare
+python3 scripts/prepare-rollback.py v0.3.0 --prepare
 ```
 
-La commande exige un checkout propre, crée une branche `rollback/…` depuis `HEAD` par défaut, puis restaure uniquement :
-
-- `frontend/` ;
-- `backend/` ;
-- `docker-compose.yml`.
+La commande exige un checkout propre et crée une branche `rollback/…` depuis `HEAD`. Elle restaure uniquement les fichiers applicatifs de la même architecture. Un retour entre les versions Vite et Next.js est refusé : il nécessite un plan de migration manuel revu.
 
 Une base différente peut être choisie avec `--base`, mais elle est refusée si des migrations ou archives actuellement suivies y sont absentes ou modifiées. C’est important tant que main ne contient pas encore toutes les migrations appliquées.
 
 Elle conserve `supabase/migrations/`, les archives d’import et les données de la base, ainsi que les fichiers d’environnement ignorés. Elle crée un relevé de rollback dans `docs/rollbacks/`. Elle ne fait ni reset, ni force-push, ni commit automatique, ni déploiement.
 
-Relire les différences indexées, lancer `npm ci`, le build, les tests et les contrôles API pertinents, puis committer et ouvrir une PR. Une ancienne interface peut ne pas gérer les fonctions récentes ; la compatibilité avec le schéma actuel doit être vérifiée. La protection de l’historique SQL ne garantit pas à elle seule la compatibilité fonctionnelle.
+Relire les différences indexées, lancer `pnpm install --frozen-lockfile`, le build, les tests et les contrôles API pertinents, puis committer et ouvrir une PR. Une ancienne interface peut ne pas gérer les fonctions récentes ; la compatibilité avec le schéma actuel doit être vérifiée. La protection de l’historique SQL ne garantit pas à elle seule la compatibilité fonctionnelle.
 
 ## Base et scénarios : historique distinct
 

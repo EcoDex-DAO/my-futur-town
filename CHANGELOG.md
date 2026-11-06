@@ -1,5 +1,12 @@
 # Historique des versions
 
+## 0.3.0-dev.1 — migration Next.js en cours de validation
+
+- Application Next.js à la racine, dépendances verrouillées avec pnpm et routes API intégrées.
+- Portage de l’éditeur de voirie et des scénarios privés ; les migrations et archives de référence sont conservées.
+- Le retour arrière automatisé refuse de traverser les architectures Vite et Next.js.
+- Les validations connectées et le déploiement restent à confirmer pour cette version.
+
 ## 0.2.0-dev.2 — en développement
 
 - Le rollback prend désormais HEAD comme base par défaut et refuse une base qui omet ou modifie les migrations/archives de référence actuellement suivies. Cela couvre notamment le cas où main est en retard sur les migrations déjà appliquées.

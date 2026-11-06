@@ -36,7 +36,7 @@ def main():
     if not token:raise SystemExit('SUPABASE_ACCESS_TOKEN must be injected securely, not supplied as an argument.')
     manager_headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'}
     def query(sql,readonly=True):return request('https://api.supabase.com/v1/projects/'+REF+'/database/query','POST',{'query':sql,'read_only':readonly},manager_headers)
-    # Key values stay only in this process. Only the publishable key goes to Vite.
+    # Key values stay only in this process. Only the publishable key goes to Next.js.
     keys=request('https://api.supabase.com/v1/projects/'+REF+'/api-keys?reveal=true',headers=manager_headers)
     public=next(k['api_key'] for k in keys if k.get('type')=='publishable')
     server=next(k['api_key'] for k in keys if k.get('name')=='service_role')
@@ -60,8 +60,8 @@ def main():
         user_id=str(UUID(user['id']))
         with tempfile.TemporaryDirectory(prefix='yft-connected-') as folder:
             env=dict(os.environ)
-            env.update({'VITE_SUPABASE_URL':BASE,'VITE_SUPABASE_PUBLISHABLE_KEY':public,'YFT_TEST_EMAIL':email,'YFT_TEST_PASSWORD':password,'YFT_TEST_ROAD_ID':road['properties']['id'],'YFT_TEST_OUTPUT_DIR':folder})
-            completed=subprocess.run(['npm','exec','--','playwright','test','--config','playwright.connected.config.ts'],cwd=ROOT/'frontend',env=env,capture_output=True,text=True,timeout=240)
+            env.update({'NEXT_PUBLIC_SUPABASE_URL':BASE,'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY':public,'YFT_TEST_EMAIL':email,'YFT_TEST_PASSWORD':password,'YFT_TEST_ROAD_ID':road['properties']['id'],'YFT_TEST_OUTPUT_DIR':folder})
+            completed=subprocess.run(['corepack','pnpm','exec','playwright','test','--config','playwright.connected.config.ts'],cwd=ROOT,env=env,capture_output=True,text=True,timeout=360)
             output=completed.stdout+completed.stderr
             for value in [token,server,password]:output=output.replace(value,'[redacted]')
             output=re.sub(r'eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+','[JWT redacted]',output)

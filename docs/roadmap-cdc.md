@@ -4,7 +4,7 @@ Document contractuel : [CDC v1 du 5 novembre 2026](cahier-des-charges-v1.md). No
 
 | Phase CDC           | Existant réutilisé                                                                         | Travail restant                                                                                                                                        |
 | ------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0 — Initialisation  | React/TypeScript/Vite, GitHub, Vercel, MapLibre, FastAPI optionnel, tables Supabase/RLS    | Client Supabase/Auth testé sur le projet réel ; configuration de prévisualisation Vercel à vérifier                                                    |
+| 0 — Initialisation  | Next.js/React/TypeScript, GitHub, Vercel, MapLibre, routes API Next.js, tables Supabase/RLS    | Client Supabase/Auth testé sur le projet réel ; configuration de prévisualisation Vercel à vérifier                                                    |
 | 1 — Annecy 3D       | Carte réelle OSM/OpenFreeMap, volumes des bâtiments, couches, inspection, contrôles caméra | Relief réel, recherche d’adresse, objets de référence indépendants et provenance par objet                                                             |
 | 2 — Voirie éditable | Séparation références/scénarios déjà en base                                               | 522 tronçons réels importés ; profil, sauvegarde/rechargement et restauration testés avec Supabase ; géométrie et règles détaillées encore à compléter |
 | 3 — Bus             | Catégories transport prévues au schéma                                                     | Import GTFS SIBRA, éditeur, calculs et routage dépendant de la voirie                                                                                  |
@@ -20,9 +20,9 @@ Les routes du fond OpenFreeMap restent un repère et ne sont jamais utilisées c
 
 ## Choix techniques
 
-- Conserver React/Vite : l’application fonctionne déjà sur Vercel ; Next.js est une recommandation du CDC, pas une condition qui justifie une réécriture.
+- Utiliser Next.js et pnpm pour l’application et ses routes serveur.
 - Lire les références et enregistrer les scénarios directement via Supabase avec ses clés **publiques** et la RLS. Aucun jeton de gestion ou `service_role` dans le frontend.
-- Garder FastAPI facultatif pour les traitements futurs ; pas de nouveau service requis pour l’éditeur.
+- Utiliser les routes Next.js pour l’API ; aucun service Python n’est requis pour l’éditeur.
 - Échanges GeoJSON en EPSG:4326 ; longueurs métriques en EPSG:2154 (Lambert-93). Aucun Z ou altitude inventé.
 - Imports immuables, versionnés, réexécutables sans effacer les scénarios. Les changements de réseau réels futurs produisent une nouvelle couche ; un scénario reste lié à son instantané.
 

@@ -12,11 +12,11 @@
 
 ## Configuration sur Vercel
 
-Conserver Root Directory `frontend`, Vite, `npm run build` et `dist`. Ajouter :
+Utiliser la racine du dépôt et le framework Next.js. Ajouter au build :
 
 ```text
-VITE_SUPABASE_URL=https://bcvzhegvjzujlgfnbwfg.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=<clé publique publishable ou legacy anon>
+NEXT_PUBLIC_SUPABASE_URL=https://bcvzhegvjzujlgfnbwfg.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<clé publique publishable ou legacy anon>
 ```
 
 Ces deux valeurs sont publiques dans le navigateur. Le build refuse les clés `service_role`, secrètes et les jetons de gestion. Ne jamais utiliser `SUPABASE_ACCESS_TOKEN` ici. Dans Supabase Auth → URL Configuration, vérifier que Site URL correspond à `https://my-futur-town.vercel.app` pour les confirmations d’e-mail. Les paramètres SMTP et la confirmation e-mail restent ceux du projet.
@@ -68,12 +68,12 @@ Le test complet demandé par le CDC exige ensuite : import de vraies routes, con
 
 Le premier instantané est importé : version `20261105T222406Z-b0b66162`, 522 tronçons et 507 nœuds. Sa réponse source compressée et son manifeste sont conservés dans `data/reference/osm/`. `--input` accepte également ces archives `.gz` pour reproduire exactement le même SQL sans nouvel appel Overpass.
 
-Le parcours avec authentification réelle, sens unique cyclable, sauvegarde, rechargement et restauration a été vérifié dans le navigateur cloud sur le projet existant. Il utilise un vrai tronçon de la rue Sommeiller. Le script optionnel suivant recommence ce contrôle avec une identité technique temporaire :
+Le parcours avec authentification réelle, sens unique cyclable, sauvegarde, rechargement et restauration a été vérifié sur la version Vite dans le navigateur cloud ; il doit être vérifié à nouveau après migration vers Next.js. Il utilise un vrai tronçon de la rue Sommeiller. Le script optionnel suivant recommence ce contrôle avec une identité technique temporaire :
 
 ```sh
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/chemin/vers/chromium python3 scripts/test-connected-roads.py
 ```
 
-Il requiert le jeton de gestion injecté dans `SUPABASE_ACCESS_TOKEN`. Il récupère une clé publique pour le build et une clé serveur uniquement en mémoire pour créer/supprimer le compte de test. La clé serveur ne passe pas à Vite. Les traces/captures d’authentification sont désactivées et les sorties sont expurgées. Les scénarios sont supprimés uniquement pour l’identifiant fraîchement créé ; l’empreinte du référentiel doit rester identique. Ce test modifie temporairement le projet existant : ce n’est pas un contrôle en lecture seule et il n’est jamais déclenché automatiquement par la CI.
+Il requiert le jeton de gestion injecté dans `SUPABASE_ACCESS_TOKEN`. Il récupère une clé publique pour le build et une clé serveur uniquement en mémoire pour créer/supprimer le compte de test. La clé serveur ne passe pas au navigateur. Les traces/captures d’authentification sont désactivées et les sorties sont expurgées. Les scénarios sont supprimés uniquement pour l’identifiant fraîchement créé ; l’empreinte du référentiel doit rester identique. Ce test modifie temporairement le projet existant : ce n’est pas un contrôle en lecture seule et il n’est jamais déclenché automatiquement par la CI.
 
 La recherche de rue dans l’éditeur est limitée aux tronçons déjà importés ; elle ne remplace pas la recherche d’adresse prévue par le CDC.
