@@ -24,10 +24,18 @@ La migration `202611050003_road_scenarios.sql` a été appliquée au projet exis
 - Build TypeScript/Vite et audit npm sans vulnérabilité signalée au contrôle.
 - Test Chromium de non-régression : carte réelle Annecy, sélection de bâtiment, contrôles 2D/2.5D et affichage mobile, sans connexion Supabase configurée.
 
-## Non terminé
+## Suite de développement — 0.2.0-dev.2
 
-Les nouveaux domaines `overpass-api.de`, `bcvzhegvjzujlgfnbwfg.supabase.co` et `my-futur-town.vercel.app` ont été enregistrés dans le brouillon réseau, mais ne sont pas encore actifs dans l’instance au dernier contrôle. Le téléchargement Overpass est refusé par le proxy (HTTP CONNECT 403). **Aucune route réelle n’a donc encore été importée.**
+Les accès réseau sont maintenant actifs. Le secteur réel a été téléchargé depuis Overpass puis importé : **522 tronçons, 507 nœuds**, version `20261105T222406Z-b0b66162`, couche `68ad6005-85bb-511b-8129-70929dba0f1c`. L’archive OSM et son manifeste sont conservés dans `data/reference/osm/` sous ODbL. La régénération du SQL donne un fichier identique, et un second import conserve exactement 522 tronçons.
 
-La configuration publique Supabase doit être renseignée pour le frontend (voir `docs/road-editor.md`). Aucun jeton de gestion ni clé serveur n’est exposé. L’authentification réelle et la sauvegarde/relecture depuis le navigateur n’ont pas encore été validées ; le test SQL ne les remplace pas.
+Le parcours navigateur connecté à Supabase a été validé sur un vrai tronçon explicitement double sens de la rue Sommeiller : création d’un scénario privé, sens unique, largeur cyclable, sauvegarde, rechargement du navigateur, rechargement du scénario, comparaison et restauration. Aucun jeu géographique synthétique n’a été utilisé. Un compte technique temporaire a été créé puis supprimé avec ses scénarios. L’empreinte des références avant/après est identique.
 
-La Phase 2 n’est pas déclarée achevée. Il reste à télécharger/importer le secteur réel, choisir une route double sens, effectuer le parcours complet utilisateur puis le vérifier sur Vercel. Les variantes de géométrie, restrictions de tournants, aménagements gauche/droite détaillés, recherche d’adresse, relief et les modules bus/parking/énergie/BIM restent hors de cette première tranche.
+La version de développement inclut un numéro visible, les métadonnées du build et une procédure de retour arrière testée qui préserve les migrations et les données. Voir [versions et rollback](versions-and-rollback.md).
+
+## Validation et déploiement à distinguer
+
+Les contrôles connectés ont été exécutés dans le navigateur de l’environnement cloud avec un build de production et la base Supabase existante. Ils ne prouvent pas à eux seuls qu’une prévisualisation Vercel dispose de la configuration publique nécessaire. Les variables `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` doivent être présentes dans l’environnement Vercel choisi, puis le build doit être refait.
+
+La branche de développement n’est pas fusionnée dans main. Le site de production existant répond en HTTP 200 ; aucune promotion de la nouvelle interface n’est revendiquée. Le parcours connecté a été testé sur ordinateur ; l’éditeur mobile connecté reste à vérifier plus en détail.
+
+Les modifications de tracé, restrictions de tournants, aménagements gauche/droite détaillés, recherche d’adresse, relief et modules bus/parking/énergie/BIM restent à développer selon le CDC. Le graphe actuel ne constitue pas un moteur de routage complet.

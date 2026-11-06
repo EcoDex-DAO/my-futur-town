@@ -28,4 +28,4 @@ Ce contrôle ne constitue pas un test Auth/PostgREST complet avec deux utilisate
 
 ## Suite selon le CDC
 
-La migration additive `202611050003_road_scenarios.sql` est appliquée et enregistrée. Elle ajoute les références topologiques et la gestion des profils de voirie ; aucun import de routes n’a encore eu lieu. Voir [le relevé CDC](cdc-progress.md).
+La migration additive `202611050003_road_scenarios.sql` est appliquée et enregistrée. Elle ajoute les références topologiques et la gestion des profils de voirie ; un premier instantané réel de 522 tronçons et 507 nœuds est maintenant importé et archivé. Voir [le relevé CDC](cdc-progress.md).

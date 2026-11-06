@@ -4,6 +4,7 @@ Fetch and SQL generation are separate from application. SQL output is reviewed
 and applied with an authorized server identity, never by a frontend client.
 """
 import argparse
+import gzip
 import hashlib
 import json
 import math
@@ -116,7 +117,10 @@ def main():
         args.fetch.write_text(json.dumps(data,ensure_ascii=False))
     if args.input:
         if not args.output:parser.error('--input requires --output')
-        sql,metadata=generate_sql(json.loads(args.input.read_text()))
+        if args.input.suffix=='.gz':
+            with gzip.open(args.input,'rt') as source:data=json.load(source)
+        else:data=json.loads(args.input.read_text())
+        sql,metadata=generate_sql(data)
         args.output.write_text(sql)
         print(json.dumps(metadata,ensure_ascii=False))
     elif not args.fetch:parser.error('Use --fetch or --input with --output')

@@ -9,6 +9,7 @@ import "./style.css";
 import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 
 import { RoadEditor } from "./RoadEditor";
+import { VersionInfo } from "./VersionInfo";
 import {
   EMPTY_ROADS,
   applyProfiles,
@@ -325,6 +326,21 @@ function App() {
             </p>
           </section>
           <RoadEditor
+            roads={roadData}
+            onSelectRoad={(id) => {
+              setRoadId(id);
+              setSelected(null);
+              const road = roadData.features.find(
+                (f) => f.properties.id === id,
+              );
+              if (road) {
+                const bounds = new maplibregl.LngLatBounds();
+                road.geometry.coordinates.forEach((c) =>
+                  bounds.extend([c[0], c[1]]),
+                );
+                map.current?.fitBounds(bounds, { padding: 100, maxZoom: 18 });
+              }
+            }}
             selected={selectedRoad}
             onRoads={setRoadData}
             onChanges={setRoadChanges}
@@ -335,6 +351,7 @@ function App() {
             <span className="dot" />
             {api}
             <small>Open source · Construit pour les territoires</small>
+            <VersionInfo />
           </div>
         </aside>
         <div className="map-area">
