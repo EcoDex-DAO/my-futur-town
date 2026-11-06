@@ -1,10 +1,20 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 
 import type { MapGeoJSONFeature } from "maplibre-gl";
 import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
+
+import { RoadEditor } from "./RoadEditor";
+import { VersionInfo } from "./VersionInfo";
+import {
+  EMPTY_ROADS,
+  applyProfiles,
+  type Roads,
+  type RoadProfile,
+  type RoadChange,
+} from "./roads";
 
 // Let Next.js emit the MapLibre worker as a versioned asset.
 maplibregl.setWorkerUrl(
@@ -12,6 +22,22 @@ maplibregl.setWorkerUrl(
 );
 
 export default function App() {
+  const [roadData, setRoadData] = useState<Roads>(EMPTY_ROADS);
+  const [roadChanges, setRoadChanges] = useState<RoadChange[]>([]);
+  const [roadDraft, setRoadDraft] = useState<{
+    id: string;
+    profile: RoadProfile;
+  }>();
+  const [roadId, setRoadId] = useState<string | null>(null);
+  const selectedRoad =
+    roadData.features.find((f) => f.properties.id === roadId) ?? null;
+  const focusRoads = useCallback(() => {
+    const coords = roadData.features.flatMap((f) => f.geometry.coordinates);
+    if (!coords.length) return;
+    const bounds = new maplibregl.LngLatBounds();
+    coords.forEach((c) => bounds.extend([c[0], c[1]]));
+    map.current?.fitBounds(bounds, { padding: 70, maxZoom: 17 });
+  }, [roadData]);
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
@@ -106,6 +132,18 @@ export default function App() {
       setError("");
     });
     instance.on("click", (e) => {
+      const editable = instance
+        .queryRenderedFeatures([
+          [e.point.x - 5, e.point.y - 5],
+          [e.point.x + 5, e.point.y + 5],
+        ])
+        .find((f) => f.source === "yft-roads");
+      if (editable) {
+        setRoadId(String(editable.properties.id));
+        setSelected(null);
+        return;
+      }
+      setRoadId(null);
       const features = instance.queryRenderedFeatures(e.point);
       setSelected(
         features.find((f) => f.layer.id === "mft-buildings-3d") ||
@@ -135,22 +173,108 @@ export default function App() {
         );
     }
   }, [ready, layers, extrusion]);
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance) return;
+    const data = applyProfiles(roadData, roadChanges, roadDraft);
+    if (!instance.getSource("yft-roads")) {
+      instance.addSource("yft-roads", { type: "geojson", data });
+      instance.addLayer({
+        id: "yft-road-lines",
+        type: "line",
+        source: "yft-roads",
+        paint: {
+          "line-color": [
+            "case",
+            ["==", ["get", "direction"], "closed"],
+            "#9d3434",
+            ["boolean", ["get", "changed"], false],
+            "#df8e30",
+            "#216279",
+          ],
+          "line-width": [
+            "interpolate",
+            ["exponential", 2],
+            ["zoom"],
+            12,
+            ["*", ["coalesce", ["get", "display_width_m"], 6], 0.04],
+            20,
+            ["*", ["coalesce", ["get", "display_width_m"], 6], 10],
+          ],
+          "line-opacity": 0.8,
+        },
+      });
+      instance.addLayer({
+        id: "yft-road-cycles",
+        type: "line",
+        source: "yft-roads",
+        filter: [">", ["get", "cycle_width_m"], 0],
+        paint: { "line-color": "#19a563", "line-width": 4, "line-offset": 6 },
+      });
+      const fontLayer = instance
+        .getStyle()
+        .layers.find((l) => l.type === "symbol" && l.layout?.["text-font"]);
+      const roadFont = fontLayer
+        ? instance.getLayoutProperty(fontLayer.id, "text-font")
+        : ["Noto Sans Regular"];
+      instance.addLayer({
+        id: "yft-road-arrows",
+        type: "symbol",
+        source: "yft-roads",
+        layout: {
+          "symbol-placement": "line",
+          "symbol-spacing": 130,
+          "text-font": roadFont,
+          "text-field": [
+            "match",
+            ["get", "direction"],
+            "forward",
+            "→",
+            "reverse",
+            "←",
+            "closed",
+            "×",
+            "both",
+            "↔",
+            "?",
+          ],
+          "text-size": 20,
+          "text-keep-upright": false,
+        },
+        paint: {
+          "text-color": "#163c40",
+          "text-halo-color": "#fff",
+          "text-halo-width": 2,
+        },
+      });
+    } else {
+      (instance.getSource("yft-roads") as maplibregl.GeoJSONSource).setData(
+        data,
+      );
+    }
+    for (const id of ["yft-road-lines", "yft-road-cycles", "yft-road-arrows"])
+      instance.setLayoutProperty(
+        id,
+        "visibility",
+        layers.roads ? "visible" : "none",
+      );
+  }, [ready, roadData, roadChanges, roadDraft, layers.roads]);
   return (
     <div className="app">
       <header>
-        <a className="brand" href="/" aria-label="My Futur Town, accueil">
+        <a className="brand" href="/" aria-label="Your Futur Town, accueil">
           <span className="brand-icon">
-            M<span>F</span>T
+            Y<span>F</span>T
           </span>
           <span>
-            My Futur Town<small>LE TERRITOIRE DES POSSIBLES</small>
+            Your Futur Town<small>LE TERRITOIRE DES POSSIBLES</small>
           </span>
         </a>
         <div className="location">
           <span className="dot" /> Annecy{" "}
           <span className="muted">/ France</span>
         </div>
-        <span className="phase">PROTOTYPE · PHASE 01</span>
+        <span className="phase">PROTOTYPE · VOIRIE</span>
       </header>
       <main>
         <aside className="sidebar">
@@ -200,23 +324,33 @@ export default function App() {
               : empreinte au sol.
             </p>
           </section>
-          <section className="scenario">
-            <h2>
-              <span>02</span> Imaginer un scénario
-            </h2>
-            <span className="tag">PROCHAINEMENT</span>
-            <p>
-              Un espace pour explorer des transformations virtuelles, sans
-              modifier les données réelles.
-            </p>
-            <button disabled>
-              Créer un scénario <span>↗</span>
-            </button>
-          </section>
+          <RoadEditor
+            roads={roadData}
+            onSelectRoad={(id) => {
+              setRoadId(id);
+              setSelected(null);
+              const road = roadData.features.find(
+                (f) => f.properties.id === id,
+              );
+              if (road) {
+                const bounds = new maplibregl.LngLatBounds();
+                road.geometry.coordinates.forEach((c) =>
+                  bounds.extend([c[0], c[1]]),
+                );
+                map.current?.fitBounds(bounds, { padding: 100, maxZoom: 18 });
+              }
+            }}
+            selected={selectedRoad}
+            onRoads={setRoadData}
+            onChanges={setRoadChanges}
+            onDraft={setRoadDraft}
+            onFocus={focusRoads}
+          />
           <div className="sidebar-footer">
             <span className="dot" />
             {api}
             <small>Open source · Construit pour les territoires</small>
+            <VersionInfo />
           </div>
         </aside>
         <div className="map-area">
@@ -251,7 +385,11 @@ export default function App() {
           <div className="info" aria-live="polite">
             <div className="info-title">
               <span className="eyebrow">
-                {selected ? "OBJET SÉLECTIONNÉ" : "À VOUS D’EXPLORER"}
+                {selectedRoad
+                  ? "ROUTE DE RÉFÉRENCE"
+                  : selected
+                    ? "OBJET SÉLECTIONNÉ"
+                    : "À VOUS D’EXPLORER"}
               </span>
               {selected && (
                 <button
@@ -262,7 +400,24 @@ export default function App() {
                 </button>
               )}
             </div>
-            {selected ? (
+            {selectedRoad ? (
+              <>
+                <h2>{selectedRoad.properties.name || "Tronçon routier"}</h2>
+                <p>
+                  Objet indépendant issu d’OpenStreetMap. Profil et scénario
+                  dans le panneau Voirie.
+                </p>
+                <p className="caption">
+                  {selectedRoad.properties.source_key}
+                  <br />© OpenStreetMap contributors · ODbL
+                  <br />
+                  {selectedRoad.properties.snapshot_version}
+                </p>
+                <button className="secondary" onClick={() => setRoadId(null)}>
+                  Fermer la route
+                </button>
+              </>
+            ) : selected ? (
               <>
                 <h2>
                   {String(selected.properties?.name || "Objet cartographique")}

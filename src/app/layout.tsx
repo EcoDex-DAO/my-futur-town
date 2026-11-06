@@ -3,8 +3,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "../style.css";
 
 export const metadata: Metadata = {
-  title: "My Futur Town · Annecy",
-  description: "Explorez Annecy et préparez la ville de demain avec My Futur Town.",
+  title: "Your Futur Town · Annecy",
+  description: "Explorez Annecy et préparez la ville de demain avec Your Futur Town.",
 };
 
 export const viewport: Viewport = { themeColor: "#102c32" };

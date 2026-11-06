@@ -50,9 +50,10 @@ Dans un cloud à proxy TLS, fournir la CA de confiance au build via le secret Bu
 
 - `NEXT_PUBLIC_MAP_STYLE_URL` : style MapLibre compatible OpenMapTiles, par défaut OpenFreeMap Liberty.
 - `NEXT_PUBLIC_API_URL` : origine d’une API alternative, optionnelle. Vide = routes Next.js sur la même origine. Ne pas définir `localhost` sur Vercel.
+- `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` : configuration publique facultative pour la voirie de référence et les scénarios privés. Sans elles, la carte reste disponible. Utiliser uniquement une clé publishable ou anon, jamais une clé secrète.
 - `CORS_ORIGINS` : liste séparée par des virgules des origines autorisées pour les requêtes API entre origines ; valeur par défaut `http://localhost:5173`. Cette variable serveur est lue à l’exécution et ne concerne pas les requêtes sur la même origine.
 
-**Toutes les variables `NEXT_PUBLIC_*` sont publiques et incorporées au bundle lors du build.** Toute modification nécessite une reconstruction, y compris avec Compose. Ne jamais y placer `service_role`, mot de passe, URL PostgreSQL privée ou autre secret. Aucun SDK Supabase n’est embarqué dans cette phase.
+**Toutes les variables `NEXT_PUBLIC_*` sont publiques et incorporées au bundle lors du build.** Toute modification nécessite une reconstruction, y compris avec Compose. Ne jamais y placer `service_role`, mot de passe, URL PostgreSQL privée ou autre secret.
 
 ## Vercel
 
@@ -72,4 +73,4 @@ Consulter le [flux de contribution](docs/workflow.md) pour passer d’une issue 
 
 Créer une branche depuis `main`, préserver les licences et l’attribution, ne pas committer de secrets. Vérifier `pnpm install --frozen-lockfile && pnpm test && pnpm run build` à la racine, ainsi que Compose pour les changements concernés, puis ouvrir une Pull Request décrivant les changements, contrôles et limites. Le code est sous licence Apache-2.0 ([LICENSE](LICENSE)) ; les données et styles conservent leurs propres licences.
 
-Le périmètre actuel couvre la consultation des données de référence. L’éditeur de scénarios est un emplacement réservé. Les simulations de trafic, agents, import IFC et intégrations BIM ne sont pas implémentés.
+L’éditeur de voirie permet de consulter les tronçons disponibles et de gérer des scénarios privés lorsque Supabase est configuré. Les simulations de trafic, agents, import IFC et intégrations BIM ne sont pas implémentés.

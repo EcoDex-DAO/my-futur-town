@@ -7,5 +7,5 @@ with urlopen('http://127.0.0.1:5173/health', timeout=10) as response:
 with urlopen('http://127.0.0.1:5173/api/layers', timeout=10) as response:
     assert {layer['id'] for layer in json.load(response)['layers']} == {'buildings', 'roads', 'water'}
 with urlopen('http://127.0.0.1:5173', timeout=10) as response:
-    assert 'My Futur Town' in response.read().decode()
+    assert 'Your Futur Town' in response.read().decode()
 print('OK: API health, reference catalog, application HTML')

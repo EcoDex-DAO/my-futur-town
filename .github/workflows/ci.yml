@@ -18,6 +18,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm run build
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m unittest discover -s scripts/importers -v
+      - run: python -m unittest discover -s scripts/tests -v
   compose:
     runs-on: ubuntu-latest
     steps:
@@ -28,6 +37,9 @@ jobs:
         run: docker compose down
   database:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        postgis-schema: [public, extensions]
     steps:
       - uses: actions/checkout@v4
-      - run: sh scripts/test-database.sh
+      - run: sh scripts/test-database.sh ${{ matrix.postgis-schema }}
