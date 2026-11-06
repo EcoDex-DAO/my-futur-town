@@ -13,6 +13,12 @@ pnpm run dev
 
 Ouvrir http://localhost:5173. Aucun compte, aucune clé et aucune base ne sont nécessaires pour la carte. Internet et WebGL sont requis. Les tuiles proviennent directement d’OpenFreeMap. Zoomer, déplacer, tourner et incliner avec les contrôles ou Ctrl + glisser. Cliquer sur un objet pour voir les propriétés de sa tuile. Le bouton de recentrage restaure la vue d’Annecy. La carte reste utilisable si les routes API ne répondent pas.
 
+Le panneau **Bus SIBRA** permet de rechercher une ligne, d’en afficher les variantes et de consulter leurs arrêts sur la carte. Il utilise un instantané GTFS théorique inclus dans l’application, sans horaires en temps réel ni modification des lignes. Sa période de validité, sa provenance et les conditions de redistribution sont précisées dans [la documentation des données SIBRA](docs/sibra-data.md).
+
+Le panneau **Pointe de la ligne 1** permet de simuler les courses prévues à la pointe calculée, de choisir une date et une heure ou d’accélérer le temps. Les positions entre arrêts sont estimées : elles ne représentent pas les positions GPS réelles. Les bus et abris 3D sont schématiques ; les abris ne décrivent pas les équipements effectivement installés. La simulation dépend de la période de validité du GTFS inclus.
+
+Pour reprendre le développement du module bus, consulter la [feuille de route](docs/prochaine-etape-simulation-bus.md) et son [issue GitHub de suivi](https://github.com/EcoDex-DAO/my-futur-town/issues/7).
+
 ```sh
 pnpm test
 pnpm run build

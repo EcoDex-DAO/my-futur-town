@@ -8,6 +8,9 @@ import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 
 import { RoadEditor } from "./RoadEditor";
 import { VersionInfo } from "./VersionInfo";
+import { SibraTransit } from "./SibraTransit";
+import { BusSimulation } from "./BusSimulation";
+import { sibraFeatures, type SibraData } from "./sibra";
 import {
   EMPTY_ROADS,
   applyProfiles,
@@ -51,6 +54,16 @@ export default function App() {
   const [extrusion, setExtrusion] = useState(true);
   const [hasBuildings, setHasBuildings] = useState(false);
   const [api, setApi] = useState("Mode autonome");
+  const [sibraData, setSibraData] = useState<SibraData | null>(null);
+  const [sibraSelection, setSibraSelection] = useState<{ lineId: string | null; variantId: string | null }>({ lineId: null, variantId: null });
+  const [sibraVisible, setSibraVisible] = useState(true);
+  const [selectedSibraStop, setSelectedSibraStop] = useState<string | null>(null);
+  const [mapInstance, setMapInstance] = useState<maplibregl.Map | null>(null);
+  const [simulationMode, setSimulationMode] = useState(false);
+  const selectedSibraStopData = sibraData?.lines
+    .find((line) => line.id === sibraSelection.lineId)?.variants
+    .find((variant) => variant.id === sibraSelection.variantId)?.stops
+    .find((stop) => stop.id === selectedSibraStop);
   useEffect(() => {
     const endpoint = process.env.NEXT_PUBLIC_API_URL || "";
     const controller = new AbortController();
@@ -92,6 +105,7 @@ export default function App() {
       return;
     }
     map.current = instance;
+    setMapInstance(instance);
     instance.addControl(
       new maplibregl.NavigationControl({ visualizePitch: true }),
       "top-right",
@@ -132,6 +146,15 @@ export default function App() {
       setError("");
     });
     instance.on("click", (e) => {
+      const stopFeature = instance.getLayer("sibra-stops")
+        ? instance.queryRenderedFeatures(e.point, { layers: ["sibra-stops"] })[0]
+        : undefined;
+      if (stopFeature) {
+        setSelectedSibraStop(String(stopFeature.properties.id));
+        setSelected(null);
+        return;
+      }
+      setSelectedSibraStop(null);
       const editable = instance
         .queryRenderedFeatures([
           [e.point.x - 5, e.point.y - 5],
@@ -156,8 +179,56 @@ export default function App() {
     return () => {
       instance.remove();
       map.current = null;
+      setMapInstance(null);
     };
   }, []);
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance) return;
+    if (!sibraData) {
+      for (const id of ["sibra-route", "sibra-stops", "sibra-stop-labels"]) {
+        if (instance.getLayer(id)) instance.removeLayer(id);
+      }
+      if (instance.getSource("sibra")) instance.removeSource("sibra");
+      return;
+    }
+    const features = sibraFeatures(sibraData, sibraSelection.lineId, sibraSelection.variantId);
+    if (!instance.getSource("sibra")) {
+      instance.addSource("sibra", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      const fontLayer = instance.getStyle().layers.find((layer) => layer.type === "symbol" && layer.layout?.["text-font"]);
+      const stopFont = fontLayer ? instance.getLayoutProperty(fontLayer.id, "text-font") : ["Noto Sans Regular"];
+      instance.addLayer({
+        id: "sibra-route", type: "line", source: "sibra", filter: ["==", ["geometry-type"], "LineString"],
+        paint: { "line-color": ["coalesce", ["get", "color"], "#31594a"], "line-width": ["interpolate", ["linear"], ["zoom"], 10, 2.5, 16, 5], "line-opacity": 0.88 },
+      });
+      instance.addLayer({
+        id: "sibra-stops", type: "circle", source: "sibra", filter: ["==", ["geometry-type"], "Point"],
+        paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 3, 16, 5], "circle-color": ["coalesce", ["get", "color"], "#31594a"], "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 },
+      });
+      instance.addLayer({
+        id: "sibra-stop-labels", type: "symbol", source: "sibra", filter: ["==", ["geometry-type"], "Point"],
+        minzoom: 14, layout: { "text-font": stopFont, "text-field": ["get", "name"], "text-size": 10, "text-offset": [0, 1.2], "text-anchor": "top", "text-optional": true },
+        paint: { "text-color": "#173b3b", "text-halo-color": "#fff", "text-halo-width": 1.5 },
+      });
+    }
+    (instance.getSource("sibra") as maplibregl.GeoJSONSource).setData({
+      type: "FeatureCollection",
+      features: [...features.lines.features, ...features.stops.features],
+    });
+    for (const id of ["sibra-route", "sibra-stops", "sibra-stop-labels"])
+        instance.setLayoutProperty(id, "visibility", sibraVisible && !simulationMode ? "visible" : "none");
+  }, [ready, sibraData, sibraSelection, sibraVisible, simulationMode]);
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance || !sibraData || !sibraSelection.lineId) return;
+    const selectedLine = sibraData.lines.find((line) => line.id === sibraSelection.lineId);
+    const variant = selectedLine?.variants.find((item) => item.id === sibraSelection.variantId);
+    if (variant?.coordinates.length) {
+      const bounds = new maplibregl.LngLatBounds();
+      variant.coordinates.forEach((coordinate) => bounds.extend(coordinate));
+      instance.fitBounds(bounds, { padding: 85, maxZoom: 16, duration: 650 });
+    }
+  }, [ready, sibraData, sibraSelection]);
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance) return;
@@ -324,10 +395,30 @@ export default function App() {
               : empreinte au sol.
             </p>
           </section>
+          <SibraTransit
+            onData={setSibraData}
+            onSelection={(lineId, variantId) => {
+              setSibraSelection({ lineId, variantId });
+              setSelectedSibraStop(null);
+            }}
+            selectedStopId={selectedSibraStop}
+            onStopSelect={setSelectedSibraStop}
+            visible={sibraVisible}
+            onVisibility={setSibraVisible}
+            simulationActive={simulationMode}
+          />
+          <BusSimulation
+            map={mapInstance}
+            mapReady={ready}
+            data={sibraData}
+            busVisible={sibraVisible}
+            onModeChange={setSimulationMode}
+          />
           <RoadEditor
             roads={roadData}
             onSelectRoad={(id) => {
               setRoadId(id);
+              setSelectedSibraStop(null);
               setSelected(null);
               const road = roadData.features.find(
                 (f) => f.properties.id === id,
@@ -385,22 +476,33 @@ export default function App() {
           <div className="info" aria-live="polite">
             <div className="info-title">
               <span className="eyebrow">
-                {selectedRoad
+                {selectedSibraStopData
+                  ? "ARRÊT SIBRA"
+                  : selectedRoad
                   ? "ROUTE DE RÉFÉRENCE"
                   : selected
                     ? "OBJET SÉLECTIONNÉ"
                     : "À VOUS D’EXPLORER"}
               </span>
-              {selected && (
+              {(selected || selectedSibraStopData) && (
                 <button
                   aria-label="Fermer les informations"
-                  onClick={() => setSelected(null)}
+                  onClick={() => {
+                    setSelected(null);
+                    setSelectedSibraStop(null);
+                  }}
                 >
                   ×
                 </button>
               )}
             </div>
-            {selectedRoad ? (
+            {selectedSibraStopData ? (
+              <>
+                <h2>{selectedSibraStopData.name}</h2>
+                <p>Arrêt desservi par la ligne {sibraData?.lines.find((line) => line.id === sibraSelection.lineId)?.shortName}.</p>
+                <p className="caption">Sélectionnez une autre direction dans le panneau Bus SIBRA pour explorer son parcours.</p>
+              </>
+            ) : selectedRoad ? (
               <>
                 <h2>{selectedRoad.properties.name || "Tronçon routier"}</h2>
                 <p>
@@ -458,6 +560,16 @@ export default function App() {
             <span className="dot" /> DONNÉES DE RÉFÉRENCE <span>·</span>{" "}
             {extrusion && hasBuildings ? "2.5D" : "2D"}
           </div>
+          {sibraData && sibraVisible && !simulationMode && (
+            <div className="sibra-map-legend" aria-label="Légende du réseau SIBRA">
+              <span className="sibra-legend-route" /> Ligne de bus <span className="sibra-legend-stop" /> Arrêt
+            </div>
+          )}
+          {simulationMode && (
+            <div className="bus-simulation-legend" aria-label="Légende des éléments symboliques de simulation">
+              <span className="bus-legend-line" /> Parcours théoriques <span className="bus-legend-vehicle" /> Bus simulé <span className="bus-legend-shelter" /> Abri symbolique
+            </div>
+          )}
         </div>
       </main>
     </div>
