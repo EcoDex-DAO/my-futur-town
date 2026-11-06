@@ -1,6 +1,6 @@
 # Architecture évolutive
 
-Le frontend charge les tuiles directement auprès du fournisseur. FastAPI expose `/health` et `/api/layers`, sans connexion PostgreSQL ni écriture. Son absence ne bloque pas la carte. Le catalogue est statique et décrit les sources ; il ne prétend pas interroger la base. Les services de simulation et connecteurs BIM pourront être ajoutés derrière l’API, sans couplage avec le rendu de carte.
+Le navigateur charge les tuiles directement auprès du fournisseur. Les routes serveur Next.js exposent `/health` et `/api/layers`, sans connexion PostgreSQL ni écriture. Leur indisponibilité ne bloque pas la carte. Le catalogue est statique et décrit les sources ; il ne prétend pas interroger la base. Les services de simulation et connecteurs BIM pourront être ajoutés derrière l’API, sans couplage avec le rendu de carte.
 
 ## PostGIS
 

@@ -1,4 +1,6 @@
-# Validation du prototype — 5 novembre 2026
+# Validation historique du prototype Vite/FastAPI — 5 novembre 2026
+
+Ces résultats décrivent la version antérieure à la migration Next.js ; ils ne constituent pas une validation de la nouvelle application.
 
 ## Contrôles réussis dans l’environnement cloud
 
