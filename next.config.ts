@@ -26,7 +26,11 @@ try {
   if (revision === "unknown") {
     revision = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
   }
-  dirty = execFileSync("git", ["status", "--porcelain"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim().length > 0;
+  // Hosted builds can modify generated files; their checkout status does not
+  // describe the source commit. Report it only for local builds.
+  if (!process.env.VERCEL_GIT_COMMIT_SHA) {
+    dirty = execFileSync("git", ["status", "--porcelain"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim().length > 0;
+  }
 } catch {
   // Git metadata may be unavailable in build environments.
 }
