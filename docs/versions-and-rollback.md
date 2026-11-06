@@ -12,7 +12,7 @@ Chaque build contient un `version.json` et un bouton **Informations de version**
 - date de compilation ;
 - environnement Vercel ou local.
 
-Le diagnostic peut être copié dans un signalement de bug. Il ne contient ni jeton ni donnée personnelle. Un build avec modifications locales porte `dirty: true` : le hash du dernier commit seul ne suffit alors pas à le reproduire. Une archive sans métadonnées Git porte `unknown`, jamais un hash inventé.
+Le diagnostic peut être copié dans un signalement de bug. Il ne contient ni jeton ni donnée personnelle. Un build local avec modifications porte `dirty: true` : le hash du dernier commit seul ne suffit alors pas à le reproduire. Sur Vercel, l’état des modifications est inconnu : les fichiers générés pendant le build ne décrivent pas l’état du commit source. Une archive sans métadonnées Git porte `unknown`, jamais un hash inventé.
 
 Le fichier de version est servi sans cache durable sur Vercel. La date du build n’est pas une preuve de validation : les contrôles sont consignés dans le compte rendu de PR.
 
