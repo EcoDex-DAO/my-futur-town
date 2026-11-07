@@ -13,6 +13,29 @@ pnpm run dev
 
 Ouvrir http://localhost:5173. Aucun compte, aucune clé et aucune base ne sont nécessaires pour la carte. Internet et WebGL sont requis. Les tuiles proviennent directement d’OpenFreeMap. Zoomer, déplacer, tourner et incliner avec les contrôles ou Ctrl + glisser. Cliquer sur un objet pour voir les propriétés de sa tuile. Le bouton de recentrage restaure la vue d’Annecy. La carte reste utilisable si les routes API ne répondent pas.
 
+### Démarrage automatique sur Linux
+
+Pour démarrer le serveur après chaque ouverture de session utilisateur, depuis le dépôt exécuter une fois :
+
+```sh
+./scripts/install-dev-service.sh
+```
+
+Le service systemd utilisateur utilise le Node.js et Corepack présents dans `PATH` au moment de l’installation ; il redémarre si Next.js s’arrête de façon inattendue. Pour voir son état et ses journaux :
+
+```sh
+systemctl --user status my-futur-town.service
+journalctl --user -u my-futur-town.service -f
+```
+
+Pour l’arrêter ou désactiver son démarrage à la connexion :
+
+```sh
+systemctl --user disable --now my-futur-town.service
+```
+
+Le service ne lance pas de session graphique et n’ouvre pas le navigateur. Il faut ouvrir http://localhost:5173 après la connexion.
+
 Le panneau **Bus SIBRA** permet de rechercher une ligne, d’en afficher les variantes et de consulter leurs arrêts sur la carte. Il utilise un instantané GTFS théorique inclus dans l’application, sans horaires en temps réel ni modification des lignes. Sa période de validité, sa provenance et les conditions de redistribution sont précisées dans [la documentation des données SIBRA](docs/sibra-data.md).
 
 Le panneau **Pointe de la ligne 1** permet de simuler les courses prévues à la pointe calculée, de choisir une date et une heure ou d’accélérer le temps. Les positions entre arrêts sont estimées : elles ne représentent pas les positions GPS réelles. Les bus et abris 3D sont schématiques ; les abris ne décrivent pas les équipements effectivement installés. La simulation dépend de la période de validité du GTFS inclus.
