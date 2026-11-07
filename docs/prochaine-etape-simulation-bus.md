@@ -27,10 +27,9 @@ pas d'un reroutage vers un graphe routier ni d'une preuve de correspondance
 parfaite avec la voirie OSM affichée. Ces derniers points nécessitent une
 inspection visuelle des segments et un réseau routier exploitable.
 
-Document de préparation, sans modification de la simulation. Objectif : reprendre
-la ligne 1 avec des déplacements fluides, cohérents avec les arrêts et le réseau
-de voirie, puis préparer la consultation et le déplacement d'un arrêt. Les
-comportements de scénario proposés ci-dessous restent à valider avant réalisation.
+Feuille de route pour améliorer la simulation et préparer la consultation puis le
+déplacement d'un arrêt. Le diagnostic et la correction d'import de la ligne 1
+figurent ci-dessus ; les autres étapes restent à réaliser ou à valider.
 
 ## Vision : aider une ville à repenser ses mobilités
 
