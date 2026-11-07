@@ -2,6 +2,31 @@
 
 Suivi GitHub et point d'entrée pour la reprise : [issue bus #7](https://github.com/EcoDex-DAO/my-futur-town/issues/7).
 
+## Diagnostic de la ligne 1 — 7 novembre 2026
+
+Sur les données épinglées, la ligne 1 a 10 variantes, 561 courses et deux sens
+GTFS. Les formes GTFS contiennent entre 523 et 951 coordonnées ; les séquences
+ont entre 25 et 42 arrêts.
+
+J'ai comparé les points d'arrêt aux formes de leur variante en projection locale
+métrique, puis comparé la progression d'arrêt calculée depuis `shape_dist_traveled`
+à la progression du point le plus proche sur la géométrie. La plupart des arrêts
+sont à quelques mètres de leur forme (médiane par variante : 3,5–4,2 m ; P90 :
+6,0–9,1 m), cohérent avec le décalage quai/voie. Cas notable : pour la variante
+direction 1 « POISY COLLEGE », l'arrêt terminal `0:1POC` se projette à environ
+2,9 m du tracé, mais l'ancien progrès GTFS était 1,0 alors que le point projeté
+est à 0,9714, soit environ 397 m plus tôt. Le bus pouvait donc dépasser son quai
+terminal sur la forme.
+
+Correction appliquée à l'import : projeter chaque arrêt géographiquement sur la
+forme de sa course, maintenir leur ordre et utiliser la distance GTFS pour
+départager des segments de forme équivalents (boucles/croisements). Les formes
+GTFS restent la géométrie des routes suivies ; les données source ne sont pas
+retouchées. Il s'agit d'une correction des positions d'arrêt le long du tracé,
+pas d'un reroutage vers un graphe routier ni d'une preuve de correspondance
+parfaite avec la voirie OSM affichée. Ces derniers points nécessitent une
+inspection visuelle des segments et un réseau routier exploitable.
+
 Document de préparation, sans modification de la simulation. Objectif : reprendre
 la ligne 1 avec des déplacements fluides, cohérents avec les arrêts et le réseau
 de voirie, puis préparer la consultation et le déplacement d'un arrêt. Les

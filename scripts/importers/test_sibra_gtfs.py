@@ -5,7 +5,7 @@ import zipfile
 from io import StringIO
 from pathlib import Path
 
-from sibra_gtfs import convert_gtfs, convert_schedule, feed_service_dates, shape_progress
+from sibra_gtfs import convert_gtfs, convert_schedule, feed_service_dates, project_stop_progress, shape_progress
 
 
 def make_feed(path: Path, trips=None, stop_ids=None, exceptions=None, out_of_order=False):
@@ -139,6 +139,25 @@ class SibraGtfsImportTest(unittest.TestCase):
         ]
         progress = shape_progress(points, [5], "S")
         self.assertAlmostEqual(progress[0], 1 / 6, places=4)
+
+    def test_stop_projection_uses_stop_coordinate_when_shape_distance_runs_past_stop(self):
+        points = [
+            {"shape_pt_sequence": "1", "shape_dist_traveled": "0", "shape_pt_lon": "6.2", "shape_pt_lat": "45.1"},
+            {"shape_pt_sequence": "2", "shape_dist_traveled": "100", "shape_pt_lon": "6.201", "shape_pt_lat": "45.1"},
+            {"shape_pt_sequence": "3", "shape_dist_traveled": "200", "shape_pt_lon": "6.202", "shape_pt_lat": "45.1"},
+        ]
+        progress = project_stop_progress(points, [[6.201, 45.1]], [1.0])
+        self.assertAlmostEqual(progress[0], 0.5, places=3)
+
+    def test_stop_projection_keeps_order_at_a_self_intersection(self):
+        points = [
+            {"shape_pt_sequence": "1", "shape_dist_traveled": "0", "shape_pt_lon": "6.2", "shape_pt_lat": "45.1"},
+            {"shape_pt_sequence": "2", "shape_dist_traveled": "100", "shape_pt_lon": "6.201", "shape_pt_lat": "45.1"},
+            {"shape_pt_sequence": "3", "shape_dist_traveled": "200", "shape_pt_lon": "6.2", "shape_pt_lat": "45.1"},
+        ]
+        progress = project_stop_progress(points, [[6.2, 45.1], [6.2, 45.1]], [0.0, 1.0])
+        self.assertEqual(progress, sorted(progress))
+        self.assertGreater(progress[1], progress[0])
 
     def test_recurring_calendar_dates_are_included(self):
         dates = feed_service_dates(

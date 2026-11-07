@@ -161,6 +161,53 @@ def shape_progress(shape_points: list[dict[str, str]], stop_distances: list[floa
     return result
 
 
+def project_stop_progress(
+    shape_points: list[dict[str, str]], stop_coordinates: list[list[float]], expected: list[float]
+) -> list[float]:
+    """Project GTFS stops onto their shape, using shape distance to resolve loops."""
+    ordered = sorted(shape_points, key=lambda row: int(row["shape_pt_sequence"]))
+    coordinates = [parse_coordinates(p["shape_pt_lon"], p["shape_pt_lat"], "shape") for p in ordered]
+    lengths = [0.0]
+    for first, second in zip(coordinates, coordinates[1:]):
+        lengths.append(lengths[-1] + haversine_meters(first, second))
+    total = lengths[-1]
+    if total <= 0 or len(stop_coordinates) != len(expected):
+        raise ValueError("Cannot project stops onto an empty or invalid shape")
+
+    progresses: list[float] = []
+    previous = 0.0
+    for coordinate, expected_progress in zip(stop_coordinates, expected, strict=True):
+        lat0 = math.radians(coordinate[1])
+        px = math.radians(coordinate[0]) * math.cos(lat0)
+        py = math.radians(coordinate[1])
+        candidates: list[tuple[float, float]] = []
+        for index, (first, second) in enumerate(zip(coordinates, coordinates[1:])):
+            ax = math.radians(first[0]) * math.cos(lat0)
+            ay = math.radians(first[1])
+            bx = math.radians(second[0]) * math.cos(lat0)
+            by = math.radians(second[1])
+            dx, dy = bx - ax, by - ay
+            denominator = dx * dx + dy * dy
+            ratio = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / denominator)) if denominator else 0.0
+            distance = math.hypot(px - ax - ratio * dx, py - ay - ratio * dy) * 6_371_000
+            progress = (lengths[index] + ratio * (lengths[index + 1] - lengths[index])) / total
+            if progress >= previous - 1e-9:
+                candidates.append((distance, progress))
+        if not candidates:
+            progresses.append(previous)
+            continue
+        nearest = min(distance for distance, _ in candidates)
+        # Several segments can cross the same stop. Prefer the one closest to the
+        # GTFS shape-distance position among geometrically equivalent candidates.
+        _, progress = min(
+            (item for item in candidates if item[0] <= nearest + 3.0),
+            key=lambda item: abs(item[1] - expected_progress),
+        )
+        previous = max(previous, progress)
+        progresses.append(previous)
+    return progresses
+
+
 def convert_gtfs(
     archive_path: Path, generated_at: str, expected_sha256: str | None = None
 ) -> dict[str, Any]:
@@ -319,6 +366,7 @@ def convert_schedule(archive_path: Path, line_id: str = "1") -> dict[str, Any]:
     active_services = {service_id for ids in service_dates.values() for service_id in ids}
 
     output_trips = []
+    progress_cache: dict[tuple[str, tuple[str, ...]], list[float]] = {}
     for trip in selected_trips:
         trip_id = trip["trip_id"]
         service_id = trip["service_id"]
@@ -358,7 +406,16 @@ def convert_schedule(archive_path: Path, line_id: str = "1") -> dict[str, Any]:
             times.append({"arrival": arrival, "departure": departure})
             stop_distances.append(stop_distance)
 
-        progresses = shape_progress(shape, stop_distances, shape_id)
+        progress_key = (shape_id, stop_ids)
+        progresses = progress_cache.get(progress_key)
+        if progresses is None:
+            expected_progresses = shape_progress(shape, stop_distances, shape_id)
+            progresses = project_stop_progress(
+                shape,
+                [parse_coordinates(stop_by_id[stop_id]["stop_lon"], stop_by_id[stop_id]["stop_lat"], f"stop {stop_id}") for stop_id in stop_ids],
+                expected_progresses,
+            )
+            progress_cache[progress_key] = progresses
         variant_id = make_variant_id(line_id, shape_id, trip["trip_headsign"], stop_ids)
         output_trips.append(
             {
