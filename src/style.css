@@ -882,6 +882,23 @@ section h2 span {
   color: #173b3b;
   font-weight: 700;
 }
+.bus-simulation-dwell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  color: #476858;
+  font-size: 10px;
+}
+.bus-simulation-dwell select {
+  min-height: 34px;
+  padding: 6px;
+  border: 1px solid #c8d5cb;
+  border-radius: 5px;
+  background: #fff;
+  color: #173b3b;
+  font: inherit;
+}
 .bus-simulation-exit {
   width: 100%;
   margin-top: 8px;

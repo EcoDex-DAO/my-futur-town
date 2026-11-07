@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { findRushHour, getActiveVehicles, parseSchedule, type Schedule, type ScheduleTrip } from "./bus-simulation";
+import { findRushHour, getActiveVehicles, parseSchedule, stopDwell, type Schedule, type ScheduleTrip } from "./bus-simulation";
 import { parseSibraData, type SibraData } from "./sibra";
 import { busDisplayFeatures } from "./bus-models";
 import { nextStopPassages } from "./bus-stop-times";
@@ -114,16 +114,64 @@ describe("scheduled bus simulation", () => {
       expect(vehicle.position[1]).toBeCloseTo(0);
       expect(vehicle.atStop).toBe(true);
     }
-    expect(getActiveVehicles(input, data, "2026-11-06", 250, "1")[0].position[1]).toBeCloseTo(1);
+    expect(getActiveVehicles(input, data, "2026-11-06", 250, "1", { estimatedDwellSeconds: 0 })[0].position[1]).toBeCloseTo(1);
+  });
+
+
+  it("borrows an estimated dwell before equal GTFS times without changing source or departures", () => {
+    const bus = trip("a", 0, 300);
+    bus.stops.splice(1, 0, { stopId: "middle", arrival: 100, departure: 100, progress: 1 / 3 });
+    const input = schedule([bus]);
+    const original = structuredClone(input);
+    for (const second of [88, 95.5, 100]) {
+      expect(getActiveVehicles(input, data, "2026-11-06", second, "1")[0]).toMatchObject({
+        atStop: true, estimatedDwellSeconds: 12, dwellLimited: false,
+      });
+      expect(getActiveVehicles(input, data, "2026-11-06", second, "1")[0].position[0]).toBeCloseTo(1);
+    }
+    expect(getActiveVehicles(input, data, "2026-11-06", 87.99, "1")[0].atStop).toBe(false);
+    expect(getActiveVehicles(input, data, "2026-11-06", 100.01, "1")[0].atStop).toBe(false);
+    expect(getActiveVehicles(input, data, "2026-11-06", 95, "1", { estimatedDwellSeconds: 0 })[0].atStop).toBe(false);
+    expect(input).toEqual(original);
+  });
+
+  it("bounds estimated dwell on short or simultaneous legs and preserves published dwell", () => {
+    const bus = trip("short", 0, 8);
+    expect(stopDwell(bus, 0)).toEqual({ arrival: 0, estimatedSeconds: 0, limited: false });
+    expect(stopDwell(bus, 1)).toEqual({ arrival: 4, estimatedSeconds: 4, limited: true });
+    bus.stops[1].departure = 15;
+    expect(stopDwell(bus, 1)).toEqual({ arrival: 8, estimatedSeconds: 0, limited: false });
+    bus.stops[1].arrival = 0;
+    bus.stops[1].departure = 0;
+    expect(stopDwell(bus, 1)).toEqual({ arrival: 0, estimatedSeconds: 0, limited: true });
+    for (const estimatedDwellSeconds of [-1, NaN, Infinity]) {
+      expect(stopDwell(trip("a", 0, 100), 1, { estimatedDwellSeconds }).estimatedSeconds).toBe(0);
+    }
+  });
+
+  it("holds before the terminal after midnight and follows opposite variant headings", () => {
+    const reverse = structuredClone(data);
+    reverse.lines[0].variants.push({ id: "back", headsign: "A", coordinates: [[1, 2], [1, 0], [0, 0]], stops: [] });
+    const outbound = trip("outbound", 86300, 86500);
+    const inbound = { ...trip("inbound", 86300, 86500), variantId: "back", directionId: "1" };
+    const input = schedule([outbound, inbound]);
+    const vehicles = getActiveVehicles(input, reverse, "2026-11-07", 95, "1");
+    expect(vehicles).toHaveLength(2);
+    expect(vehicles.every((vehicle) => vehicle.atStop && vehicle.estimatedDwellSeconds === 12)).toBe(true);
+    expect(vehicles[0].position).toEqual([1, 2]);
+    expect(vehicles[1].position).toEqual([0, 0]);
+    expect(vehicles[0].bearing).toBeCloseTo(0);
+    expect(vehicles[1].bearing).toBeCloseTo(270);
+    expect(getActiveVehicles(input, reverse, "2026-11-07", 100, "1")).toEqual([]);
   });
 
   it("follows a multi-segment route by geodesic length and reports heading from north", () => {
     const input = schedule([trip("a", 0, 300)]);
-    const east = getActiveVehicles(input, data, "2026-11-06", 50, "1")[0];
+    const east = getActiveVehicles(input, data, "2026-11-06", 50, "1", { estimatedDwellSeconds: 0 })[0];
     expect(east.position[0]).toBeCloseTo(0.5);
     expect(east.position[1]).toBe(0);
     expect(east.bearing).toBeCloseTo(90);
-    const north = getActiveVehicles(input, data, "2026-11-06", 200, "1")[0];
+    const north = getActiveVehicles(input, data, "2026-11-06", 200, "1", { estimatedDwellSeconds: 0 })[0];
     expect(north.position[0]).toBeCloseTo(1);
     expect(north.position[1]).toBeCloseTo(1);
     expect(north.bearing).toBeCloseTo(0);
@@ -155,7 +203,7 @@ describe("scheduled bus simulation", () => {
     const polar = structuredClone(data);
     polar.lines[0].variants[0].coordinates = [[0, 60], [1, 60], [1, 61]];
     const input = schedule([trip("a", 0, 300)]);
-    const vehicle = getActiveVehicles(input, polar, "2026-11-06", 150, "1")[0];
+    const vehicle = getActiveVehicles(input, polar, "2026-11-06", 150, "1", { estimatedDwellSeconds: 0 })[0];
     // The first eastward degree is about half as long as the northward degree.
     expect(vehicle.position[0]).toBe(1);
     expect(vehicle.position[1]).toBeCloseTo(60.25, 3);

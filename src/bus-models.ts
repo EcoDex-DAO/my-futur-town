@@ -1,5 +1,5 @@
 import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
-import type { ActiveVehicle } from "./bus-simulation";
+import { locateVariant, type ActiveVehicle, type Schedule } from "./bus-simulation";
 import type { SibraData, SibraStop } from "./sibra";
 
 export const STOP_MODEL_CATALOG = {
@@ -113,22 +113,64 @@ export function busDisplayFeatures(vehicles: ActiveVehicle[], zoom: number): (Fe
   }));
 }
 
-/** One shared, schematic shelter model per stop_id; no real equipment inventory is implied. */
-export function symbolicStopModels(data: SibraData, variantIds: Set<string>): FeatureCollection<Polygon> {
-  const stops = new Map<string, SibraStop>();
+/** One model per GTFS quay, linked to all variants. Scheduled anchors use the exact bus geometry.
+ * With no timetable we retain the source quay coordinate and only infer the nearest segment heading.
+ * A quay used with incompatible headings/anchors keeps its first variant and exposes the ambiguity.
+ */
+export function symbolicStopModels(data: SibraData, variantIds: Set<string>, schedule?: Schedule): FeatureCollection<Polygon> {
+  type Anchor = { stop: SibraStop; position: [number, number]; bearing: number; variantId: string; directionId: string; source: string; repeatedPassage: boolean };
+  const stops = new Map<string, Anchor[]>();
   for (const line of data.lines) {
     if (line.id !== "1") continue;
     for (const variant of line.variants) {
       if (!variantIds.has(variant.id)) continue;
-      for (const stop of variant.stops) stops.set(stop.id, stop);
+      const trips = schedule?.trips.filter((trip) => trip.lineId === line.id && trip.variantId === variant.id) ?? [];
+      for (const stop of variant.stops) {
+        const trip = trips.find((trip) => trip.stops.some((item) => item.stopId === stop.id));
+        const passage = trip?.stops.find((item) => item.stopId === stop.id);
+        const repeatedPassage = !!passage && trips.some((item) => item.stops.some((candidate) => candidate.stopId === stop.id && Math.abs(candidate.progress - passage.progress) > 1e-5));
+        let anchor = passage ? locateVariant(data, line.id, variant.id, passage.progress) : null;
+        if (!anchor) {
+          let closest = Infinity;
+          let bearing = 0;
+          const scale = Math.cos(stop.coordinates[1] * Math.PI / 180);
+          for (let i = 1; i < variant.coordinates.length; i++) {
+            const a = variant.coordinates[i - 1];
+            const b = variant.coordinates[i];
+            const dx = (b[0] - a[0]) * scale;
+            const dy = b[1] - a[1];
+            const squared = dx * dx + dy * dy;
+            if (!squared) continue;
+            const ratio = Math.max(0, Math.min(1, ((stop.coordinates[0] - a[0]) * scale * dx + (stop.coordinates[1] - a[1]) * dy) / squared));
+            const distance = ((stop.coordinates[0] - a[0]) * scale - ratio * dx) ** 2 + (stop.coordinates[1] - a[1] - ratio * dy) ** 2;
+            if (distance < closest) { closest = distance; bearing = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360; }
+          }
+          if (!Number.isFinite(closest)) continue;
+          anchor = { position: stop.coordinates, bearing };
+        }
+        const anchors = stops.get(stop.id) ?? [];
+        anchors.push({ stop, ...anchor, variantId: variant.id, directionId: trip?.directionId ?? "inconnu", repeatedPassage, source: passage ? "scheduled-route" : "source-quay" });
+        stops.set(stop.id, anchors);
+      }
     }
   }
   const features: ModelFeature[] = [];
-  for (const stop of stops.values()) {
-    const modelType = STOP_MODEL_CATALOG.shelter;
-    for (const forward of [-1.2, 1.2])
-      features.push(modelFeature(stop, modelType, 35, forward, 4.5, 0.08, 0.08, 0, 2.25, "#547365", `post-${forward}`));
-    features.push(modelFeature(stop, modelType, 35, 0, 4.5, 2.8, 1.45, 2.15, 2.4, "#aebfa7", "roof"));
+  for (const anchors of stops.values()) {
+    const first = anchors[0];
+    const origin = { id: first.stop.id, coordinates: first.position };
+    const ambiguous = anchors.some((anchor) => anchor.repeatedPassage || Math.abs(((anchor.bearing - first.bearing + 540) % 360) - 180) > 45 ||
+      Math.hypot((anchor.position[0] - first.position[0]) * Math.cos(first.position[1] * Math.PI / 180), anchor.position[1] - first.position[1]) * 111_320 > 10);
+    const parts = [-1.2, 1.2].map((forward) => modelFeature(origin, STOP_MODEL_CATALOG.shelter, first.bearing, forward, 4.5, 0.08, 0.08, 0, 2.25, "#547365", `post-${forward}`));
+    parts.push(modelFeature(origin, STOP_MODEL_CATALOG.shelter, first.bearing, 0, 4.5, 2.8, 1.45, 2.15, 2.4, "#aebfa7", "roof"));
+    for (const part of parts) {
+      Object.assign(part.properties, {
+        variantIds: [...new Set(anchors.map((anchor) => anchor.variantId))],
+        directionIds: [...new Set(anchors.map((anchor) => anchor.directionId))],
+        anchorVariantId: first.variantId, anchorSource: first.source, anchorPosition: first.position,
+        bearing: first.bearing, anchorAmbiguous: ambiguous,
+      });
+      features.push(part);
+    }
   }
   return { type: "FeatureCollection", features };
 }

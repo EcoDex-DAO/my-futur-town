@@ -14,7 +14,25 @@ export type RushHour = { date: string; peakSecond: number; startSecond: number; 
 export type ActiveVehicle = {
   id: string; lineId: string; variantId: string; directionId: string;
   position: [number, number]; bearing: number; atStop: boolean;
+  estimatedDwellSeconds?: number; dwellLimited?: boolean;
 };
+
+export const DEFAULT_ESTIMATED_DWELL_SECONDS = 12;
+export type SimulationOptions = { estimatedDwellSeconds?: number };
+
+/** Borrow at most half the incoming run, preserving positive travel time and every GTFS departure.
+ * The first stop has no incoming run; its published departure remains the start of the trip.
+ */
+export function stopDwell(trip: ScheduleTrip, index: number, options: SimulationOptions = {}): { arrival: number; estimatedSeconds: number; limited: boolean } {
+  const stop = trip.stops[index];
+  const requested = options.estimatedDwellSeconds ?? DEFAULT_ESTIMATED_DWELL_SECONDS;
+  const duration = Number.isFinite(requested) ? Math.max(0, requested) : 0;
+  if (index === 0 || stop.arrival !== stop.departure || duration === 0)
+    return { arrival: stop.arrival, estimatedSeconds: 0, limited: false };
+  const available = Math.max(0, stop.arrival - trip.stops[index - 1].departure);
+  const estimatedSeconds = Math.min(duration, available / 2);
+  return { arrival: stop.arrival - estimatedSeconds, estimatedSeconds, limited: estimatedSeconds < duration };
+}
 
 const daySeconds = 86400;
 function dateDay(value: unknown): number {
@@ -163,6 +181,12 @@ function locate(geometry: Geometry, progress: number): Pick<ActiveVehicle, "posi
   };
 }
 
+/** Share the exact simulation geometry and distance convention with stationary stop models. */
+export function locateVariant(data: SibraData, lineId: string, variantId: string, progress: number): Pick<ActiveVehicle, "position" | "bearing"> | null {
+  const geometry = geometries(data).get(JSON.stringify([lineId, variantId]));
+  return geometry && Number.isFinite(progress) && progress >= 0 && progress <= 1 ? locate(geometry, progress) : null;
+}
+
 type Occurrence = { trip: ScheduleTrip; serviceDate: string; origin: number };
 const occurrenceCache = new WeakMap<Schedule, Map<string, Occurrence[]>>();
 function occurrencesOnDay(schedule: Schedule, day: number, lineId: string): Occurrence[] {
@@ -185,7 +209,7 @@ function occurrencesOnDay(schedule: Schedule, day: number, lineId: string): Occu
   return occurrences;
 }
 
-export function getActiveVehicles(schedule: Schedule, data: SibraData, date: string, second: number, lineId: string): ActiveVehicle[] {
+export function getActiveVehicles(schedule: Schedule, data: SibraData, date: string, second: number, lineId: string, options: SimulationOptions = {}): ActiveVehicle[] {
   const day = dateDay(date);
   if (!Number.isFinite(day) || !Number.isFinite(second) || second < 0) return [];
   const time = day * daySeconds + second;
@@ -198,16 +222,24 @@ export function getActiveVehicles(schedule: Schedule, data: SibraData, date: str
     if (local < trip.stops[0].departure || local >= trip.stops.at(-1)!.arrival) continue;
     let progress = trip.stops[0].progress;
     let atStop = false;
+    let estimatedDwellSeconds = 0;
+    let dwellLimited = false;
     for (let i = 0; i < trip.stops.length; i++) {
       const stop = trip.stops[i];
-      if (local >= stop.arrival && local <= stop.departure) { progress = stop.progress; atStop = true; break; }
+      const dwell = stopDwell(trip, i, options);
+      if (local >= dwell.arrival && local <= stop.departure) {
+        progress = stop.progress; atStop = true;
+        estimatedDwellSeconds = dwell.estimatedSeconds; dwellLimited = dwell.limited;
+        break;
+      }
       const next = trip.stops[i + 1];
-      if (next && local > stop.departure && local < next.arrival) {
-        progress = stop.progress + (next.progress - stop.progress) * (local - stop.departure) / (next.arrival - stop.departure);
+      const nextArrival = next ? stopDwell(trip, i + 1, options).arrival : 0;
+      if (next && local > stop.departure && local < nextArrival) {
+        progress = stop.progress + (next.progress - stop.progress) * (local - stop.departure) / (nextArrival - stop.departure);
         break;
       }
     }
-    vehicles.push({ id: `${trip.id}@${serviceDate}`, lineId: trip.lineId, variantId: trip.variantId, directionId: trip.directionId, ...locate(geometry, progress), atStop });
+    vehicles.push({ id: `${trip.id}@${serviceDate}`, lineId: trip.lineId, variantId: trip.variantId, directionId: trip.directionId, ...locate(geometry, progress), atStop, estimatedDwellSeconds, dwellLimited });
   }
   return vehicles;
 }

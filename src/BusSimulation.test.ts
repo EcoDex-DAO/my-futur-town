@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ActiveVehicle } from "./bus-simulation";
+import type { ActiveVehicle, Schedule } from "./bus-simulation";
 import { busFootprint, busModelFeatures } from "./bus-models";
 import { symbolicStopModels } from "./bus-models";
 import type { SibraData } from "./sibra";
@@ -44,5 +44,35 @@ describe("symbolic bus footprint", () => {
     expect(models.features).toHaveLength(3);
     expect(new Set(models.features.map((feature) => feature.properties?.stopModelId))).toEqual(new Set(["stop-1"]));
     expect(models.features.every((feature) => feature.properties?.modelType === "shelter")).toBe(true);
+    expect(models.features[0].properties?.anchorAmbiguous).toBe(true);
+    expect(models.features[0].properties?.variantIds).toEqual(["out", "back"]);
   });
+  it("anchors each quay to the scheduled bus passage and places its shelter on the right in both directions", () => {
+    const data: SibraData = {
+      metadata: { sourceUrl: "", attribution: "", license: "", validFrom: "", validTo: "", generatedAt: "" },
+      lines: [{ id: "1", shortName: "1", longName: "", color: "#31594a", variants: [
+        { id: "east", headsign: "B", coordinates: [[6, 46], [6.01, 46]], stops: [{ id: "quay-east", name: "Gare", coordinates: [6.005, 46.0001] }] },
+        { id: "west", headsign: "A", coordinates: [[6.01, 46], [6, 46]], stops: [{ id: "quay-west", name: "Gare", coordinates: [6.005, 45.9999] }] },
+      ] }],
+    };
+    const schedule: Schedule = { metadata: { validFrom: "2026-11-06", validTo: "2026-11-06", timeZone: "Europe/Paris" }, serviceDates: {}, trips:
+      ["east", "west"].map((variantId, index) => ({ id: variantId, lineId: "1", variantId, directionId: String(index), serviceId: "day", stops: [
+        { stopId: `quay-${variantId}`, arrival: 100, departure: 100, progress: 0.5 },
+        { stopId: "end", arrival: 200, departure: 200, progress: 1 },
+      ] })) };
+    const original = structuredClone(data);
+    const roofs = symbolicStopModels(data, new Set(["east", "west"]), schedule).features.filter((feature) => feature.properties?.part === "roof");
+    expect(roofs).toHaveLength(2);
+    for (const [index, roof] of roofs.entries()) {
+      expect(roof.properties?.anchorPosition).toEqual([6.005, 46]);
+      expect(roof.properties?.anchorSource).toBe("scheduled-route");
+      expect(roof.properties?.anchorAmbiguous).toBe(false);
+      expect(roof.properties?.bearing).toBeCloseTo(index === 0 ? 90 : 270, 1);
+      const ring = roof.geometry.coordinates[0].slice(0, 4);
+      const latitude = ring.reduce((sum, coordinate) => sum + coordinate[1], 0) / 4;
+      expect(index === 0 ? latitude < 46 : latitude > 46).toBe(true);
+    }
+    expect(data).toEqual(original);
+  });
+
 });

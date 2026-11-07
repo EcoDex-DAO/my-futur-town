@@ -147,21 +147,44 @@ horaires officiels.
 
 ## Constats sur la version actuelle
 
+### Mise à jour de la simulation
+
+- Une durée d'arrêt estimée de **12 secondes** est appliquée par défaut lorsque
+  l'arrivée et le départ GTFS coïncident. Elle est réglable à 0, 5, 12 ou 20
+  secondes. Cette moyenne est une hypothèse à affiner : les conditions réelles
+  varient selon les arrêts et les courses.
+- L'arrêt estimé est pris avant l'heure publiée, limité à la moitié du temps de
+  trajet entrant et signalé à l'écran lorsqu'il est réduit. Les horaires source
+  restent inchangés. Le premier arrêt conserve son départ publié ; au terminus,
+  l'arrêt estimé précède l'arrivée publiée.
+- Les abris symboliques utilisent le point de passage de la variante et son sens,
+  avec un décalage à droite. Un quai associé à des variantes incompatibles garde
+  une position représentative et expose une ambiguïté dans ses données. Ce rendu
+  ne constitue pas un relevé de l'équipement réel ni une validation de la voirie.
+- Les changements de vitesse et la pause conservent la continuité de l'horloge
+  simulée. La validation visuelle des deux sens et les mesures de performance sur
+  mobile restent nécessaires.
+- Contrôle navigateur partiel : la simulation, la pause, le recentrage et les
+  abris ont été observés sans API. Le test complet a dépassé son délai avec le
+  rendu logiciel SwiftShader ; les tests mobile et horaires restent à relancer
+  sur un environnement plus rapide. Ce contrôle ne valide pas toute la voirie.
+
 - Avant l'optimisation, `src/BusSimulation.tsx` actualisait les véhicules au
   maximum une fois par seconde et envoyait aussi leurs modèles détaillés à toute
   la carte. Cela rendait le déplacement saccadé et faisait recalculer des formes
   qui n'étaient pas visibles.
-- `src/bus-simulation.ts` prévoit déjà un arrêt entre `arrival` et `departure`.
+- `src/bus-simulation.ts` prévoit un arrêt entre `arrival` et `departure`.
   Dans le fichier local `public/data/sibra-schedule.json`, les **21 698 horaires
   d'arrêt** de la ligne 1 ont cependant une arrivée égale au départ : aucun temps
-  d'immobilisation observable n'est fourni. La vitesse entre deux arrêts est une
+  d'immobilisation observable n'est fourni ; la durée ajoutée est donc estimée.
+  La vitesse entre deux arrêts est une
   interpolation théorique, pas une mesure GPS.
 - Les bus suivent la géométrie GTFS de leur variante. Une forme GTFS peut différer
   visuellement de la voirie affichée, et la projection des arrêts le long de cette
   forme mérite d'être contrôlée avant de conclure à la cause précise d'un décalage.
-- `src/bus-models.ts` dessine des abris symboliques avec un décalage de 4,5 m et
-  une orientation fixe. Leur position n'est donc pas nécessairement le point où
-  le bus s'immobilise. Le modèle ne décrit pas l'équipement réel.
+- `src/bus-models.ts` dessine des abris symboliques décalés de 4,5 m à droite
+  du point de passage, orientés selon le trajet. Le modèle ne décrit pas
+  l'équipement réel et peut être ambigu pour un quai partagé entre variantes.
 - Source et validité du jeu actuel : voir [sibra-data.md](sibra-data.md). Les
   horaires sont théoriques et valables du 4 novembre au 20 décembre 2026 ; vérifier
   l'édition disponible au moment de reprendre le travail.
@@ -184,7 +207,7 @@ horaires officiels.
   fonctionnement sans API. La capture est produite par
   `e2e/bus-simulation.spec.ts`.
 - Cette optimisation ne remplace pas le contrôle visuel des formes GTFS contre
-  la voirie, ne crée pas de temps d'arrêt absent des horaires et n'a pas encore
+  la voirie ; l'arrêt ajouté est une estimation et elle n'a pas encore
   été mesurée sur un appareil mobile modeste. Ces points restent à traiter avant
   d'étendre la simulation à un réseau complet.
 
@@ -207,7 +230,7 @@ horaires officiels.
    GTFS intacts. Quand arrivée et départ sont identiques, appliquer dans la
    simulation une durée d'arrêt *estimée* configurable, uniquement quand le temps
    disponible entre deux passages le permet. Proposition initiale à valider :
-   10 secondes, prises avant l'heure GTFS pour maintenir l'heure de départ et
+   12 secondes, prises avant l'heure GTFS pour maintenir l'heure de départ et
    l'horaire des arrêts suivants ; borner cette durée pour éviter vitesse infinie
    ou temps de parcours négatif. Si le temps est insuffisant, réduire la durée et
    signaler la limite. Ne pas allonger une course ni modifier les horaires affichés

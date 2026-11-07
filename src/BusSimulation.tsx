@@ -7,6 +7,7 @@ import { busDisplayFeatures, symbolicStopModels } from "./bus-models";
 import {
   findRushHour,
   getActiveVehicles,
+  DEFAULT_ESTIMATED_DWELL_SECONDS,
   parseSchedule,
   type ActiveVehicle,
   type RushHour,
@@ -89,9 +90,11 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
   const [second, setSecond] = useState(0);
   const [displayedSecond, setDisplayedSecond] = useState(0);
   const [speed, setSpeed] = useState<(typeof SPEEDS)[number]>(1);
+  const [dwellSeconds, setDwellSeconds] = useState(DEFAULT_ESTIMATED_DWELL_SECONDS);
   const [active, setActive] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [vehicleCount, setVehicleCount] = useState(0);
+  const [limitedDwellCount, setLimitedDwellCount] = useState(0);
   const [reducedMotion, setReducedMotion] = useState(false);
   const request = useRef<AbortController | null>(null);
   const currentSecond = useRef(0);
@@ -103,6 +106,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
   const scheduleRef = useRef<Schedule | null>(null);
   const routeSignature = useRef("");
   const activeVehicles = useRef<ActiveVehicle[]>([]);
+  const limitedDwellCountRef = useRef(0);
 
   const loadSchedule = () => {
     request.current?.abort();
@@ -221,15 +225,20 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
     const currentSchedule = scheduleRef.current;
     const currentData = dataRef.current;
     if (!currentSchedule || !currentData) return [] as ActiveVehicle[];
-    const vehicles = getActiveVehicles(currentSchedule, currentData, selectedDate, selectedSecond, LINE_ID);
+    const vehicles = getActiveVehicles(currentSchedule, currentData, selectedDate, selectedSecond, LINE_ID, { estimatedDwellSeconds: dwellSeconds });
     activeVehicles.current = vehicles;
+    const limitedCount = vehicles.filter((vehicle) => vehicle.atStop && vehicle.dwellLimited).length;
+    if (limitedCount !== limitedDwellCountRef.current) {
+      limitedDwellCountRef.current = limitedCount;
+      setLimitedDwellCount(limitedCount);
+    }
     const variantIds = new Set(baseVariants);
     vehicles.forEach((vehicle) => variantIds.add(vehicle.variantId));
     const signature = [...variantIds].sort().join("|");
     if (signature !== routeSignature.current) {
       routeSignature.current = signature;
       (map.getSource("sibra-sim-routes") as GeoJSONSource | undefined)?.setData(lineFeatures(currentData, currentSchedule, variantIds));
-      (map.getSource("sibra-sim-stops") as GeoJSONSource | undefined)?.setData(symbolicStopModels(currentData, variantIds));
+      (map.getSource("sibra-sim-stops") as GeoJSONSource | undefined)?.setData(symbolicStopModels(currentData, variantIds, currentSchedule));
     }
     const bounds = map.getBounds();
     const visibleVehicles = vehicles.filter((vehicle) => bounds.contains(vehicle.position));
@@ -253,15 +262,16 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
       map.off("zoomend", refreshForView);
       map.off("moveend", refreshForView);
     };
-  }, [active, mapReady, map, schedule, data, playing]);
+  }, [active, mapReady, map, schedule, data, playing, dwellSeconds]);
 
   useEffect(() => {
     if (!active || !mapReady || !schedule || !data || !date) return;
     routeSignature.current = "";
-    const vehicles = renderAt(date, second);
+    const selectedSecond = playing ? simulationSecondAt() : second;
+    const vehicles = renderAt(date, selectedSecond);
     setVehicleCount(vehicles.length);
-    setDisplayedSecond(second);
-  }, [active, mapReady, schedule, data, map, date, second, baseVariants]);
+    setDisplayedSecond(Math.floor(selectedSecond));
+  }, [active, mapReady, schedule, data, map, date, second, baseVariants, dwellSeconds, playing]);
 
   useEffect(() => {
     if (!playing || !active || !schedule || !data || !date) return;
@@ -299,7 +309,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, active, schedule, data, date, map, mapReady, reducedMotion, baseVariants, vehicleCount, onClockChange]);
+  }, [playing, active, schedule, data, date, map, mapReady, reducedMotion, baseVariants, vehicleCount, onClockChange, dwellSeconds]);
 
   function setSimulationDate(value: string) {
     currentDate.current = value;
@@ -334,7 +344,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
       currentSecond.current = current;
       playAnchorSecond.current = current;
       playAnchorReal.current = now;
-      setSecond(Math.floor(current));
+      setSecond(current);
       setDisplayedSecond(Math.floor(current));
       onClockChange(currentDate.current, Math.floor(current));
     }
@@ -354,12 +364,12 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
   }
 
   function pauseSimulation() {
-    const next = Math.floor(simulationSecondAt());
+    const next = simulationSecondAt();
     currentSecond.current = next;
     playAnchorSecond.current = next;
-    onClockChange(currentDate.current, next);
+    onClockChange(currentDate.current, Math.floor(next));
     setSecond(next);
-    setDisplayedSecond(next);
+    setDisplayedSecond(Math.floor(next));
     setPlaying(false);
   }
 
@@ -377,6 +387,8 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
     pauseSimulation();
     setActive(false);
     setVehicleCount(0);
+    limitedDwellCountRef.current = 0;
+    setLimitedDwellCount(0);
     activeVehicles.current = [];
     routeSignature.current = "";
     (map?.getSource("sibra-sim-routes") as GeoJSONSource | undefined)?.setData(emptyLines);
@@ -419,10 +431,19 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
             <button type="button" className="bus-simulation-reset" onClick={resetToStart}>Retour au début</button>
           </div>
           <div className="bus-simulation-speeds" role="group" aria-label="Vitesse de simulation">
-            {SPEEDS.map((value) => <button type="button" key={value} aria-pressed={speed === value} onClick={() => setSpeed(value)}>×{value}</button>)}
+            {SPEEDS.map((value) => <button type="button" key={value} aria-pressed={speed === value} onClick={() => changeSpeed(value)}>×{value}</button>)}
           </div>
+          <label className="bus-simulation-dwell" htmlFor="bus-dwell-duration">Arrêt estimé
+            <select id="bus-dwell-duration" value={dwellSeconds} onChange={(event) => setDwellSeconds(Number(event.target.value))}>
+              <option value={0}>Désactivé</option>
+              <option value={5}>5 secondes</option>
+              <option value={12}>12 secondes (moyenne)</option>
+              <option value={20}>20 secondes</option>
+            </select>
+          </label>
           {active && <button type="button" className="bus-simulation-exit" onClick={leaveSimulation}>Quitter la simulation</button>}
           <p className="bus-simulation-clock"><strong>{timeText}</strong> · temps simulé · {vehicleCount} bus en circulation</p>
+          {active && limitedDwellCount > 0 && <p className="caption" role="status">Arrêt estimé réduit pour {limitedDwellCount} bus : temps de trajet disponible insuffisant.</p>}
           <button type="button" className="bus-simulation-focus" onClick={focusBus} disabled={!active || vehicleCount === 0 || !busVisible} title={!busVisible ? "Activez l’affichage SIBRA pour voir les bus" : vehicleCount === 0 ? "Aucun bus actif à cette heure" : "Centrer la carte sur un bus actif"}>Voir un bus de près</button>
           {reducedMotion && active && !playing && <p className="caption" role="status">Réduction des animations activée. Utilisez Reprendre pour faire avancer la simulation.</p>}
           {active && directionLegend.length > 0 && (
@@ -433,8 +454,8 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
           {!data && <p className="bus-simulation-message" role="status">Le tracé SIBRA est indisponible : rechargez la page ou réessayez.</p>}
           {data && !serviceAvailable && <p className="bus-simulation-message" role="status">Aucun service publié pour cette date.</p>}
           {data && serviceAvailable && vehicleCount === 0 && active && <p className="bus-simulation-message" role="status">Aucun service de la ligne 1 à cette heure.</p>}
-          {active && <p className="bus-simulation-disclaimer">Position calculée depuis les horaires théoriques, sans temps réel. Les véhicules 3D sont schématiques (12 × 2,5 m, hauteur 3,2 m).</p>}
-          {active && <p className="bus-simulation-model-note">Un abri 3D symbolique, décalé de la ligne pour la lisibilité, est affiché à chaque arrêt du parcours. Il ne décrit pas les équipements réels ; panneau et recharge restent des catégories de catalogue, sans attribution.</p>}
+          {active && <p className="bus-simulation-disclaimer">Position calculée depuis les horaires théoriques, sans temps réel. Les arrêts estimés sont réduits lorsque le temps entre deux passages est insuffisant ; les horaires affichés restent inchangés. Les véhicules 3D sont schématiques (12 × 2,5 m, hauteur 3,2 m).</p>}
+          {active && <p className="bus-simulation-model-note">Les abris 3D sont symboliques, orientés selon le trajet et décalés à droite de la voie. Ils ne décrivent pas les équipements réels ; certaines positions peuvent être ambiguës entre variantes.</p>}
           <p className="caption">Horaires valides du {schedule.metadata.validFrom} au {schedule.metadata.validTo} · {schedule.metadata.timeZone}</p>
         </>
       )}
