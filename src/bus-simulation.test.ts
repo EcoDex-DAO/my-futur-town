@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { findRushHour, getActiveVehicles, parseSchedule, type Schedule, type ScheduleTrip } from "./bus-simulation";
 import { parseSibraData, type SibraData } from "./sibra";
+import { busDisplayFeatures } from "./bus-models";
 
 function trip(id: string, start: number, end: number, serviceId = "weekday"): ScheduleTrip {
   return { id, lineId: "1", variantId: "out", directionId: "0", serviceId, stops: [
@@ -104,6 +105,16 @@ describe("scheduled bus simulation", () => {
     expect(north.position[1]).toBeCloseTo(1);
     expect(north.bearing).toBeCloseTo(0);
     expect(north.atStop).toBe(false);
+  });
+
+  it("keeps fleet geometry small at city zoom and switches to 3D only nearby", () => {
+    const vehicles = getActiveVehicles(schedule([trip("a", 0, 300)]), data, "2026-11-06", 50, "1");
+    const cityView = busDisplayFeatures(vehicles, 12);
+    const closeView = busDisplayFeatures(vehicles, 17);
+    expect(cityView).toHaveLength(1);
+    expect(cityView[0].geometry.type).toBe("Point");
+    expect(closeView).toHaveLength(5);
+    expect(closeView.every((feature) => feature.geometry.type === "Polygon")).toBe(true);
   });
 
   it("does not invent positions for missing or degenerate routes or invalid clocks", () => {

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Feature, FeatureCollection, LineString, Point, Polygon } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
-import { busModelFeatures, symbolicStopModels } from "./bus-models";
+import { busDisplayFeatures, symbolicStopModels } from "./bus-models";
 import {
   findRushHour,
   getActiveVehicles,
@@ -28,6 +28,8 @@ const daySeconds = 86_400;
 const DIRECTION_COLORS = ["#236982", "#a7522e", "#58753f", "#73558a", "#b18220", "#397d76"];
 const emptyPolygons: FeatureCollection<Polygon> = { type: "FeatureCollection", features: [] };
 const emptyLines: FeatureCollection<LineString> = { type: "FeatureCollection", features: [] };
+const emptyVehicles: FeatureCollection<Polygon | Point> = { type: "FeatureCollection", features: [] };
+const simulationLayerIds = ["sibra-sim-route-line", "sibra-sim-stop-models", "sibra-sim-buses", "sibra-sim-bus-points"];
 
 function timeValue(second: number): string {
   const value = Math.max(0, Math.min(daySeconds - 1, Math.floor(second)));
@@ -158,7 +160,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
     if (!map.getSource("sibra-sim-routes")) {
       map.addSource("sibra-sim-routes", { type: "geojson", data: emptyLines });
       map.addSource("sibra-sim-stops", { type: "geojson", data: emptyPolygons });
-      map.addSource("sibra-sim-vehicles", { type: "geojson", data: emptyPolygons });
+      map.addSource("sibra-sim-vehicles", { type: "geojson", data: emptyVehicles });
       map.addLayer({
         id: "sibra-sim-route-line", type: "line", source: "sibra-sim-routes",
         paint: { "line-color": ["coalesce", ["get", "color"], "#31594a"], "line-width": ["interpolate", ["linear"], ["zoom"], 10, 2, 16, 4.5], "line-opacity": 0.9 },
@@ -179,7 +181,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
         paint: { "circle-radius": 5, "circle-color": ["get", "color"], "circle-stroke-color": "#fff", "circle-stroke-width": 1.5 },
       });
     }
-    for (const id of ["sibra-sim-route-line", "sibra-sim-stop-models", "sibra-sim-buses", "sibra-sim-bus-points"])
+    for (const id of simulationLayerIds)
       map.setLayoutProperty(id, "visibility", active && busVisible ? "visible" : "none");
   }, [map, mapReady, active, busVisible]);
 
@@ -220,16 +222,29 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
       (map.getSource("sibra-sim-routes") as GeoJSONSource | undefined)?.setData(lineFeatures(currentData, currentSchedule, variantIds));
       (map.getSource("sibra-sim-stops") as GeoJSONSource | undefined)?.setData(symbolicStopModels(currentData, variantIds));
     }
-    const busPoints: Feature<Point>[] = vehicles.map((vehicle) => ({
-      type: "Feature",
-      id: `${vehicle.id}:map-point`,
-      properties: { id: vehicle.id, color: vehicle.atStop ? "#e8c95e" : "#31594a" },
-      geometry: { type: "Point", coordinates: vehicle.position },
-    }));
-    const features: FeatureCollection<Polygon | Point> = { type: "FeatureCollection", features: [...vehicles.flatMap(busModelFeatures), ...busPoints] };
-    (map.getSource("sibra-sim-vehicles") as GeoJSONSource | undefined)?.setData(features);
+    const bounds = map.getBounds();
+    const visibleVehicles = vehicles.filter((vehicle) => bounds.contains(vehicle.position));
+    (map.getSource("sibra-sim-vehicles") as GeoJSONSource | undefined)?.setData({
+      type: "FeatureCollection",
+      features: busDisplayFeatures(visibleVehicles, map.getZoom()),
+    });
     return vehicles;
   }
+
+  useEffect(() => {
+    if (!active || !mapReady || !map || !schedule || !data) return;
+    const refreshForView = () => {
+      const selectedSecond = playing ? simulationSecondAt() : currentSecond.current;
+      const vehicles = renderAt(currentDate.current, selectedSecond);
+      setVehicleCount(vehicles.length);
+    };
+    map.on("zoomend", refreshForView);
+    map.on("moveend", refreshForView);
+    return () => {
+      map.off("zoomend", refreshForView);
+      map.off("moveend", refreshForView);
+    };
+  }, [active, mapReady, map, schedule, data, playing]);
 
   useEffect(() => {
     if (!active || !mapReady || !schedule || !data || !date) return;
@@ -244,13 +259,17 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
     let frame = 0;
     let lastMapUpdate = 0;
     let lastUiUpdate = 0;
-    const frameInterval = reducedMotion ? 1250 : 1000;
+    const frameInterval = reducedMotion ? 100 : 50;
+    let lastVehicleCount = vehicleCount;
     const tick = (now: number) => {
       const next = simulationSecondAt(now);
       if (now - lastMapUpdate >= frameInterval) {
         lastMapUpdate = now;
         const vehicles = renderAt(currentDate.current, next);
-        setVehicleCount(vehicles.length);
+        if (vehicles.length !== lastVehicleCount) {
+          lastVehicleCount = vehicles.length;
+          setVehicleCount(lastVehicleCount);
+        }
       }
       if (now - lastUiUpdate >= 1000) {
         lastUiUpdate = now;
@@ -268,7 +287,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, active, schedule, data, date, map, mapReady, reducedMotion, baseVariants]);
+  }, [playing, active, schedule, data, date, map, mapReady, reducedMotion, baseVariants, vehicleCount]);
 
   function setSimulationDate(value: string) {
     currentDate.current = value;
@@ -345,7 +364,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
     routeSignature.current = "";
     (map?.getSource("sibra-sim-routes") as GeoJSONSource | undefined)?.setData(emptyLines);
     (map?.getSource("sibra-sim-stops") as GeoJSONSource | undefined)?.setData(emptyPolygons);
-    (map?.getSource("sibra-sim-vehicles") as GeoJSONSource | undefined)?.setData(emptyPolygons);
+    (map?.getSource("sibra-sim-vehicles") as GeoJSONSource | undefined)?.setData(emptyVehicles);
   }
 
   function focusBus() {

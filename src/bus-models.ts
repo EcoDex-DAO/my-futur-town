@@ -1,4 +1,4 @@
-import type { Feature, FeatureCollection, Polygon } from "geojson";
+import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
 import type { ActiveVehicle } from "./bus-simulation";
 import type { SibraData, SibraStop } from "./sibra";
 
@@ -100,6 +100,17 @@ export function busModelFeatures(vehicle: ActiveVehicle): Feature<Polygon>[] {
     modelFeature(origin, catalog, vehicle.bearing, 0, 0, 8.5, 2.25, 2.75, 3.2, "#d9dec8", "roof"),
     modelFeature(origin, catalog, vehicle.bearing, 5.82, 0, 0.18, 1.1, 2.76, 2.98, "#d19c37", "front-marker"),
   ];
+}
+
+/** Draw a tiny fleet marker across the city, and the schematic body only nearby. */
+export function busDisplayFeatures(vehicles: ActiveVehicle[], zoom: number): (Feature<Polygon> | Feature<Point>)[] {
+  if (zoom >= 16) return vehicles.flatMap(busModelFeatures);
+  return vehicles.map((vehicle) => ({
+    type: "Feature",
+    id: `${vehicle.id}:map-point`,
+    properties: { id: vehicle.id, color: vehicle.atStop ? "#e8c95e" : "#31594a" },
+    geometry: { type: "Point", coordinates: vehicle.position },
+  }));
 }
 
 /** One shared, schematic shelter model per stop_id; no real equipment inventory is implied. */

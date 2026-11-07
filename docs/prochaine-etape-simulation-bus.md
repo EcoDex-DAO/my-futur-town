@@ -147,9 +147,10 @@ horaires officiels.
 
 ## Constats sur la version actuelle
 
-- `src/BusSimulation.tsx` actualise la géométrie des bus au maximum une fois par
-  seconde. Cette limite protège les performances mais rend le déplacement saccadé,
-  particulièrement en accéléré.
+- Avant l'optimisation, `src/BusSimulation.tsx` actualisait les véhicules au
+  maximum une fois par seconde et envoyait aussi leurs modèles détaillés à toute
+  la carte. Cela rendait le déplacement saccadé et faisait recalculer des formes
+  qui n'étaient pas visibles.
 - `src/bus-simulation.ts` prévoit déjà un arrêt entre `arrival` et `departure`.
   Dans le fichier local `public/data/sibra-schedule.json`, les **21 698 horaires
   d'arrêt** de la ligne 1 ont cependant une arrivée égale au départ : aucun temps
@@ -164,6 +165,28 @@ horaires officiels.
 - Source et validité du jeu actuel : voir [sibra-data.md](sibra-data.md). Les
   horaires sont théoriques et valables du 4 novembre au 20 décembre 2026 ; vérifier
   l'édition disponible au moment de reprendre le travail.
+
+### Amélioration de fluidité mise en place
+
+- En lecture, l'animation actualise les véhicules 20 fois par seconde ; avec le
+  réglage de mouvement réduit, elle descend à 10 fois par seconde. L'horloge
+  affichée et le compteur ne déclenchent pas de rendu React à chaque image.
+- En vue ville, seuls des points légers sont publiés. À partir du zoom 16, le
+  modèle polygonal 3D est généré uniquement pour les véhicules qui entrent dans
+  le champ de la carte. Les formes de parcours et les arrêts restent statiques
+  pendant l'animation.
+- Un déplacement ou un zoom de carte recalcule le niveau de détail à l'arrêt de
+  la simulation également ; le zoom rapproché fonctionne donc quand les bus sont
+  en pause.
+- La recherche du segment de route utilise une recherche dichotomique sur les
+  distances cumulées, plutôt qu'un parcours depuis le début de chaque forme.
+- Le test navigateur de la pointe vérifie l'animation, pause, zoom rapproché et
+  fonctionnement sans API. La capture est produite par
+  `e2e/bus-simulation.spec.ts`.
+- Cette optimisation ne remplace pas le contrôle visuel des formes GTFS contre
+  la voirie, ne crée pas de temps d'arrêt absent des horaires et n'a pas encore
+  été mesurée sur un appareil mobile modeste. Ces points restent à traiter avant
+  d'étendre la simulation à un réseau complet.
 
 ## Proposition : première livraison, une simulation lisible et cohérente
 

@@ -141,8 +141,14 @@ function geometries(data: SibraData): Map<string, Geometry> {
 
 function locate(geometry: Geometry, progress: number): Pick<ActiveVehicle, "position" | "bearing"> {
   const target = progress * geometry.length;
-  let segment = 1;
-  while (segment < geometry.coordinates.length - 1 && geometry.cumulative[segment] <= target) segment++;
+  let low = 1;
+  let high = geometry.cumulative.length - 1;
+  while (low < high) {
+    const middle = (low + high) >>> 1;
+    if (geometry.cumulative[middle] <= target) low = middle + 1;
+    else high = middle;
+  }
+  let segment = low;
   while (segment > 1 && geometry.cumulative[segment] === geometry.cumulative[segment - 1]) segment--;
   const a = geometry.coordinates[segment - 1];
   const b = geometry.coordinates[segment];

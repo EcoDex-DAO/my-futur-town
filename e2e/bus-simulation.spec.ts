@@ -15,7 +15,7 @@ test("simule la pointe de la ligne 1 et ses commandes sans API", async ({ page }
   await panel.getByRole("button", { name: "×60" }).click();
   await expect(panel.getByRole("button", { name: "×60" })).toHaveAttribute("aria-pressed", "true");
   await panel.getByRole("button", { name: "Voir un bus de près" }).click();
-  await page.waitForTimeout(1_000);
+  await page.waitForTimeout(2_500);
   await page.screenshot({ path: testInfo.outputPath("bus-simulation.png") });
   await panel.getByRole("button", { name: "Retour au début" }).click();
   await expect(panel.getByLabel("Heure")).toHaveValue("07:19:00");
