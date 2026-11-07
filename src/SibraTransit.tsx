@@ -1,24 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { contrastTextColor, parseSibraData, type SibraData, type SibraStop, type SibraVariant, validityStatus } from "./sibra";
+import { parseSchedule, type Schedule } from "./bus-simulation";
+import { nextStopPassages } from "./bus-stop-times";
 
 type Props = {
   onData: (data: SibraData | null) => void;
   onSelection: (lineId: string | null, variantId: string | null) => void;
   selectedStopId: string | null;
   onStopSelect: (stopId: string) => void;
+  simulationDate: string;
+  simulationSecond: number;
   visible: boolean;
   onVisibility: (visible: boolean) => void;
   simulationActive: boolean;
 };
 
 const date = (value: string) => {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" }).format(parsed);
+  const parsed = new Date(`${value}T12:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? value : new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeZone: "UTC" }).format(parsed);
 };
 
-export function SibraTransit({ onData, onSelection, selectedStopId, onStopSelect, visible, onVisibility, simulationActive }: Props) {
+const clock = (second: number) => {
+  const value = Math.max(0, Math.min(86_399, Math.floor(second)));
+  return `${String(Math.floor(value / 3600)).padStart(2, "0")}:${String(Math.floor(value % 3600 / 60)).padStart(2, "0")}`;
+};
+
+export function SibraTransit({ onData, onSelection, selectedStopId, onStopSelect, simulationDate, simulationSecond, visible, onVisibility, simulationActive }: Props) {
   const [data, setData] = useState<SibraData | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
@@ -26,6 +35,38 @@ export function SibraTransit({ onData, onSelection, selectedStopId, onStopSelect
   const [lineId, setLineId] = useState("");
   const [variantId, setVariantId] = useState("");
   const request = useRef<AbortController | null>(null);
+  const scheduleRequest = useRef<AbortController | null>(null);
+  const scheduleRef = useRef<Schedule | null>(null);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [scheduleStatus, setScheduleStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [scheduleError, setScheduleError] = useState("");
+
+  const loadSchedule = useCallback(() => {
+    if (scheduleRef.current || scheduleRequest.current) return;
+    const controller = new AbortController();
+    scheduleRequest.current = controller;
+    setScheduleStatus("loading");
+    setScheduleError("");
+    fetch("/data/sibra-schedule.json", { cache: "force-cache", signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("Le fichier d’horaires SIBRA est introuvable.");
+        return response.json();
+      })
+      .then(parseSchedule)
+      .then((result) => {
+        scheduleRef.current = result;
+        setSchedule(result);
+        setScheduleStatus("ready");
+      })
+      .catch((reason: unknown) => {
+        if (controller.signal.aborted) return;
+        setScheduleError(reason instanceof Error ? reason.message : "Impossible de lire les horaires SIBRA.");
+        setScheduleStatus("error");
+      })
+      .finally(() => {
+        if (scheduleRequest.current === controller) scheduleRequest.current = null;
+      });
+  }, []);
 
   const load = () => {
     request.current?.abort();
@@ -60,6 +101,8 @@ export function SibraTransit({ onData, onSelection, selectedStopId, onStopSelect
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => () => scheduleRequest.current?.abort(), []);
+
   const selectedLine = data?.lines.find((line) => line.id === lineId);
   const variants = selectedLine?.variants ?? [];
   const selectedVariant = variants.find((variant) => variant.id === variantId);
@@ -79,7 +122,31 @@ export function SibraTransit({ onData, onSelection, selectedStopId, onStopSelect
     if (!normalized) return data?.lines ?? [];
     return (data?.lines ?? []).filter((line) => `${line.shortName} ${line.longName}`.toLocaleLowerCase("fr").includes(normalized));
   }, [data, query]);
-  const selectedStop: SibraStop | undefined = selectedVariant?.stops.find((stop) => stop.id === selectedStopId);
+  const selectedStopContext = useMemo(() => {
+    if (!data || !selectedStopId) return null;
+    for (const line of data.lines) for (const variant of line.variants) {
+      const stop = variant.stops.find((item) => item.id === selectedStopId);
+      if (stop) return { stop, line, variant };
+    }
+    return null;
+  }, [data, selectedStopId]);
+  const selectedStop: SibraStop | undefined = selectedStopContext?.stop;
+  useEffect(() => {
+    if (selectedStop && selectedStopContext?.line.id === "1" && !scheduleRef.current) loadSchedule();
+  }, [selectedStop?.id, selectedStopContext?.line.id, loadSchedule]);
+  const selectedStopKey = selectedStop?.id ?? "";
+  const passages = useMemo(() => {
+    if (!schedule || !selectedStopKey || !simulationDate) return [];
+    return nextStopPassages(schedule, selectedStopKey, simulationDate, simulationSecond, 6);
+  }, [schedule, selectedStopKey, simulationDate, simulationSecond]);
+  const stopHasSchedule = useMemo(() => Boolean(schedule && selectedStopKey && schedule.trips.some(
+    (trip) => trip.lineId === "1" && trip.stops.some((stop) => stop.stopId === selectedStopKey),
+  )), [schedule, selectedStopKey]);
+  const lineHasServiceToday = useMemo(() => Boolean(schedule &&
+    schedule.trips.some((trip) => trip.lineId === "1" && (schedule.serviceDates[simulationDate] ?? []).includes(trip.serviceId)),
+  ), [schedule, simulationDate]);
+  const dateOutsideSchedule = Boolean(schedule && simulationDate &&
+    (simulationDate < schedule.metadata.validFrom || simulationDate > schedule.metadata.validTo));
 
   function chooseLine(id: string) {
     const next = data?.lines.find((line) => line.id === id);
@@ -141,9 +208,8 @@ export function SibraTransit({ onData, onSelection, selectedStopId, onStopSelect
             </label>
           )}
           {selectedVariant && (
-            <div className="sibra-details" aria-live="polite">
+            <div className="sibra-details">
               <p><strong>{selectedVariant.stops.length}</strong> arrêts sur cet itinéraire</p>
-              {selectedStop && <p className="sibra-stop-detail"><span className="sibra-stop-dot" /> Arrêt sélectionné : <strong>{selectedStop.name}</strong></p>}
               <ol className="sibra-stop-list" aria-label={`Arrêts de la ligne ${selectedLine?.shortName}`}>
                 {selectedVariant.stops.map((stop, index) => (
                   <li key={`${stop.id}-${index}`}>
@@ -152,6 +218,50 @@ export function SibraTransit({ onData, onSelection, selectedStopId, onStopSelect
                 ))}
               </ol>
             </div>
+          )}
+          {selectedStop && (
+            <section className="sibra-selected-stop" aria-labelledby="sibra-selected-stop-title">
+              <p className="sibra-stop-detail"><span className="sibra-stop-dot" /> Arrêt sélectionné sur la ligne {selectedStopContext?.line.shortName} : <strong id="sibra-selected-stop-title">{selectedStop.name}</strong></p>
+              <p className="sibra-stop-id">Identifiant GTFS · {selectedStop.id}</p>
+              <section className="sibra-timetable" aria-labelledby="sibra-timetable-title">
+                <h3 id="sibra-timetable-title">Prochains passages</h3>
+                <p className="sibra-timetable-context">
+                  Horaires théoriques · {simulationDate ? `${date(simulationDate)} à ${clock(simulationSecond)}` : "chargement de l’horloge"} · Europe/Paris
+                </p>
+                {selectedStopContext?.line.id !== "1" ? (
+                  <p className="sibra-timetable-message">Les horaires chargés concernent uniquement la ligne 1.</p>
+                ) : scheduleStatus === "loading" || scheduleStatus === "idle" ? (
+                  <p className="sibra-timetable-message" role="status">Chargement des horaires de la ligne 1…</p>
+                ) : scheduleStatus === "error" ? (
+                  <div className="sibra-timetable-message" role="alert">
+                    <p>{scheduleError}</p>
+                    <button className="secondary" type="button" onClick={loadSchedule}>Réessayer</button>
+                  </div>
+                ) : schedule && dateOutsideSchedule ? (
+                  <p className="sibra-timetable-message">Cette date est hors de la période couverte par les horaires.</p>
+                ) : schedule && !stopHasSchedule ? (
+                  <p className="sibra-timetable-message">Aucun horaire chargé pour cet arrêt.</p>
+                ) : schedule && passages.length > 0 ? (
+                  <ol className="sibra-passage-list" aria-label={`Prochains passages à ${selectedStop.name}`}>
+                    {passages.map((passage) => {
+                      const destination = data.lines.find((line) => line.id === "1")?.variants.find((variant) => variant.id === passage.variantId)?.headsign;
+                      return (
+                        <li key={`${passage.tripId}-${passage.serviceDate}-${passage.second}`}>
+                          <time>{clock(passage.second)}</time>
+                          <span>{`Sens ${passage.directionId}${destination ? ` · ${destination}` : ""}`}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                ) : schedule && !lineHasServiceToday ? (
+                  <p className="sibra-timetable-message">Aucun service horaire publié pour cette date.</p>
+                ) : schedule ? (
+                  <p className="sibra-timetable-message">Aucun prochain passage publié à partir de cette heure.</p>
+                ) : (
+                  <p className="sibra-timetable-message">Sélectionnez un arrêt de la ligne 1 pour consulter ses horaires.</p>
+                )}
+              </section>
+            </section>
           )}
           {!selectedLine && <p className="caption sibra-empty">Choisissez une ligne pour afficher son tracé et ses arrêts sur la carte.</p>}
           {validity && <p className="sibra-validity" role="status">La période de validité du jeu GTFS est {validity === "expired" ? "terminée" : "à venir"} ({date(data.metadata.validFrom)} – {date(data.metadata.validTo)}). Les informations peuvent ne plus être à jour.</p>}

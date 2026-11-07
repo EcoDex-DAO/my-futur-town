@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { findRushHour, getActiveVehicles, parseSchedule, type Schedule, type ScheduleTrip } from "./bus-simulation";
 import { parseSibraData, type SibraData } from "./sibra";
 import { busDisplayFeatures } from "./bus-models";
+import { nextStopPassages } from "./bus-stop-times";
 
 function trip(id: string, start: number, end: number, serviceId = "weekday"): ScheduleTrip {
   return { id, lineId: "1", variantId: "out", directionId: "0", serviceId, stops: [
@@ -72,6 +73,28 @@ describe("scheduled bus simulation", () => {
     expect(getActiveVehicles(input, data, "2026-11-07", 50, "1").map((vehicle) => vehicle.id)).toEqual(["night@2026-11-06", "morning@2026-11-07"]);
     expect(getActiveVehicles(input, data, "2026-11-07", 100, "1")).toHaveLength(1);
     expect(getActiveVehicles(input, data, "2026-11-06", 86450, "1")).toHaveLength(2);
+  });
+
+  it("finds upcoming stop departures for line 1 and keeps direction and trip identity", () => {
+    const input = schedule([trip("a", 100, 300), trip("b", 200, 400)]);
+    input.trips[0].directionId = "outbound";
+    const passages = nextStopPassages(input, "b", "2026-11-06", 250, 6);
+    expect(passages).toEqual([
+      { tripId: "a", variantId: "out", directionId: "outbound", serviceDate: "2026-11-06", second: 300 },
+      { tripId: "b", variantId: "out", directionId: "0", serviceDate: "2026-11-06", second: 400 },
+    ]);
+    expect(nextStopPassages(input, "b", "2026-11-06", 300)).toHaveLength(2);
+    expect(nextStopPassages(input, "missing", "2026-11-06", 0)).toEqual([]);
+  });
+
+  it("includes a previous service date spillover after midnight, but not the next day", () => {
+    const night = trip("night", 86_300, 86_500);
+    night.stops[1].stopId = "late-stop";
+    const input = schedule([night]);
+    expect(nextStopPassages(input, "late-stop", "2026-11-07", 0)).toMatchObject([
+      { tripId: "night", serviceDate: "2026-11-06", second: 100 },
+    ]);
+    expect(nextStopPassages(input, "late-stop", "2026-11-07", 101)).toEqual([]);
   });
 
   it("uses inclusive departure and exclusive final arrival boundaries", () => {

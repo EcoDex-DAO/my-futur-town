@@ -655,6 +655,57 @@ section h2 span {
   align-items: center;
   flex-wrap: wrap;
 }
+.sibra-stop-id {
+  color: #667a70;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+.sibra-timetable {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #dbe2d9;
+}
+.sibra-timetable h3 {
+  margin: 0 0 4px;
+  color: #173b3b;
+  font-size: 12px;
+}
+.sibra-timetable-context,
+.sibra-timetable-message {
+  color: #586e63;
+  font-size: 9px;
+  line-height: 1.5;
+}
+.sibra-passage-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid #e4e8e0;
+}
+.sibra-passage-list li {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  border-bottom: 1px solid #edf0ea;
+}
+.sibra-passage-list time {
+  color: #173b3b;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.sibra-passage-list span {
+  color: #476858;
+  font-size: 9px;
+}
+.sibra-timetable-message {
+  margin: 6px 0 0;
+}
+.sibra-timetable-message p {
+  margin: 0 0 6px;
+}
 .sibra-stop-list {
   max-height: 145px;
   overflow: auto;
@@ -682,6 +733,11 @@ section h2 span {
   background: #e9efe8;
   color: #173b3b;
   font-weight: 700;
+}
+.sibra-stop-list button:focus-visible,
+.sibra-timetable-message button:focus-visible {
+  outline: 2px solid #31594a;
+  outline-offset: 1px;
 }
 .sibra-stop-dot,
 .sibra-legend-stop {

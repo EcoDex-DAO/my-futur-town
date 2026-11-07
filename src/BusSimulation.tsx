@@ -19,7 +19,9 @@ type Props = {
   mapReady: boolean;
   data: SibraData | null;
   busVisible: boolean;
+  selectedStopId: string | null;
   onModeChange: (active: boolean) => void;
+  onClockChange: (date: string, second: number) => void;
 };
 
 const LINE_ID = "1";
@@ -78,7 +80,7 @@ function lineFeatures(data: SibraData, schedule: Schedule, variantIds: Set<strin
   return { type: "FeatureCollection", features };
 }
 
-export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }: Props) {
+export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId, onModeChange, onClockChange }: Props) {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [rushHour, setRushHour] = useState<RushHour | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -126,6 +128,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
         setDate(initialDate);
         setSecond(initialSecond);
         setDisplayedSecond(initialSecond);
+        onClockChange(initialDate, initialSecond);
         setStatus("ready");
       })
       .catch((reason: unknown) => {
@@ -183,7 +186,13 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
     }
     for (const id of simulationLayerIds)
       map.setLayoutProperty(id, "visibility", active && busVisible ? "visible" : "none");
-  }, [map, mapReady, active, busVisible]);
+    map.setPaintProperty("sibra-sim-stop-models", "fill-extrusion-color", [
+      "case",
+      ["==", ["get", "stopModelId"], selectedStopId ?? ""],
+      "#e8c95e",
+      ["get", "color"],
+    ]);
+  }, [map, mapReady, active, busVisible, selectedStopId]);
 
   const timeWindow = rushHour ?? { startSecond: 0, endSecond: 3600, peakSecond: 0, date: "", busCount: 0 };
   const baseVariants = useMemo(() => {
@@ -273,11 +282,14 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
       }
       if (now - lastUiUpdate >= 1000) {
         lastUiUpdate = now;
-        setDisplayedSecond(Math.floor(next));
+        const displayTime = Math.floor(next);
+        setDisplayedSecond(displayTime);
+        onClockChange(currentDate.current, displayTime);
       }
       if (next >= daySeconds - 1) {
         currentSecond.current = daySeconds - 1;
         playAnchorSecond.current = daySeconds - 1;
+        onClockChange(currentDate.current, daySeconds - 1);
         setSecond(daySeconds - 1);
         setDisplayedSecond(daySeconds - 1);
         setPlaying(false);
@@ -287,10 +299,11 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, active, schedule, data, date, map, mapReady, reducedMotion, baseVariants, vehicleCount]);
+  }, [playing, active, schedule, data, date, map, mapReady, reducedMotion, baseVariants, vehicleCount, onClockChange]);
 
   function setSimulationDate(value: string) {
     currentDate.current = value;
+    onClockChange(value, currentSecond.current);
     setDate(value);
   }
 
@@ -298,6 +311,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
     const next = parseTime(value);
     currentSecond.current = next;
     playAnchorSecond.current = next;
+    onClockChange(currentDate.current, next);
     setSecond(next);
     setDisplayedSecond(next);
   }
@@ -322,6 +336,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
       playAnchorReal.current = now;
       setSecond(Math.floor(current));
       setDisplayedSecond(Math.floor(current));
+      onClockChange(currentDate.current, Math.floor(current));
     }
     speedRef.current = value;
     setSpeed(value);
@@ -331,6 +346,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
     const next = rushHour?.startSecond ?? 0;
     currentSecond.current = next;
     playAnchorSecond.current = next;
+    onClockChange(currentDate.current || date || schedule?.metadata.validFrom || "", next);
     setSecond(next);
     setDisplayedSecond(next);
     setSimulationDate(date || schedule?.metadata.validFrom || "");
@@ -341,6 +357,7 @@ export function BusSimulation({ map, mapReady, data, busVisible, onModeChange }:
     const next = Math.floor(simulationSecondAt());
     currentSecond.current = next;
     playAnchorSecond.current = next;
+    onClockChange(currentDate.current, next);
     setSecond(next);
     setDisplayedSecond(next);
     setPlaying(false);

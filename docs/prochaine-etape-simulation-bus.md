@@ -236,6 +236,21 @@ précision routière non démontrée.
 
 ## Deuxième livraison : sélectionner un arrêt et consulter ses horaires
 
+**État : implémentée localement, en attente de validation navigateur.** La sélection
+fonctionne depuis la liste accessible au clavier, le repère 2D et l'abri 3D en mode
+simulation. L'arrêt sélectionné est surligné. La fiche affiche son nom, son identifiant
+GTFS, la ligne et le sens de chaque passage, et jusqu'à six horaires théoriques en
+fonction de l'horloge simulée. Les horaires sont chargés à la demande depuis le jeu
+statique local de la ligne 1; aucune API ni base distante n'est nécessaire. Le calcul
+gère les services actifs à la date choisie et les courses après minuit rattachées à
+la veille. Les dates hors période et l'absence de service sont signalées.
+
+Limites actuelles : seuls les arrêts/courses présents dans le jeu local de la ligne 1
+ont des horaires. Le quai GTFS n'est pas renseigné uniformément, aucun horaire temps
+réel n'est affiché, et le calendrier GTFS livré arrive à échéance le 31 décembre 2026.
+Les clics 2D ont une tolérance de 18 pixels; l'abri 3D est sélectionnable quand le
+modèle d'arrêt est affiché. Le contrôle Playwright dédié reste à passer.
+
 - Rendre la sélection possible sur l'abri et, à faible zoom, sur son repère 2D ;
   utiliser une zone de clic suffisante, y compris sur mobile. Mettre clairement
   en surbrillance l'arrêt sélectionné sans masquer la sélection de bâtiment ni
