@@ -5,6 +5,12 @@ export const ANNECY = {
   pitch: 55,
   bearing: -20,
 };
+/** Bounding extent of the Grand Annecy agglomeration, including both shores of the lake. */
+export const GRAND_ANNECY_BOUNDS: [[number, number], [number, number]] = [
+  [5.98, 45.72],
+  [6.35, 46.06],
+];
+export const MAP_MIN_ZOOM = 10.5;
 export const HEIGHT: ExpressionSpecification = [
   "max",
   0,

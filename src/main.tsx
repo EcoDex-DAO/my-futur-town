@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import * as maplibregl from "maplibre-gl";
 
 import type { MapGeoJSONFeature } from "maplibre-gl";
-import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
+import { ANNECY, GRAND_ANNECY_BOUNDS, HEIGHT, MAP_MIN_ZOOM, buildingSource, groupForLayer } from "./map";
 
 import { RoadEditor } from "./RoadEditor";
 import { VersionInfo } from "./VersionInfo";
@@ -117,6 +117,10 @@ export default function App() {
           process.env.NEXT_PUBLIC_MAP_STYLE_URL ||
           "https://tiles.openfreemap.org/styles/liberty",
         ...ANNECY,
+        maxBounds: GRAND_ANNECY_BOUNDS,
+        minZoom: MAP_MIN_ZOOM,
+        maxZoom: 20,
+        renderWorldCopies: false,
         attributionControl: { compact: true },
         maxPitch: 70,
       });
@@ -136,11 +140,27 @@ export default function App() {
       new maplibregl.ScaleControl({ unit: "metric" }),
       "bottom-left",
     );
-    instance.on("error", () =>
-      setError(
-        "Une ressource cartographique est indisponible. Vérifiez votre connexion ou réessayez.",
-      ),
-    );
+    let styleLoaded = false;
+    instance.setMissingStyleImageResolver((id) => {
+      if (instance.hasImage(id)) return;
+      instance.addImage(id, {
+        width: 1,
+        height: 1,
+        data: new Uint8Array([0, 0, 0, 0]),
+      });
+    });
+    instance.on("error", (event) => {
+      const message = event.error.message;
+      const missingStyleImage = /Image ".*" could not be loaded/.test(message);
+      if (!missingStyleImage && !styleLoaded)
+        setError("Le style de la carte n’a pas pu être chargé. Vérifiez votre connexion et réessayez.");
+    });
+    instance.on("style.load", () => {
+      // Once the style is ready, individual tile or sprite failures are transient
+      // resource issues and should not make the whole map look unavailable.
+      styleLoaded = true;
+      setError("");
+    });
     instance.on("load", () => {
       const layer = buildingSource(instance.getStyle());
       if (layer && "source" in layer) {
@@ -165,6 +185,7 @@ export default function App() {
         setHasBuildings(true);
       }
       setReady(true);
+      styleLoaded = true;
       setError("");
     });
     instance.on("click", (e) => {
