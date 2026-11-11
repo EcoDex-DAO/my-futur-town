@@ -74,3 +74,9 @@ Sur l’échelle du Grand Annecy, l’utilisateur peut explorer le réseau SIBRA
 ## Suivi
 
 Mettre à jour les cases de cette feuille à chaque incrément terminé. Conserver ici le plan de travail actif ; `docs/roadmap-cdc.md` reste la vue d’ensemble des phases du cahier des charges.
+
+### Avancement au 11 novembre 2026
+
+- Données GTFS (commit `b1e99e6`) : instantanés réseau et horaires ajoutés avec provenance et licence. Importeur reproductible et validation applicative restent à porter.
+- Exploration (commit `da4b72d`) : tracés réseau, recherche de lignes, sélection et cadrage sont intégrés à la carte Next.js. Les arrêts, sélection explicite de variante, interaction mobile et contrôle visuel restent à valider.
+- Horaires, scénarios locaux et estimations macro : non portés dans Next.js.
