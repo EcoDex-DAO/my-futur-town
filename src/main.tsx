@@ -8,6 +8,7 @@ import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 
 import { RoadEditor } from "./RoadEditor";
 import { VersionInfo } from "./VersionInfo";
+import { lineBounds, lineFeatures, type SibraNetwork } from "./sibra";
 import {
   EMPTY_ROADS,
   applyProfiles,
@@ -51,6 +52,29 @@ export default function App() {
   const [extrusion, setExtrusion] = useState(true);
   const [hasBuildings, setHasBuildings] = useState(false);
   const [api, setApi] = useState("Mode autonome");
+  const [busNetwork, setBusNetwork] = useState<SibraNetwork | null>(null);
+  const [busSearch, setBusSearch] = useState("");
+  const [busLineId, setBusLineId] = useState<string | null>(null);
+  const [busError, setBusError] = useState("");
+  const busLine = busNetwork?.lines.find((line) => line.id === busLineId) ?? null;
+  const visibleBusLines = (busNetwork?.lines ?? []).filter((line) =>
+    `${line.shortName} ${line.longName}`.toLocaleLowerCase("fr").includes(busSearch.toLocaleLowerCase("fr")),
+  );
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/data/sibra.json")
+      .then((response) => {
+        if (!response.ok) throw new Error("Fichier réseau absent");
+        return response.json() as Promise<SibraNetwork>;
+      })
+      .then((network) => {
+        if (cancelled) return;
+        if (!network.metadata || !Array.isArray(network.lines)) throw new Error("Format réseau invalide");
+        setBusNetwork(network);
+      })
+      .catch(() => { if (!cancelled) setBusError("Le réseau SIBRA n’a pas pu être chargé. Réessayez après avoir rechargé la page."); });
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => {
     const endpoint = process.env.NEXT_PUBLIC_API_URL || "";
     const controller = new AbortController();
@@ -259,6 +283,31 @@ export default function App() {
         layers.roads ? "visible" : "none",
       );
   }, [ready, roadData, roadChanges, roadDraft, layers.roads]);
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance || !busNetwork) return;
+    const data = lineFeatures(busNetwork);
+    if (!instance.getSource("sibra-routes")) {
+      instance.addSource("sibra-routes", { type: "geojson", data });
+      instance.addLayer({ id: "sibra-route-casing", type: "line", source: "sibra-routes", paint: { "line-color": "#fffdf5", "line-width": ["interpolate", ["linear"], ["zoom"], 9, 2, 15, 5, 18, 8], "line-opacity": 0.92 } });
+      instance.addLayer({ id: "sibra-route-lines", type: "line", source: "sibra-routes", paint: { "line-color": ["get", "color"], "line-width": ["interpolate", ["linear"], ["zoom"], 9, 1.1, 15, 3, 18, 5], "line-opacity": 0.88 } });
+      instance.on("click", "sibra-route-lines", (event) => {
+        const feature = event.features?.[0];
+        if (feature?.properties?.lineId) setBusLineId(String(feature.properties.lineId));
+      });
+      instance.on("mouseenter", "sibra-route-lines", () => { instance.getCanvas().style.cursor = "pointer"; });
+      instance.on("mouseleave", "sibra-route-lines", () => { instance.getCanvas().style.cursor = ""; });
+    } else {
+      (instance.getSource("sibra-routes") as maplibregl.GeoJSONSource).setData(data);
+    }
+  }, [ready, busNetwork]);
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance || !instance.getLayer("sibra-route-lines")) return;
+    const filter = busLineId ? ["==", ["get", "lineId"], busLineId] : null;
+    instance.setFilter("sibra-route-lines", filter as maplibregl.FilterSpecification | null);
+    instance.setFilter("sibra-route-casing", filter as maplibregl.FilterSpecification | null);
+  }, [ready, busLineId]);
   return (
     <div className="app">
       <header>
@@ -323,6 +372,24 @@ export default function App() {
               Hauteurs de la source, lorsqu’elles sont disponibles. Sans hauteur
               : empreinte au sol.
             </p>
+          </section>
+          <section className="bus-network" aria-labelledby="bus-heading">
+            <h2 id="bus-heading">Réseau de bus SIBRA</h2>
+            {busNetwork ? <>
+              <p className="caption">Données valides du {busNetwork.metadata.validFrom} au {busNetwork.metadata.validTo} · horaires théoriques, sans temps réel.</p>
+              <label className="bus-search-label" htmlFor="bus-search">Rechercher une ligne</label>
+              <input id="bus-search" className="bus-search" type="search" value={busSearch} onChange={(event) => setBusSearch(event.target.value)} placeholder="Numéro ou destination" />
+              <button className={`bus-all${busLineId === null ? " is-selected" : ""}`} onClick={() => { setBusLineId(null); if (busNetwork.lines[0]) map.current?.fitBounds(lineBounds(busNetwork.lines[0]) ?? [[6.0,45.7],[6.5,46.1]], { padding: 70, maxZoom: 12 }); }}>Tout le réseau ({busNetwork.lines.length})</button>
+              <ul className="bus-lines" aria-label="Lignes SIBRA">
+                {visibleBusLines.map((line) => <li key={line.id}><button className={busLineId === line.id ? "is-selected" : ""} onClick={() => {
+                  setBusLineId(line.id);
+                  const bounds = lineBounds(line);
+                  if (bounds) map.current?.fitBounds(bounds, { padding: 80, maxZoom: 15 });
+                }}><span className="bus-line-chip" style={{ backgroundColor: line.color }}>{line.shortName}</span><span>{line.longName}</span><small>{line.variants.length} variantes</small></button></li>)}
+              </ul>
+              {busLine && <div className="bus-line-detail"><strong>Ligne {busLine.shortName}</strong><p>{busLine.variants.length} itinéraires et {new Set(busLine.variants.flatMap((variant) => variant.stops.map((stop) => stop.id))).size} arrêts référencés. Sélectionnez un tracé sur la carte pour voir sa direction.</p></div>}
+              <p className="caption bus-attribution">{busNetwork.metadata.attribution} · {busNetwork.metadata.license}</p>
+            </> : <p className={busError ? "bus-error" : "caption"} role={busError ? "alert" : "status"}>{busError || "Chargement du réseau SIBRA…"}</p>}
           </section>
           <RoadEditor
             roads={roadData}
