@@ -352,6 +352,31 @@ section h2 span {
   padding: 0;
   list-style: none;
 }
+.scenario-trip-list {
+  max-height: 220px;
+  margin: 8px 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.scenario-trip-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #e2e8df;
+  font-size: 9px;
+}
+.scenario-trip-list label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.scenario-trip-list input {
+  min-height: 32px;
+  padding: 4px;
+}
 .scenario-stop-list li {
   display: flex;
   align-items: center;
@@ -366,6 +391,19 @@ section h2 span {
   padding: 5px;
   background: transparent;
   color: #8d302e;
+  font-size: 10px;
+}
+.service-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+.service-days label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #31594a;
   font-size: 10px;
 }
 .bus-estimate-results {

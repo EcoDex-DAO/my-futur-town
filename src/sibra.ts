@@ -52,6 +52,7 @@ export function scheduledNetworkActivity(network: SibraNetwork, schedule: SibraS
 }
 
 export function stopFeatures(network: SibraNetwork, lineId: string | null): FeatureCollection<import("geojson").Point, { stopId: string; name: string }> {
+  if (!lineId) return { type: "FeatureCollection", features: [] };
   const seen = new Set<string>();
   const features: Feature<import("geojson").Point, { stopId: string; name: string }>[] = [];
   for (const line of network.lines) {

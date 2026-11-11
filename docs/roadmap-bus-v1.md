@@ -37,10 +37,11 @@ Sur l’échelle du Grand Annecy, l’utilisateur peut explorer le réseau SIBRA
 
 ### 4. Créer un scénario local de ligne
 
-- [ ] Créer une copie hypothétique d’une ligne, sans modifier la référence GTFS.
-- [ ] Modifier nom, arrêts et variantes ; ajouter, déplacer ou retirer des arrêts.
-- [ ] Prévisualiser la référence et la proposition ; garder chaque sens distinct.
-- [ ] Enregistrer, recharger, supprimer et signaler les erreurs de stockage.
+- [x] Créer une copie hypothétique d’une ligne, sans modifier la référence GTFS.
+- [x] Modifier nom et arrêts ; ajouter des arrêts référencés ou hypothétiques, les réordonner ou les retirer.
+- [x] Prévisualiser la proposition comme tracé schématique ; garder chaque sens distinct.
+- [x] Enregistrer, recharger, supprimer et signaler les erreurs de stockage.
+- [x] Modifier l’horaire de départ de chaque course copiée ; le décalage s’applique aux arrêts du scénario et laisse le GTFS intact.
 - [ ] Rendre l’historique annuler/rétablir temporaire et le signaler.
 
 **Terminé quand :** scénario persiste dans le stockage retenu, est isolé de la référence et reste compréhensible après rechargement.
@@ -81,6 +82,6 @@ Mettre à jour les cases de cette feuille à chaque incrément terminé. Conserv
 - Données GTFS (commits `b1e99e6` et commit d’import tous services) : instantanés réseau et horaires ajoutés avec provenance et licence. Importeur reproductible exécuté sur l’édition 2026-11-06 ; 5 309 courses de 27 lignes sont maintenant représentées.
 - Exploration (commit `da4b72d`) : tracés réseau, recherche de lignes, sélection et cadrage sont intégrés à la carte Next.js. Les arrêts, sélection explicite de variante, interaction mobile et contrôle visuel restent à valider.
 - Horaires : données multi-lignes intégrées. Cas des heures après minuit, dates sans service et sélection de variantes restent à valider.
-- Scénarios locaux (en cours) : création par variante, renommage, ajout d’arrêt par coordonnées, retrait, suppression et sauvegarde locale sont intégrés. Déplacement d’arrêt, prévisualisation cartographique dédiée, gestion de l’historique et validation visuelle restent à faire.
-- Estimations macro (en cours) : activité journalière estimée depuis les courses GTFS et saisie de consommation/facteur GES sourcés. Le 11 novembre 2026, l’édition indique 2 795,2 véhicule-km sur 8 lignes actives ; le 12 novembre, 22 629,6 véhicule-km sur 27 lignes. Ces distances sont des estimations de service planifié, sans courses à vide ni données GPS. Il reste la comparaison référence/scénario, la persistance des hypothèses, les flottes multi-profils et les indicateurs d’émission supplémentaires.
+- Créateur de ligne (en cours) : création d’une ligne avec deux sens distincts, arrêts GTFS ou hypothétiques, réordonnancement, horaires de premier/dernier départ, fréquence, jours et période de service, parc affecté, sauvegarde navigateur et aperçu schématique sur la carte. Le scénario d’une ligne existante peut aussi modifier les départs des courses GTFS copiées. Restent la validation des périodes et la vérification complète des parcours visuels/mobile.
+- Estimations macro (en cours) : activité journalière estimée depuis toutes les courses GTFS et saisie de consommation/facteur GES sourcés. Le 11 novembre 2026, l’édition indique 2 795,2 véhicule-km sur 8 lignes actives ; le 12 novembre, 22 629,6 véhicule-km sur 27 lignes. Distances de service planifié, sans courses à vide ni données GPS. L’énergie/les émissions ne sont pas des chiffres SIBRA tant que des facteurs représentatifs et sourcés ne sont pas fournis. Il reste la comparaison référence/scénario, la persistance des hypothèses, les flottes multi-profils et les indicateurs d’émission supplémentaires.
 - TypeScript passe après l’ajout de l’exploration et des horaires. Contrôle visuel desktop/mobile non effectué.

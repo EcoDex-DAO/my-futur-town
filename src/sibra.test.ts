@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { scheduledNetworkActivity, type SibraNetwork, type SibraSchedule } from "./sibra";
+import { scheduledNetworkActivity, stopFeatures, type SibraNetwork, type SibraSchedule } from "./sibra";
 
 const network: SibraNetwork = {
   metadata: { sourceUrl: "", attribution: "", license: "", validFrom: "2026-01-01", validTo: "2026-01-02", generatedAt: "" },
-  lines: [{ id: "L1", shortName: "1", longName: "Ligne 1", color: "00aa00", variants: [{ id: "V1", headsign: "Terminus", coordinates: [[0, 0], [0.01, 0]], stops: [] }] }],
+  lines: [{ id: "L1", shortName: "1", longName: "Ligne 1", color: "00aa00", variants: [{ id: "V1", headsign: "Terminus", coordinates: [[0, 0], [0.01, 0]], stops: [{ id: "A", name: "Arrêt A", coordinates: [0.001, 0] }, { id: "B", name: "Arrêt B", coordinates: [0.009, 0] }] }] }],
 };
 const schedule: SibraSchedule = {
   metadata: { validFrom: "2026-01-01", validTo: "2026-01-02", timeZone: "Europe/Paris" },
@@ -12,6 +12,10 @@ const schedule: SibraSchedule = {
 };
 
 describe("scheduledNetworkActivity", () => {
+  it("does not clutter the citywide view with every stop", () => {
+    expect(stopFeatures(network, null).features).toEqual([]);
+    expect(stopFeatures(network, "L1").features).toHaveLength(2);
+  });
   it("sums only active trips and uses the traveled portion of each shape", () => {
     const result = scheduledNetworkActivity(network, schedule, "2026-01-01");
     expect(result.includedTrips).toBe(1);
