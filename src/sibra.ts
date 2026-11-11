@@ -8,6 +8,21 @@ export type SibraNetwork = {
   lines: SibraLine[];
 };
 
+export function stopFeatures(network: SibraNetwork, lineId: string | null): FeatureCollection<import("geojson").Point, { stopId: string; name: string }> {
+  const seen = new Set<string>();
+  const features: Feature<import("geojson").Point, { stopId: string; name: string }>[] = [];
+  for (const line of network.lines) {
+    if (lineId && line.id !== lineId) continue;
+    for (const variant of line.variants) for (const stop of variant.stops) {
+      const key = `${stop.id}:${stop.coordinates.join(",")}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      features.push({ type: "Feature", properties: { stopId: stop.id, name: stop.name }, geometry: { type: "Point", coordinates: stop.coordinates } });
+    }
+  }
+  return { type: "FeatureCollection", features };
+}
+
 export function lineFeatures(network: SibraNetwork): FeatureCollection<LineString, { lineId: string; lineName: string; variantId: string; headsign: string; color: string }> {
   const features: Feature<LineString, { lineId: string; lineName: string; variantId: string; headsign: string; color: string }>[] = [];
   for (const line of network.lines) for (const variant of line.variants) {

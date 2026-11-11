@@ -312,6 +312,22 @@ section h2 span {
   font-size: 10px;
   line-height: 1.6;
 }
+.departure-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.departure-list li {
+  padding: 5px 7px;
+  border-radius: 4px;
+  background: #e7eee5;
+  color: #24493f;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
 .bus-error {
   color: #8d302e;
   font-size: 11px;

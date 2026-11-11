@@ -79,4 +79,6 @@ Mettre à jour les cases de cette feuille à chaque incrément terminé. Conserv
 
 - Données GTFS (commit `b1e99e6`) : instantanés réseau et horaires ajoutés avec provenance et licence. Importeur reproductible et validation applicative restent à porter.
 - Exploration (commit `da4b72d`) : tracés réseau, recherche de lignes, sélection et cadrage sont intégrés à la carte Next.js. Les arrêts, sélection explicite de variante, interaction mobile et contrôle visuel restent à valider.
-- Horaires, scénarios locaux et estimations macro : non portés dans Next.js.
+- Horaires (en cours) : couche d’arrêts ajoutée et panneau d’horaires théoriques par arrêt sur la date et l’heure choisies ; seuls les départs de la ligne 1 sont fournis. Le cas des services après minuit, dates sans service et sélection multi-lignes demande encore validation.
+- Scénarios locaux et estimations macro : non portés dans Next.js.
+- TypeScript passe après l’ajout de l’exploration et des horaires. Contrôle visuel desktop/mobile non effectué.

@@ -8,7 +8,7 @@ import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 
 import { RoadEditor } from "./RoadEditor";
 import { VersionInfo } from "./VersionInfo";
-import { lineBounds, lineFeatures, type SibraNetwork } from "./sibra";
+import { lineBounds, lineFeatures, stopFeatures, type SibraNetwork } from "./sibra";
 import {
   EMPTY_ROADS,
   applyProfiles,
@@ -56,6 +56,11 @@ export default function App() {
   const [busSearch, setBusSearch] = useState("");
   const [busLineId, setBusLineId] = useState<string | null>(null);
   const [busError, setBusError] = useState("");
+  const [busStopId, setBusStopId] = useState<string | null>(null);
+  const [busStopName, setBusStopName] = useState("");
+  const [busSchedule, setBusSchedule] = useState<{ metadata: { validFrom: string; validTo: string; timeZone: string }; serviceDates: Record<string, string[]>; trips: { lineId: string; serviceId: string; stops: { stopId: string; arrival: number; departure: number }[] }[] } | null>(null);
+  const [scheduleDate, setScheduleDate] = useState("2026-11-11");
+  const [scheduleTime, setScheduleTime] = useState("08:00");
   const busLine = busNetwork?.lines.find((line) => line.id === busLineId) ?? null;
   const visibleBusLines = (busNetwork?.lines ?? []).filter((line) =>
     `${line.shortName} ${line.longName}`.toLocaleLowerCase("fr").includes(busSearch.toLocaleLowerCase("fr")),
@@ -75,6 +80,23 @@ export default function App() {
       .catch(() => { if (!cancelled) setBusError("Le réseau SIBRA n’a pas pu être chargé. Réessayez après avoir rechargé la page."); });
     return () => { cancelled = true; };
   }, []);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/data/sibra-schedule.json")
+      .then((response) => { if (!response.ok) throw new Error("Horaires absents"); return response.json(); })
+      .then((schedule) => { if (!cancelled) setBusSchedule(schedule); })
+      .catch(() => { if (!cancelled) setBusSchedule(null); });
+    return () => { cancelled = true; };
+  }, []);
+  const upcomingDepartures = (() => {
+    if (!busSchedule || !busStopId || !busLine || scheduleDate < busSchedule.metadata.validFrom || scheduleDate > busSchedule.metadata.validTo) return [];
+    const activeServices = new Set(busSchedule.serviceDates[scheduleDate] ?? []);
+    const [hour, minute] = scheduleTime.split(":").map(Number);
+    const after = hour * 3600 + minute * 60;
+    return busSchedule.trips.filter((trip) => trip.lineId === busLine.id && activeServices.has(trip.serviceId))
+      .flatMap((trip) => trip.stops.filter((stop) => stop.stopId === busStopId && stop.departure >= after).map((stop) => ({ seconds: stop.departure })))
+      .sort((a, b) => a.seconds - b.seconds).slice(0, 5);
+  })();
   useEffect(() => {
     const endpoint = process.env.NEXT_PUBLIC_API_URL || "";
     const controller = new AbortController();
@@ -291,6 +313,14 @@ export default function App() {
       instance.addSource("sibra-routes", { type: "geojson", data });
       instance.addLayer({ id: "sibra-route-casing", type: "line", source: "sibra-routes", paint: { "line-color": "#fffdf5", "line-width": ["interpolate", ["linear"], ["zoom"], 9, 2, 15, 5, 18, 8], "line-opacity": 0.92 } });
       instance.addLayer({ id: "sibra-route-lines", type: "line", source: "sibra-routes", paint: { "line-color": ["get", "color"], "line-width": ["interpolate", ["linear"], ["zoom"], 9, 1.1, 15, 3, 18, 5], "line-opacity": 0.88 } });
+      instance.addSource("sibra-stops", { type: "geojson", data: stopFeatures(busNetwork, busLineId) });
+      instance.addLayer({ id: "sibra-stop-points", type: "circle", source: "sibra-stops", paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 2, 15, 5], "circle-color": "#fffdf5", "circle-stroke-color": "#31594a", "circle-stroke-width": 1.5 } });
+      instance.on("click", "sibra-stop-points", (event) => {
+        const properties = event.features?.[0]?.properties;
+        if (properties?.stopId) { setBusStopId(String(properties.stopId)); setBusStopName(String(properties.name ?? "Arrêt")); }
+      });
+      instance.on("mouseenter", "sibra-stop-points", () => { instance.getCanvas().style.cursor = "pointer"; });
+      instance.on("mouseleave", "sibra-stop-points", () => { instance.getCanvas().style.cursor = ""; });
       instance.on("click", "sibra-route-lines", (event) => {
         const feature = event.features?.[0];
         if (feature?.properties?.lineId) setBusLineId(String(feature.properties.lineId));
@@ -301,6 +331,11 @@ export default function App() {
       (instance.getSource("sibra-routes") as maplibregl.GeoJSONSource).setData(data);
     }
   }, [ready, busNetwork]);
+  useEffect(() => {
+    const source = map.current?.getSource("sibra-stops") as maplibregl.GeoJSONSource | undefined;
+    if (source && busNetwork) source.setData(stopFeatures(busNetwork, busLineId));
+    setBusStopId(null);
+  }, [busNetwork, busLineId]);
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance || !instance.getLayer("sibra-route-lines")) return;
@@ -388,6 +423,7 @@ export default function App() {
                 }}><span className="bus-line-chip" style={{ backgroundColor: line.color }}>{line.shortName}</span><span>{line.longName}</span><small>{line.variants.length} variantes</small></button></li>)}
               </ul>
               {busLine && <div className="bus-line-detail"><strong>Ligne {busLine.shortName}</strong><p>{busLine.variants.length} itinéraires et {new Set(busLine.variants.flatMap((variant) => variant.stops.map((stop) => stop.id))).size} arrêts référencés. Sélectionnez un tracé sur la carte pour voir sa direction.</p></div>}
+              {busStopId && <div className="bus-line-detail" aria-live="polite"><strong>{busStopName}</strong><label className="bus-search-label" htmlFor="bus-date">Jour de service</label><input id="bus-date" className="bus-search" type="date" value={scheduleDate} onChange={(event) => setScheduleDate(event.target.value)} /><label className="bus-search-label" htmlFor="bus-time">À partir de</label><input id="bus-time" className="bus-search" type="time" value={scheduleTime} onChange={(event) => setScheduleTime(event.target.value)} />{!busSchedule || scheduleDate < busSchedule.metadata.validFrom || scheduleDate > busSchedule.metadata.validTo ? <p>Horaires non disponibles pour cette date.</p> : upcomingDepartures.length ? <ul className="departure-list">{upcomingDepartures.map((departure, index) => <li key={`${departure.seconds}-${index}`}>{`${String(Math.floor(departure.seconds / 3600) % 24).padStart(2,"0")}:${String(Math.floor(departure.seconds % 3600 / 60)).padStart(2,"0")}`}{departure.seconds >= 86400 ? " (+1 j.)" : ""}</li>)}</ul> : <p>Aucun départ théorique trouvé après cette heure.</p>}<p>Horaires statiques de la ligne 1, fuseau {busSchedule?.metadata.timeZone ?? "Europe/Paris"}. Pas de temps réel.</p></div>}
               <p className="caption bus-attribution">{busNetwork.metadata.attribution} · {busNetwork.metadata.license}</p>
             </> : <p className={busError ? "bus-error" : "caption"} role={busError ? "alert" : "status"}>{busError || "Chargement du réseau SIBRA…"}</p>}
           </section>
