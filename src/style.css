@@ -368,6 +368,29 @@ section h2 span {
   color: #8d302e;
   font-size: 10px;
 }
+.bus-estimate-results {
+  margin: 12px 0 4px;
+  padding: 9px 0;
+  border-top: 1px solid #dbe2d9;
+  border-bottom: 1px solid #dbe2d9;
+}
+.bus-estimate-results div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 10px;
+}
+.bus-estimate-results dt {
+  color: #526b60;
+}
+.bus-estimate-results dd {
+  margin: 0;
+  color: #173b3b;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 .map {
   position: absolute;
   inset: 0;

@@ -81,5 +81,5 @@ Mettre à jour les cases de cette feuille à chaque incrément terminé. Conserv
 - Exploration (commit `da4b72d`) : tracés réseau, recherche de lignes, sélection et cadrage sont intégrés à la carte Next.js. Les arrêts, sélection explicite de variante, interaction mobile et contrôle visuel restent à valider.
 - Horaires (en cours) : couche d’arrêts ajoutée et panneau d’horaires théoriques par arrêt sur la date et l’heure choisies ; seuls les départs de la ligne 1 sont fournis. Le cas des services après minuit, dates sans service et sélection multi-lignes demande encore validation.
 - Scénarios locaux (en cours) : création par variante, renommage, ajout d’arrêt par coordonnées, retrait, suppression et sauvegarde locale sont intégrés. Déplacement d’arrêt, prévisualisation cartographique dédiée, gestion de l’historique et validation visuelle restent à faire.
-- Estimations macro : non portées dans Next.js.
+- Estimations macro (en cours) : saisie d’activité, consommation et facteur GES sourcés avec calcul véhicule-km/énergie/CO₂e ajoutés. Il reste la comparaison référence/scénario, la persistance des hypothèses, la flotte multi-profils, l’activité GTFS couverte et les autres indicateurs avec facteurs validés.
 - TypeScript passe après l’ajout de l’exploration et des horaires. Contrôle visuel desktop/mobile non effectué.
