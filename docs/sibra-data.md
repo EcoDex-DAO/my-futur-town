@@ -4,9 +4,9 @@
 partir du GTFS statique officiel de SIBRA, publié par SIBRA et le Grand Annecy
 sur transport.data.gouv.fr. Le premier contient les identifiants, noms et
 couleurs des lignes, leurs géométries GTFS ainsi que les séquences d’arrêts
-ordonnées. Le second contient les courses GTFS de la seule ligne dont le
-`route_id` est `1`, avec les horaires théoriques et une progression le long de
-la forme géographique associée. Les deux fichiers conservent les identifiants
+ordonnées. Le second contient 5 309 courses couvrant les 27 lignes de l’édition,
+avec les horaires théoriques et une progression le long de la forme associée.
+Les deux fichiers conservent les identifiants
 GTFS. Ils ne contiennent pas de positions de véhicules en temps réel.
 
 ## Édition source
@@ -60,7 +60,7 @@ python3 scripts/importers/sibra_gtfs.py /tmp/gtfs-sibra.zip public/data/sibra.js
 La commande génère aussi `public/data/sibra-schedule.json`. Ce fichier a son
 propre contrat : `metadata` donne les dates extrêmes d’activité du GTFS et le
 fuseau `Europe/Paris`; `serviceDates` associe chaque date aux IDs des services
-actifs utilisés par la ligne 1; `trips` contient toutes ses courses GTFS avec
+actifs; `trips` contient les courses GTFS de toutes les lignes avec
 leurs IDs de course, ligne, variante, direction et service ainsi que les arrêts
 ordonnés. `arrival` et `departure` sont des secondes depuis minuit au début du
 jour de service. Elles peuvent dépasser 86 400 : les heures après minuit restent
@@ -80,6 +80,20 @@ ordre des arrêts et au moins deux arrêts par course sont validés. Une valeur
 manquante, non finie ou non monotone fait échouer l’import au lieu d’être
 ignorée. Ces horaires sont statiques et ne reflètent ni retards ni
 perturbations.
+
+## Estimation d’activité du réseau
+
+L’estimation des véhicule-km sur une date compte les courses dont le service
+GTFS est actif ce jour-là. Pour chaque course, elle multiplie la longueur de la
+forme par la différence de progression entre le premier et le dernier arrêt.
+C’est une approximation de distance planifiée, pas une mesure GPS ; elle
+n’inclut pas les trajets à vide, dépôts, courses supprimées en exploitation,
+déviations ou temps réel. Un jour choisi n’active qu’une partie des lignes : le
+11 novembre 2026 active 201 courses sur 8 lignes, contre 1 833 courses sur 27
+lignes le 12 novembre. Un total journalier doit donc citer sa date. Le jour
+sans service reste distinct d’un jour hors couverture. Les consommations et
+facteurs d’émission ne sont pas fournis par le GTFS et restent des hypothèses
+sourcées distinctes.
 
 L’importeur vérifie les références des courses vers les lignes, formes et
 arrêts, ainsi que les coordonnées. Une référence manquante ou une donnée

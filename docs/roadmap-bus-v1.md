@@ -10,10 +10,11 @@ Sur l’échelle du Grand Annecy, l’utilisateur peut explorer le réseau SIBRA
 
 ### 1. Cadrer et porter les données de référence
 
-- [ ] Reprendre l’importeur GTFS SIBRA, les validations, les métadonnées de provenance, la licence et les fichiers de données depuis le prototype.
-- [ ] Définir le stockage des instantanés dans l’architecture Next.js ; versionner les imports sans écraser les scénarios.
-- [ ] Afficher la date de validité, la source, l’attribution et la licence dans l’interface.
-- [ ] Vérifier la couverture réelle de l’édition importée et rendre les champs manquants visibles.
+- [x] Importer l’édition GTFS SIBRA épinglée : 27 lignes, 5 309 courses, horaires et services par date.
+- [x] Ajouter l’importeur reproductible avec contrôle SHA-256, métadonnées de provenance et attribution/licence.
+- [x] Conserver les instantanés importés dans des fichiers versionnés, séparés des scénarios locaux.
+- [x] Afficher la date de validité, la source, l’attribution et la licence dans l’interface.
+- [x] Afficher la validité du jeu et limiter le service aux dates couvertes ; les horaires manquants restent inconnus.
 
 **Terminé quand :** import reproductible et contrôlé ; l’application fonctionne sans API distante et ne présente pas les données périmées comme actuelles.
 
@@ -28,9 +29,9 @@ Sur l’échelle du Grand Annecy, l’utilisateur peut explorer le réseau SIBRA
 
 ### 3. Consulter les horaires
 
-- [ ] Porter les horaires statiques GTFS et les jours de service avec leur fuseau horaire.
-- [ ] Présenter clairement la couverture limitée aux services réellement importés.
-- [ ] Indiquer qu’il s’agit d’horaires théoriques, sans temps réel ni retards.
+- [x] Porter les horaires statiques GTFS de toutes les lignes et les jours de service avec leur fuseau horaire.
+- [x] Présenter la couverture réelle et afficher les prochains passages par arrêt.
+- [x] Indiquer qu’il s’agit d’horaires théoriques, sans temps réel ni retards.
 
 **Terminé quand :** horaire affiché correspond à la date et au jour de service ; cas hors couverture et après minuit sont explicites.
 
@@ -49,7 +50,7 @@ Sur l’échelle du Grand Annecy, l’utilisateur peut explorer le réseau SIBRA
 - [ ] Porter le modèle d’hypothèses par flotte et profil de véhicule.
 - [ ] Saisir activité, consommation et facteurs avec unité, source, version et périmètre.
 - [ ] Comparer référence et scénario pour énergie et émissions disponibles.
-- [ ] Traiter les données absentes comme inconnues ; ne pas additionner des vecteurs ou unités incompatibles.
+- [x] Traiter les facteurs absents comme inconnus.
 - [ ] Distinguer les repères documentaires de flotte des données d’exploitation par ligne.
 
 **Terminé quand :** chaque résultat est reproductible à partir des hypothèses visibles ; aucune valeur inconnue n’est présentée comme zéro ou comme mesure réelle.
@@ -77,9 +78,9 @@ Mettre à jour les cases de cette feuille à chaque incrément terminé. Conserv
 
 ### Avancement au 11 novembre 2026
 
-- Données GTFS (commit `b1e99e6`) : instantanés réseau et horaires ajoutés avec provenance et licence. Importeur reproductible et validation applicative restent à porter.
+- Données GTFS (commits `b1e99e6` et commit d’import tous services) : instantanés réseau et horaires ajoutés avec provenance et licence. Importeur reproductible exécuté sur l’édition 2026-11-06 ; 5 309 courses de 27 lignes sont maintenant représentées.
 - Exploration (commit `da4b72d`) : tracés réseau, recherche de lignes, sélection et cadrage sont intégrés à la carte Next.js. Les arrêts, sélection explicite de variante, interaction mobile et contrôle visuel restent à valider.
-- Horaires (en cours) : couche d’arrêts ajoutée et panneau d’horaires théoriques par arrêt sur la date et l’heure choisies ; seuls les départs de la ligne 1 sont fournis. Le cas des services après minuit, dates sans service et sélection multi-lignes demande encore validation.
+- Horaires : données multi-lignes intégrées. Cas des heures après minuit, dates sans service et sélection de variantes restent à valider.
 - Scénarios locaux (en cours) : création par variante, renommage, ajout d’arrêt par coordonnées, retrait, suppression et sauvegarde locale sont intégrés. Déplacement d’arrêt, prévisualisation cartographique dédiée, gestion de l’historique et validation visuelle restent à faire.
-- Estimations macro (en cours) : saisie d’activité, consommation et facteur GES sourcés avec calcul véhicule-km/énergie/CO₂e ajoutés. Il reste la comparaison référence/scénario, la persistance des hypothèses, la flotte multi-profils, l’activité GTFS couverte et les autres indicateurs avec facteurs validés.
+- Estimations macro (en cours) : activité journalière estimée depuis les courses GTFS et saisie de consommation/facteur GES sourcés. Le 11 novembre 2026, l’édition indique 2 795,2 véhicule-km sur 8 lignes actives ; le 12 novembre, 22 629,6 véhicule-km sur 27 lignes. Ces distances sont des estimations de service planifié, sans courses à vide ni données GPS. Il reste la comparaison référence/scénario, la persistance des hypothèses, les flottes multi-profils et les indicateurs d’émission supplémentaires.
 - TypeScript passe après l’ajout de l’exploration et des horaires. Contrôle visuel desktop/mobile non effectué.
