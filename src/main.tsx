@@ -8,8 +8,10 @@ import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 
 import { RoadEditor } from "./RoadEditor";
 import { VersionInfo } from "./VersionInfo";
+import { BusLineCreator } from "./BusLineCreator";
+import type { BusCreatedLine } from "./bus-line";
 import { lineBounds, lineFeatures, scheduledNetworkActivity, stopFeatures, type SibraNetwork, type SibraSchedule } from "./sibra";
-import { BUS_SCENARIO_STORAGE_KEY, createBusScenario, createLocalBusLine, localBusLineFeatures, LOCAL_BUS_LINES_STORAGE_KEY, plannedDepartures, readBusScenarios, readLocalBusLines, shiftTripSchedule, type BusScenario, type LocalBusDirection, type LocalBusLine } from "./bus-scenario";
+import { BUS_SCENARIO_STORAGE_KEY, createBusScenario, readBusScenarios, shiftTripSchedule, type BusScenario } from "./bus-scenario";
 import { calculateBusEstimate } from "./bus-impact";
 import {
   EMPTY_ROADS,
@@ -47,6 +49,7 @@ export default function App() {
   }, [roadData]);
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+  const creatorMapActionRef = useRef(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<MapGeoJSONFeature | null>(null);
@@ -59,6 +62,7 @@ export default function App() {
   const [hasBuildings, setHasBuildings] = useState(false);
   const [api, setApi] = useState("Mode autonome");
   const [busNetwork, setBusNetwork] = useState<SibraNetwork | null>(null);
+  const [showSibraNetwork, setShowSibraNetwork] = useState(true);
   const [busSearch, setBusSearch] = useState("");
   const [busLineId, setBusLineId] = useState<string | null>(null);
   const [busError, setBusError] = useState("");
@@ -72,26 +76,14 @@ export default function App() {
   const [scenarioVariantId, setScenarioVariantId] = useState("");
   const [draftStop, setDraftStop] = useState({ name: "", longitude: "", latitude: "" });
   const [scenarioError, setScenarioError] = useState("");
-  const [localBusLines, setLocalBusLines] = useState<LocalBusLine[]>([]);
-  const [activeLocalLineId, setActiveLocalLineId] = useState<string | null>(null);
-  const [activeDirectionId, setActiveDirectionId] = useState<string | null>(null);
-  const [selectedStopToAdd, setSelectedStopToAdd] = useState("");
-  const [creatorStopSearch, setCreatorStopSearch] = useState("");
-  const [customStopDraft, setCustomStopDraft] = useState({ name: "", longitude: "", latitude: "" });
-  const activeLocalLine = localBusLines.find((line) => line.id === activeLocalLineId) ?? null;
-  const activeDirectionIndex = activeLocalLine?.directions.findIndex((direction) => direction.id === activeDirectionId) ?? -1;
-  const activeDirection = activeLocalLine && activeDirectionIndex >= 0 ? activeLocalLine.directions[activeDirectionIndex] : null;
-  const localDepartures = activeDirection ? plannedDepartures(activeDirection) : [];
-  const allNetworkStops = useMemo(() => {
-    const seen = new Set<string>();
-    return (busNetwork?.lines ?? []).flatMap((line) => line.variants.flatMap((variant) => variant.stops)).filter((stop) => {
-      const key = `${stop.id}:${stop.coordinates.join(",")}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-  }, [busNetwork]);
-  const matchingCreatorStops = useMemo(() => allNetworkStops.filter((stop) => stop.name.toLocaleLowerCase("fr").includes(creatorStopSearch.toLocaleLowerCase("fr"))).slice(0, 40), [allNetworkStops, creatorStopSearch]);
+  const [appMenuOpen, setAppMenuOpen] = useState(false);
+  const appMenuRef = useRef<HTMLDivElement>(null);
+  const [busCreatorOpen, setBusCreatorOpen] = useState(false);
+  const [busLineDraftExists, setBusLineDraftExists] = useState(false);
+  const [newBusLineToken, setNewBusLineToken] = useState(0);
+  const [selectedCreatedLineId, setSelectedCreatedLineId] = useState<string | null>(null);
+  const [createdBusLines, setCreatedBusLines] = useState<BusCreatedLine[]>([]);
+  const [busCreationNotice, setBusCreationNotice] = useState("");
   const [impactInputs, setImpactInputs] = useState({ vehicles: "", kmPerVehicle: "", consumptionPerKm: "", ghgKgPerUnit: "", vector: "", unit: "kWh", source: "", version: "", scope: "", period: "" });
   const impactNumber = (raw: string) => raw.trim() === "" ? null : Number.isFinite(Number(raw)) ? Number(raw) : null;
   const busEstimate = calculateBusEstimate({ vehicles: impactNumber(impactInputs.vehicles), kmPerVehicle: impactNumber(impactInputs.kmPerVehicle), consumptionPerKm: impactNumber(impactInputs.consumptionPerKm), ghgKgPerUnit: impactNumber(impactInputs.ghgKgPerUnit), energyVector: impactInputs.vector, energyUnit: impactInputs.unit, source: impactInputs.source, sourceVersion: impactInputs.version, sourceScope: impactInputs.scope });
@@ -99,24 +91,56 @@ export default function App() {
   useEffect(() => {
     try { setBusScenarios(readBusScenarios(window.localStorage.getItem(BUS_SCENARIO_STORAGE_KEY))); }
     catch { setScenarioError("Le stockage local est inaccessible dans ce navigateur."); }
-    try { setLocalBusLines(readLocalBusLines(window.localStorage.getItem(LOCAL_BUS_LINES_STORAGE_KEY))); }
-    catch { setScenarioError("Le stockage local est inaccessible dans ce navigateur."); }
   }, []);
   const saveBusScenarios = (next: BusScenario[]) => {
     setBusScenarios(next);
     try { window.localStorage.setItem(BUS_SCENARIO_STORAGE_KEY, JSON.stringify(next)); setScenarioError(""); }
     catch { setScenarioError("Enregistrement impossible. Vérifiez le stockage local du navigateur."); }
   };
-  const saveLocalBusLines = (next: LocalBusLine[]) => {
-    setLocalBusLines(next);
-    try { window.localStorage.setItem(LOCAL_BUS_LINES_STORAGE_KEY, JSON.stringify(next)); setScenarioError(""); }
-    catch { setScenarioError("Enregistrement impossible. Exportez vos scénarios avant de vider le stockage navigateur."); }
+  const startBusLineCreation = () => {
+    if (busLineDraftExists) {
+      setSelectedCreatedLineId(null);
+      setBusCreatorOpen(true);
+      setAppMenuOpen(false);
+      return;
+    }
+    setSelectedCreatedLineId(null);
+    setNewBusLineToken((token) => token + 1);
+    setBusCreatorOpen(true);
+    setAppMenuOpen(false);
   };
-  const updateActiveDirection = (patch: Partial<LocalBusDirection>) => {
-    if (!activeLocalLine || !activeDirection) return;
-    const directions = activeLocalLine.directions.map((direction) => direction.id === activeDirection.id ? { ...direction, ...patch } : direction) as [LocalBusDirection, LocalBusDirection];
-    saveLocalBusLines(localBusLines.map((line) => line.id === activeLocalLine.id ? { ...activeLocalLine, directions, updatedAt: new Date().toISOString() } : line));
+  const openCreatedBusLine = (lineId: string) => {
+    setSelectedCreatedLineId(lineId);
+    setBusCreatorOpen(true);
+    setAppMenuOpen(false);
   };
+  const handleCreatedBusLines = useCallback((next: BusCreatedLine[]) => setCreatedBusLines(next), []);
+  const handleCreatedBusLineSelection = useCallback((lineId: string | null) => {
+    setSelectedCreatedLineId(lineId);
+    setBusCreatorOpen(lineId !== null);
+  }, []);
+  const handleBusDraftChange = useCallback((hasDraft: boolean) => setBusLineDraftExists(hasDraft), []);
+  const handleBusLineCreated = useCallback((line: BusCreatedLine) => {
+    setSelectedCreatedLineId(line.id);
+    setBusCreatorOpen(false);
+    setBusCreationNotice(`Ligne « ${line.name} » créée et enregistrée.`);
+  }, []);
+  useEffect(() => {
+    if (!busCreationNotice) return;
+    const timeout = window.setTimeout(() => setBusCreationNotice(""), 5000);
+    return () => window.clearTimeout(timeout);
+  }, [busCreationNotice]);
+  useEffect(() => {
+    if (!appMenuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setAppMenuOpen(false); };
+    const closeOutside = (event: PointerEvent) => { if (!appMenuRef.current?.contains(event.target as Node)) setAppMenuOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("pointerdown", closeOutside);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("pointerdown", closeOutside);
+    };
+  }, [appMenuOpen]);
   const busLine = busNetwork?.lines.find((line) => line.id === busLineId) ?? null;
   const visibleBusLines = (busNetwork?.lines ?? []).filter((line) =>
     `${line.shortName} ${line.longName}`.toLocaleLowerCase("fr").includes(busSearch.toLocaleLowerCase("fr")),
@@ -236,6 +260,7 @@ export default function App() {
       setError("");
     });
     instance.on("click", (e) => {
+      if (creatorMapActionRef.current) return;
       const editable = instance
         .queryRenderedFeatures([
           [e.point.x - 5, e.point.y - 5],
@@ -374,12 +399,14 @@ export default function App() {
       instance.addSource("sibra-stops", { type: "geojson", data: stopFeatures(busNetwork, busLineId) });
       instance.addLayer({ id: "sibra-stop-points", type: "circle", source: "sibra-stops", paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 2, 15, 5], "circle-color": "#fffdf5", "circle-stroke-color": "#31594a", "circle-stroke-width": 1.5 } });
       instance.on("click", "sibra-stop-points", (event) => {
+        if (creatorMapActionRef.current) return;
         const properties = event.features?.[0]?.properties;
         if (properties?.stopId) { setBusStopId(String(properties.stopId)); setBusStopName(String(properties.name ?? "Arrêt")); }
       });
       instance.on("mouseenter", "sibra-stop-points", () => { instance.getCanvas().style.cursor = "pointer"; });
       instance.on("mouseleave", "sibra-stop-points", () => { instance.getCanvas().style.cursor = ""; });
       instance.on("click", "sibra-route-lines", (event) => {
+        if (creatorMapActionRef.current) return;
         const feature = event.features?.[0];
         if (feature?.properties?.lineId) setBusLineId(String(feature.properties.lineId));
       });
@@ -396,22 +423,18 @@ export default function App() {
   }, [busNetwork, busLineId]);
   useEffect(() => {
     const instance = map.current;
-    if (!ready || !instance) return;
-    const data = localBusLineFeatures(localBusLines);
-    if (!instance.getSource("yft-local-bus-lines")) {
-      instance.addSource("yft-local-bus-lines", { type: "geojson", data });
-      instance.addLayer({ id: "yft-local-bus-route", type: "line", source: "yft-local-bus-lines", paint: { "line-color": ["get", "color"], "line-width": 4, "line-dasharray": [2, 1.5], "line-opacity": 0.9 } });
-    } else {
-      (instance.getSource("yft-local-bus-lines") as maplibregl.GeoJSONSource).setData(data);
-    }
-  }, [ready, localBusLines]);
-  useEffect(() => {
-    const instance = map.current;
     if (!ready || !instance || !instance.getLayer("sibra-route-lines")) return;
     const filter = busLineId ? ["==", ["get", "lineId"], busLineId] : null;
     instance.setFilter("sibra-route-lines", filter as maplibregl.FilterSpecification | null);
     instance.setFilter("sibra-route-casing", filter as maplibregl.FilterSpecification | null);
   }, [ready, busLineId]);
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance) return;
+    for (const id of ["sibra-route-casing", "sibra-route-lines", "sibra-stop-points"]) {
+      if (instance.getLayer(id)) instance.setLayoutProperty(id, "visibility", showSibraNetwork ? "visible" : "none");
+    }
+  }, [ready, busNetwork, showSibraNetwork]);
   return (
     <div className="app">
       <header>
@@ -428,6 +451,19 @@ export default function App() {
           <span className="muted">/ France</span>
         </div>
         <span className="phase">PROTOTYPE · VOIRIE</span>
+        <div className="app-menu" ref={appMenuRef}>
+          <button type="button" className="app-menu-trigger" aria-label="Ouvrir le menu principal" aria-expanded={appMenuOpen} aria-controls="app-menu-content" onClick={() => setAppMenuOpen((value) => !value)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+          {appMenuOpen && <div className="app-menu-content" id="app-menu-content" role="menu" aria-label="Menu principal">
+            <button type="button" role="menuitem" disabled={!ready} onClick={startBusLineCreation}>{busLineDraftExists ? "Reprendre la création de ligne" : "Créer une ligne de bus"}</button>
+            {createdBusLines.length > 0 && <>
+              <p>{busLineDraftExists ? "Terminez ou fermez le brouillon pour changer de ligne." : "Lignes créées"}</p>
+              {createdBusLines.map((line) => <button type="button" role="menuitem" disabled={busLineDraftExists} key={line.id} onClick={() => openCreatedBusLine(line.id)}>{line.name}</button>)}
+            </>}
+            {!createdBusLines.length && <span>Aucune ligne créée</span>}
+          </div>}
+        </div>
       </header>
       <main>
         <aside className="sidebar">
@@ -479,6 +515,10 @@ export default function App() {
           </section>
           <section className="bus-network" aria-labelledby="bus-heading">
             <h2 id="bus-heading">Réseau de bus SIBRA</h2>
+            <label className="layer bus-network-toggle">
+              <span>Afficher le réseau SIBRA</span>
+              <input type="checkbox" checked={showSibraNetwork} onChange={(event) => setShowSibraNetwork(event.target.checked)} />
+            </label>
             {busNetwork ? <>
               <p className="caption">Données valides du {busNetwork.metadata.validFrom} au {busNetwork.metadata.validTo} · horaires théoriques, sans temps réel.</p>
               <label className="bus-search-label" htmlFor="bus-search">Rechercher une ligne</label>
@@ -500,11 +540,6 @@ export default function App() {
                 {scenarioError && <p className="bus-error" role="alert">{scenarioError}</p>}
               </div>}
               {busStopId && <div className="bus-line-detail" aria-live="polite"><strong>{busStopName}</strong><label className="bus-search-label" htmlFor="bus-date">Jour de service</label><input id="bus-date" className="bus-search" type="date" value={scheduleDate} onChange={(event) => setScheduleDate(event.target.value)} /><label className="bus-search-label" htmlFor="bus-time">À partir de</label><input id="bus-time" className="bus-search" type="time" value={scheduleTime} onChange={(event) => setScheduleTime(event.target.value)} />{!busSchedule || scheduleDate < busSchedule.metadata.validFrom || scheduleDate > busSchedule.metadata.validTo ? <p>Horaires non disponibles pour cette date.</p> : upcomingDepartures.length ? <ul className="departure-list">{upcomingDepartures.map((departure, index) => <li key={`${departure.seconds}-${index}`}>{`${String(Math.floor(departure.seconds / 3600) % 24).padStart(2,"0")}:${String(Math.floor(departure.seconds % 3600 / 60)).padStart(2,"0")}`}{departure.seconds >= 86400 ? " (+1 j.)" : ""}</li>)}</ul> : <p>Aucun départ théorique trouvé après cette heure.</p>}<p>Horaires statiques théoriques, fuseau {busSchedule?.metadata.timeZone ?? "Europe/Paris"}. Pas de temps réel.</p></div>}
-              <div className="bus-line-detail"><strong>Créer une ligne hypothétique</strong><p>Créez deux sens indépendants et définissez les arrêts et horaires du scénario. La référence SIBRA reste intacte.</p><button className="bus-all" onClick={() => { const line = createLocalBusLine(); saveLocalBusLines([...localBusLines, line]); setActiveLocalLineId(line.id); setActiveDirectionId(line.directions[0].id); }}>Nouvelle ligne</button>
-                {localBusLines.map((line) => <button className={`bus-all${line.id === activeLocalLineId ? " is-selected" : ""}`} key={line.id} onClick={() => { setActiveLocalLineId(line.id); setActiveDirectionId(line.directions[0].id); }}>{line.name}</button>)}
-                {activeLocalLine && <div className="bus-scenario-editor"><label className="bus-search-label" htmlFor="local-line-name">Nom de la ligne</label><input id="local-line-name" className="bus-search" value={activeLocalLine.name} onChange={(event) => saveLocalBusLines(localBusLines.map((line) => line.id === activeLocalLine.id ? { ...line, name: event.target.value, updatedAt: new Date().toISOString() } : line))} /><div className="scenario-coordinates">{activeLocalLine.directions.map((direction) => <button key={direction.id} className={`bus-all${activeDirectionId === direction.id ? " is-selected" : ""}`} onClick={() => setActiveDirectionId(direction.id)}>{direction.name}</button>)}</div>{activeDirection && <><label className="bus-search-label">Nom du sens / terminus</label><input className="bus-search" value={activeDirection.name} onChange={(event) => updateActiveDirection({ name: event.target.value })} /><label className="bus-search-label">Rechercher un arrêt GTFS</label><input className="bus-search" value={creatorStopSearch} onChange={(event) => setCreatorStopSearch(event.target.value)} placeholder="Nom de l’arrêt" /><select className="bus-search" value={selectedStopToAdd} onChange={(event) => setSelectedStopToAdd(event.target.value)}><option value="">Choisir un arrêt référencé</option>{matchingCreatorStops.map((stop, index) => <option key={`${stop.id}:${index}`} value={JSON.stringify(stop)}>{stop.name}</option>)}</select><button className="bus-all" onClick={() => { try { const stop = JSON.parse(selectedStopToAdd) as { id: string; name: string; coordinates: [number, number] }; updateActiveDirection({ stops: [...activeDirection.stops, stop] }); setSelectedStopToAdd(""); } catch { setScenarioError("Choisissez un arrêt référencé avant de l’ajouter."); } }}>Ajouter au sens {activeDirection.name}</button><label className="bus-search-label">Ou ajouter un arrêt hypothétique par coordonnées</label><input className="bus-search" placeholder="Nom" value={customStopDraft.name} onChange={(event) => setCustomStopDraft({ ...customStopDraft, name: event.target.value })} /><div className="scenario-coordinates"><input className="bus-search" aria-label="Longitude du nouvel arrêt" placeholder="Longitude" value={customStopDraft.longitude} onChange={(event) => setCustomStopDraft({ ...customStopDraft, longitude: event.target.value })} /><input className="bus-search" aria-label="Latitude du nouvel arrêt" placeholder="Latitude" value={customStopDraft.latitude} onChange={(event) => setCustomStopDraft({ ...customStopDraft, latitude: event.target.value })} /></div><button className="bus-all" onClick={() => { const longitude = Number(customStopDraft.longitude); const latitude = Number(customStopDraft.latitude); if (!customStopDraft.name.trim() || !Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 90) { setScenarioError("Coordonnées ou nom du nouvel arrêt invalides."); return; } updateActiveDirection({ stops: [...activeDirection.stops, { id: `local:${crypto.randomUUID()}`, name: customStopDraft.name.trim(), coordinates: [longitude, latitude] }] }); setCustomStopDraft({ name: "", longitude: "", latitude: "" }); }}>Ajouter cet arrêt</button><ul className="scenario-stop-list">{activeDirection.stops.map((stop, index) => <li key={`${stop.id}-${index}`}><span>{index + 1}. {stop.name}</span><span><button aria-label={`Monter ${stop.name}`} disabled={index === 0} onClick={() => { const stops = [...activeDirection.stops]; [stops[index - 1], stops[index]] = [stops[index], stops[index - 1]]; updateActiveDirection({ stops }); }}>↑</button><button aria-label={`Descendre ${stop.name}`} disabled={index === activeDirection.stops.length - 1} onClick={() => { const stops = [...activeDirection.stops]; [stops[index + 1], stops[index]] = [stops[index], stops[index + 1]]; updateActiveDirection({ stops }); }}>↓</button><button aria-label={`Retirer ${stop.name}`} onClick={() => updateActiveDirection({ stops: activeDirection.stops.filter((_, stopIndex) => stopIndex !== index) })}>Retirer</button></span></li>)}</ul><div className="scenario-coordinates"><label className="bus-search-label">Premier départ<input className="bus-search" type="time" value={activeDirection.firstDeparture} onChange={(event) => updateActiveDirection({ firstDeparture: event.target.value })} /></label><label className="bus-search-label">Dernier départ<input className="bus-search" type="time" value={activeDirection.lastDeparture} onChange={(event) => updateActiveDirection({ lastDeparture: event.target.value })} /></label></div><div className="scenario-coordinates"><label className="bus-search-label">Intervalle (minutes)<input className="bus-search" type="number" min="1" max="1440" value={activeDirection.headwayMinutes} onChange={(event) => updateActiveDirection({ headwayMinutes: Math.max(1, Number(event.target.value)) })} /></label><label className="bus-search-label">Bus affectés<input className="bus-search" type="number" min="1" step="1" value={activeDirection.buses} onChange={(event) => updateActiveDirection({ buses: Math.max(1, Number(event.target.value)) })} /></label></div><div className="scenario-coordinates"><label className="bus-search-label">Début de validité<input className="bus-search" type="date" value={activeDirection.startDate} onChange={(event) => updateActiveDirection({ startDate: event.target.value })} /></label><label className="bus-search-label">Fin de validité<input className="bus-search" type="date" value={activeDirection.endDate} onChange={(event) => updateActiveDirection({ endDate: event.target.value })} /></label></div><div className="service-days">{["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((day) => <label key={day}><input type="checkbox" checked={activeDirection.serviceDays.includes(day)} onChange={(event) => updateActiveDirection({ serviceDays: event.target.checked ? [...activeDirection.serviceDays, day] : activeDirection.serviceDays.filter((item) => item !== day) })} />{day}</label>)}</div><p className="caption">{localDepartures.length} départs théoriques pour ce sens. Si le dernier départ est avant le premier, il est placé au lendemain. Ces hypothèses ne décrivent pas un service réel.</p></>}
-                  <button className="bus-all" onClick={() => { saveLocalBusLines(localBusLines.filter((line) => line.id !== activeLocalLine.id)); setActiveLocalLineId(null); setActiveDirectionId(null); }}>Supprimer la ligne locale</button></div>}
-              </div>
               <p className="caption bus-attribution">{busNetwork.metadata.attribution} · {busNetwork.metadata.license}</p>
             </> : <p className={busError ? "bus-error" : "caption"} role={busError ? "alert" : "status"}>{busError || "Chargement du réseau SIBRA…"}</p>}
           </section>
@@ -544,16 +579,30 @@ export default function App() {
             className="map"
             aria-label="Carte interactive d’Annecy"
           />
+          <BusLineCreator
+            map={ready ? map.current : null}
+            ready={ready}
+            open={busCreatorOpen}
+            newLineToken={newBusLineToken}
+            selectedLineId={selectedCreatedLineId}
+            onClose={() => setBusCreatorOpen(false)}
+            onLinesChange={handleCreatedBusLines}
+            onSelectLine={handleCreatedBusLineSelection}
+            onCreated={handleBusLineCreated}
+            onDraftChange={handleBusDraftChange}
+            mapActionRef={creatorMapActionRef}
+          />
+          {busCreationNotice && <div className="bus-creation-toast" role="status">{busCreationNotice}</div>}
           <div className="map-heading">
             <span className="eyebrow">VUE DU TERRITOIRE</span>
             <strong>Annecy & son lac</strong>
           </div>
-          <button
+          {!busCreatorOpen && <button
             className="recenter"
             onClick={() => map.current?.flyTo({ ...ANNECY, essential: true })}
           >
             ⌖ <span>Recentrer sur Annecy</span>
-          </button>
+          </button>}
           {!ready && !error && (
             <div className="notice" role="status">
               Chargement de la carte d’Annecy…
@@ -567,7 +616,7 @@ export default function App() {
               </button>
             </div>
           )}
-          <div className="info" aria-live="polite">
+          {!busCreatorOpen && <div className="info" aria-live="polite">
             <div className="info-title">
               <span className="eyebrow">
                 {selectedRoad
@@ -638,7 +687,7 @@ export default function App() {
                 </span>
               </>
             )}
-          </div>
+          </div>}
           <div className="map-badge">
             <span className="dot" /> DONNÉES DE RÉFÉRENCE <span>·</span>{" "}
             {extrusion && hasBuildings ? "2.5D" : "2D"}

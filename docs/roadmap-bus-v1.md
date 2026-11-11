@@ -73,15 +73,29 @@ Sur l’échelle du Grand Annecy, l’utilisateur peut explorer le réseau SIBRA
 - Généralisation des horaires ou consommations d’une ligne à tout le réseau sans source vérifiée.
 - Déploiement ou migration distante sans validation dédiée.
 
+## Créateur de ligne V1 — chantier actif
+
+- [x] Démarrer le processus depuis le menu principal et garder un brouillon reprenable.
+- [x] Poser deux terminus sur la carte et proposer un itinéraire calculé sur le réseau routier OSM local.
+- [x] Ajouter des points de passage, recalculer le tracé, puis poser et nommer les arrêts.
+- [x] Afficher terminus, passages, arrêts et tracé avec des repères distincts ; déplacer et éditer la ligne depuis un panneau à étapes.
+- [x] Enregistrer les lignes dans le navigateur et les rouvrir depuis le menu.
+- [x] Définir le retour comme le même tracé parcouru à l’envers ; aucune seconde géométrie indépendante n’est créée.
+- [ ] Valider le moteur routier sur des itinéraires représentatifs et les cas limites (sens unique, restrictions, accès bus, emprise).
+- [ ] Vérifier visuellement les écrans ordinateur/mobile et le parcours complet dans le navigateur.
+- [ ] Ajouter des contrôles automatisés ciblés avant livraison.
+
+Le calcul initial est une proposition théorique à partir d’un extrait OSM ODbL ; il ne certifie ni l’accès des bus ni la légalité du retour inversé. Limites détaillées dans [`bus-line-creator-v1.md`](bus-line-creator-v1.md).
+
 ## Suivi
 
 Mettre à jour les cases de cette feuille à chaque incrément terminé. Conserver ici le plan de travail actif ; `docs/roadmap-cdc.md` reste la vue d’ensemble des phases du cahier des charges.
 
-### Avancement au 11 novembre 2026
+### Avancement au 12 novembre 2026
 
 - Données GTFS (commits `b1e99e6` et commit d’import tous services) : instantanés réseau et horaires ajoutés avec provenance et licence. Importeur reproductible exécuté sur l’édition 2026-11-06 ; 5 309 courses de 27 lignes sont maintenant représentées.
 - Exploration (commit `da4b72d`) : tracés réseau, recherche de lignes, sélection et cadrage sont intégrés à la carte Next.js. Les arrêts, sélection explicite de variante, interaction mobile et contrôle visuel restent à valider.
 - Horaires : données multi-lignes intégrées. Cas des heures après minuit, dates sans service et sélection de variantes restent à valider.
-- Créateur de ligne (en cours) : création d’une ligne avec deux sens distincts, arrêts GTFS ou hypothétiques, réordonnancement, horaires de premier/dernier départ, fréquence, jours et période de service, parc affecté, sauvegarde navigateur et aperçu schématique sur la carte. Le scénario d’une ligne existante peut aussi modifier les départs des courses GTFS copiées. Restent la validation des périodes et la vérification complète des parcours visuels/mobile.
+- Scénarios GTFS existants : copie locale, édition des arrêts et décalage de départ des courses restent disponibles dans l’explorateur. Le nouveau créateur géographique suit le chantier actif ci-dessus ; il produit un tracé et des arrêts, sans horaires ni flotte.
 - Estimations macro (en cours) : activité journalière estimée depuis toutes les courses GTFS et saisie de consommation/facteur GES sourcés. Le 11 novembre 2026, l’édition indique 2 795,2 véhicule-km sur 8 lignes actives ; le 12 novembre, 22 629,6 véhicule-km sur 27 lignes. Distances de service planifié, sans courses à vide ni données GPS. L’énergie/les émissions ne sont pas des chiffres SIBRA tant que des facteurs représentatifs et sourcés ne sont pas fournis. Il reste la comparaison référence/scénario, la persistance des hypothèses, les flottes multi-profils et les indicateurs d’émission supplémentaires.
-- TypeScript, tests ciblés et build Next passent. Aperçus Orca desktop/mobile réalisés ; le parcours complet reste à valider, en particulier dates de service, clavier et persistance après rechargement.
+- Contrôle de cette itération du créateur : TypeScript passe et le détecteur Impeccable ne remonte pas d’alerte. La vérification visuelle reste bloquée car l’hôte navigateur et l’ouverture d’un port local sont indisponibles dans cette session ; aucun test automatisé n’a été exécuté pour cette itération.

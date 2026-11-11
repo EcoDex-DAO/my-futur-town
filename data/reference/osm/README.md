@@ -11,3 +11,9 @@ python3 scripts/importers/osm_roads.py --input data/reference/osm/<archive>.osm.
 ```
 
 Le SQL n’est jamais appliqué automatiquement par cette commande. Les identifiants sont déterministes ; une réapplication du même instantané ne doit pas dupliquer les références. Le périmètre reste un petit secteur, pas toute la voirie d’Annecy.
+
+## Proposition de tracé bus
+
+`grand-annecy-20261108.osm.json.gz` contient le graphe routier OSM du rectangle Grand Annecy décrit dans son manifeste : 55 974 voies, 462 649 nœuds et 565 relations de restriction. Son empreinte et sa provenance sont conservées dans `grand-annecy-20261108.manifest.json`. L’API Next.js utilise cet extrait local pour proposer un chemin entre terminus et points de passage ; aucune requête Overpass n’est faite lors de l’utilisation.
+
+La proposition reste expérimentale. L’extrait ne garantit pas toutes les voiries ni les détours hors de son rectangle ; les règles d’accès bus, gabarits et certaines restrictions de tournant restent incomplètes. L’interface signale ces limites, affiche les raccordements et ne présente aucun résultat comme un itinéraire bus praticable ou validé. Attribution **© OpenStreetMap contributors**, licence **ODbL 1.0** : https://www.openstreetmap.org/copyright.
