@@ -1,11 +1,11 @@
-# Reprise CDC — état vérifié au 5 novembre 2026
+# Reprise CDC — état historique et avancement actuel
 
-> Rapport historique de la version Vite : les validations décrites ne constituent pas une validation du portage Next.js.
+> Les contrôles historiques ci-dessous concernent une version antérieure. Ils ne valident pas les mêmes parcours dans l’application Next.js actuelle.
 
 ## Livré dans le dépôt
 
 - CDC fourni conservé dans `docs/cahier-des-charges-v1.md`, avec feuille de route recalée sur les phases 0/1/2.
-- Nom produit Your Futur Town, socle React/Vite/MapLibre conservé.
+- Nom produit Your Futur Town, socle React/MapLibre conservé.
 - Client Supabase public et interface d’authentification/scénarios privés.
 - Importeur OSM reproductible et borné au secteur pilote ; échec explicite si source vide, incomplète ou incohérente.
 - Couche de routes indépendante avec nœuds et segments ; modification du profil, prévisualisation, sauvegarde et comparaison/restauration.
@@ -23,7 +23,7 @@ La migration `202611050003_road_scenarios.sql` a été appliquée au projet exis
 - 4 tests Python de l’importeur : propriétés absentes, déterminisme et échappement, réponses incomplètes, nœuds incohérents.
 - Migrations et tests RLS avec PostGIS dans `public` et dans `extensions`.
 - Passage double sens → sens unique avec largeur cyclable ; graphe correspondant ; persistance entre deux connexions SQL ; retour au graphe de référence sans altération des références.
-- Build TypeScript/Vite et audit npm sans vulnérabilité signalée au contrôle.
+- Build et audit npm sans vulnérabilité signalée lors du contrôle historique.
 - Test Chromium de non-régression : carte réelle Annecy, sélection de bâtiment, contrôles 2D/2.5D et affichage mobile, sans connexion Supabase configurée.
 
 ## Suite de développement — 0.2.0-dev.2
@@ -36,7 +36,7 @@ La version de développement inclut un numéro visible, les métadonnées du bui
 
 ## Validation et déploiement à distinguer
 
-Les contrôles connectés ont été exécutés dans le navigateur de l’environnement cloud avec un build de production et la base Supabase existante. Ils ne prouvent pas à eux seuls qu’une prévisualisation Vercel dispose de la configuration publique nécessaire. Les variables `VITE_SUPABASE_URL` et `VITE_SUPABASE_PUBLISHABLE_KEY` doivent être présentes dans l’environnement Vercel choisi, puis le build doit être refait.
+Les contrôles connectés ont été exécutés dans le navigateur de l’environnement cloud avec un build de production et la base Supabase existante. Ils ne prouvent pas à eux seuls qu’une prévisualisation Vercel dispose de la configuration publique nécessaire. Les variables `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` doivent être présentes dans l’environnement Vercel choisi, puis le build doit être refait.
 
 La branche de développement n’est pas fusionnée dans main. Le site de production existant répond en HTTP 200 ; aucune promotion de la nouvelle interface n’est revendiquée. Le parcours connecté a été testé sur ordinateur ; l’éditeur mobile connecté reste à vérifier plus en détail.
 

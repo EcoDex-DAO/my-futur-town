@@ -68,7 +68,7 @@ Le test complet demandé par le CDC exige ensuite : import de vraies routes, con
 
 Le premier instantané est importé : version `20261105T222406Z-b0b66162`, 522 tronçons et 507 nœuds. Sa réponse source compressée et son manifeste sont conservés dans `data/reference/osm/`. `--input` accepte également ces archives `.gz` pour reproduire exactement le même SQL sans nouvel appel Overpass.
 
-Le parcours avec authentification réelle, sens unique cyclable, sauvegarde, rechargement et restauration a été vérifié sur la version Vite dans le navigateur cloud ; il doit être vérifié à nouveau après migration vers Next.js. Il utilise un vrai tronçon de la rue Sommeiller. Le script optionnel suivant recommence ce contrôle avec une identité technique temporaire :
+Le parcours avec authentification réelle, sens unique cyclable, sauvegarde, rechargement et restauration a été vérifié sur une version antérieure dans le navigateur cloud ; il doit être vérifié à nouveau sur la version Next.js actuelle. Il utilise un vrai tronçon de la rue Sommeiller. Le script optionnel suivant recommence ce contrôle avec une identité technique temporaire :
 
 ```sh
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/chemin/vers/chromium python3 scripts/test-connected-roads.py
