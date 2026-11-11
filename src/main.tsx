@@ -9,6 +9,7 @@ import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 import { RoadEditor } from "./RoadEditor";
 import { VersionInfo } from "./VersionInfo";
 import { lineBounds, lineFeatures, stopFeatures, type SibraNetwork } from "./sibra";
+import { BUS_SCENARIO_STORAGE_KEY, createBusScenario, readBusScenarios, type BusScenario } from "./bus-scenario";
 import {
   EMPTY_ROADS,
   applyProfiles,
@@ -61,6 +62,21 @@ export default function App() {
   const [busSchedule, setBusSchedule] = useState<{ metadata: { validFrom: string; validTo: string; timeZone: string }; serviceDates: Record<string, string[]>; trips: { lineId: string; serviceId: string; stops: { stopId: string; arrival: number; departure: number }[] }[] } | null>(null);
   const [scheduleDate, setScheduleDate] = useState("2026-11-11");
   const [scheduleTime, setScheduleTime] = useState("08:00");
+  const [busScenarios, setBusScenarios] = useState<BusScenario[]>([]);
+  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
+  const [scenarioVariantId, setScenarioVariantId] = useState("");
+  const [draftStop, setDraftStop] = useState({ name: "", longitude: "", latitude: "" });
+  const [scenarioError, setScenarioError] = useState("");
+  const activeBusScenario = busScenarios.find((scenario) => scenario.id === activeScenarioId) ?? null;
+  useEffect(() => {
+    try { setBusScenarios(readBusScenarios(window.localStorage.getItem(BUS_SCENARIO_STORAGE_KEY))); }
+    catch { setScenarioError("Le stockage local est inaccessible dans ce navigateur."); }
+  }, []);
+  const saveBusScenarios = (next: BusScenario[]) => {
+    setBusScenarios(next);
+    try { window.localStorage.setItem(BUS_SCENARIO_STORAGE_KEY, JSON.stringify(next)); setScenarioError(""); }
+    catch { setScenarioError("Enregistrement impossible. Vérifiez le stockage local du navigateur."); }
+  };
   const busLine = busNetwork?.lines.find((line) => line.id === busLineId) ?? null;
   const visibleBusLines = (busNetwork?.lines ?? []).filter((line) =>
     `${line.shortName} ${line.longName}`.toLocaleLowerCase("fr").includes(busSearch.toLocaleLowerCase("fr")),
@@ -422,7 +438,14 @@ export default function App() {
                   if (bounds) map.current?.fitBounds(bounds, { padding: 80, maxZoom: 15 });
                 }}><span className="bus-line-chip" style={{ backgroundColor: line.color }}>{line.shortName}</span><span>{line.longName}</span><small>{line.variants.length} variantes</small></button></li>)}
               </ul>
-              {busLine && <div className="bus-line-detail"><strong>Ligne {busLine.shortName}</strong><p>{busLine.variants.length} itinéraires et {new Set(busLine.variants.flatMap((variant) => variant.stops.map((stop) => stop.id))).size} arrêts référencés. Sélectionnez un tracé sur la carte pour voir sa direction.</p></div>}
+              {busLine && <div className="bus-line-detail"><strong>Ligne {busLine.shortName}</strong><p>{busLine.variants.length} itinéraires et {new Set(busLine.variants.flatMap((variant) => variant.stops.map((stop) => stop.id))).size} arrêts référencés. Sélectionnez un tracé sur la carte pour voir sa direction.</p>
+                <label className="bus-search-label" htmlFor="bus-variant">Variante à modifier</label>
+                <select id="bus-variant" className="bus-search" value={scenarioVariantId || busLine.variants[0]?.id || ""} onChange={(event) => setScenarioVariantId(event.target.value)}>{busLine.variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.headsign} · {variant.stops.length} arrêts</option>)}</select>
+                <button className="bus-all" onClick={() => { const variant = busLine.variants.find((item) => item.id === (scenarioVariantId || busLine.variants[0]?.id)); if (!variant) return; const scenario = createBusScenario(busLine, variant); saveBusScenarios([...busScenarios, scenario]); setActiveScenarioId(scenario.id); }}>Créer un scénario local</button>
+                {busScenarios.filter((scenario) => scenario.lineId === busLine.id).map((scenario) => <button className={`bus-all${activeScenarioId === scenario.id ? " is-selected" : ""}`} key={scenario.id} onClick={() => setActiveScenarioId(scenario.id)}>{scenario.name}</button>)}
+                {activeBusScenario?.lineId === busLine.id && <div className="bus-scenario-editor"><label className="bus-search-label" htmlFor="scenario-name">Nom du scénario</label><input id="scenario-name" className="bus-search" value={activeBusScenario.name} onChange={(event) => saveBusScenarios(busScenarios.map((scenario) => scenario.id === activeBusScenario.id ? { ...scenario, name: event.target.value, updatedAt: new Date().toISOString() } : scenario))} /><p>{activeBusScenario.stops.length} arrêts · copie locale indépendante du GTFS</p><label className="bus-search-label" htmlFor="scenario-stop-name">Ajouter un arrêt par coordonnées</label><input id="scenario-stop-name" className="bus-search" placeholder="Nom de l’arrêt" value={draftStop.name} onChange={(event) => setDraftStop({ ...draftStop, name: event.target.value })} /><div className="scenario-coordinates"><input aria-label="Longitude" className="bus-search" placeholder="Longitude" inputMode="decimal" value={draftStop.longitude} onChange={(event) => setDraftStop({ ...draftStop, longitude: event.target.value })} /><input aria-label="Latitude" className="bus-search" placeholder="Latitude" inputMode="decimal" value={draftStop.latitude} onChange={(event) => setDraftStop({ ...draftStop, latitude: event.target.value })} /></div><button className="bus-all" onClick={() => { const longitude = Number(draftStop.longitude); const latitude = Number(draftStop.latitude); if (!draftStop.name.trim() || !Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 90) { setScenarioError("Saisissez un nom et des coordonnées valides."); return; } const next = { ...activeBusScenario, stops: [...activeBusScenario.stops, { id: `local:${crypto.randomUUID()}`, name: draftStop.name.trim(), coordinates: [longitude, latitude] as [number, number] }], updatedAt: new Date().toISOString() }; saveBusScenarios(busScenarios.map((scenario) => scenario.id === next.id ? next : scenario)); setDraftStop({ name: "", longitude: "", latitude: "" }); }}>Ajouter l’arrêt</button><ul className="scenario-stop-list">{activeBusScenario.stops.map((stop, index) => <li key={`${stop.id}-${index}`}><span>{stop.name}</span><button aria-label={`Retirer ${stop.name}`} onClick={() => saveBusScenarios(busScenarios.map((scenario) => scenario.id === activeBusScenario.id ? { ...scenario, stops: scenario.stops.filter((_, stopIndex) => stopIndex !== index), updatedAt: new Date().toISOString() } : scenario))}>Retirer</button></li>)}</ul><button className="bus-all" onClick={() => { saveBusScenarios(busScenarios.filter((scenario) => scenario.id !== activeBusScenario.id)); setActiveScenarioId(null); }}>Supprimer ce scénario</button></div>}
+                {scenarioError && <p className="bus-error" role="alert">{scenarioError}</p>}
+              </div>}
               {busStopId && <div className="bus-line-detail" aria-live="polite"><strong>{busStopName}</strong><label className="bus-search-label" htmlFor="bus-date">Jour de service</label><input id="bus-date" className="bus-search" type="date" value={scheduleDate} onChange={(event) => setScheduleDate(event.target.value)} /><label className="bus-search-label" htmlFor="bus-time">À partir de</label><input id="bus-time" className="bus-search" type="time" value={scheduleTime} onChange={(event) => setScheduleTime(event.target.value)} />{!busSchedule || scheduleDate < busSchedule.metadata.validFrom || scheduleDate > busSchedule.metadata.validTo ? <p>Horaires non disponibles pour cette date.</p> : upcomingDepartures.length ? <ul className="departure-list">{upcomingDepartures.map((departure, index) => <li key={`${departure.seconds}-${index}`}>{`${String(Math.floor(departure.seconds / 3600) % 24).padStart(2,"0")}:${String(Math.floor(departure.seconds % 3600 / 60)).padStart(2,"0")}`}{departure.seconds >= 86400 ? " (+1 j.)" : ""}</li>)}</ul> : <p>Aucun départ théorique trouvé après cette heure.</p>}<p>Horaires statiques de la ligne 1, fuseau {busSchedule?.metadata.timeZone ?? "Europe/Paris"}. Pas de temps réel.</p></div>}
               <p className="caption bus-attribution">{busNetwork.metadata.attribution} · {busNetwork.metadata.license}</p>
             </> : <p className={busError ? "bus-error" : "caption"} role={busError ? "alert" : "status"}>{busError || "Chargement du réseau SIBRA…"}</p>}

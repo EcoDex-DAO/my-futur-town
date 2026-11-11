@@ -333,6 +333,41 @@ section h2 span {
   font-size: 11px;
   line-height: 1.6;
 }
+.bus-scenario-editor {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #dbe2d9;
+}
+.bus-scenario-editor > p {
+  margin: 6px 0;
+}
+.scenario-coordinates {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 6px;
+}
+.scenario-stop-list {
+  margin: 8px 0;
+  padding: 0;
+  list-style: none;
+}
+.scenario-stop-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid #e2e8df;
+  font-size: 10px;
+}
+.scenario-stop-list button {
+  border: 0;
+  padding: 5px;
+  background: transparent;
+  color: #8d302e;
+  font-size: 10px;
+}
 .map {
   position: absolute;
   inset: 0;
