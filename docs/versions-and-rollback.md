@@ -4,7 +4,7 @@
 
 La version applicative suit SemVer dans `package.json` et le lockfile. La préversion actuelle est `0.3.0-dev.1`. Le suffixe indique qu’il s’agit de développement, pas d’une livraison stable.
 
-Chaque build contient un `version.json` et un bouton **Informations de version** dans l’interface :
+Chaque build expose `/version.json`, qui contient :
 
 - version applicative ;
 - révision Git exacte (variable Vercel ou Git local) ;

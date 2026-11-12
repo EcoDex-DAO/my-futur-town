@@ -1,6 +1,6 @@
 # My Futur Town
 
-Prototype open source de jumeau numérique urbain d’Annecy. Une application Next.js réunit l’interface React/TypeScript et les routes serveur ; MapLibre GL JS affiche la carte dans le navigateur. Un schéma Supabase/PostGIS est préparé pour les futurs imports et scénarios.
+Prototype open source autour du réseau de bus d’Annecy. L’application Next.js affiche la carte Annecy avec le réseau SIBRA, un créateur de ligne, une estimation macro énergie/émissions et une simulation micro des bus.
 
 ## Démarrage rapide
 
@@ -11,7 +11,9 @@ pnpm install --frozen-lockfile
 pnpm run dev
 ```
 
-Ouvrir http://localhost:5173. Aucun compte, aucune clé et aucune base ne sont nécessaires pour la carte. Internet et WebGL sont requis. Les tuiles proviennent directement d’OpenFreeMap. Zoomer, déplacer, tourner et incliner avec les contrôles ou Ctrl + glisser. Cliquer sur un objet pour voir les propriétés de sa tuile. Le bouton de recentrage restaure la vue d’Annecy. La carte reste utilisable si les routes API ne répondent pas.
+Ouvrir http://localhost:5173. Aucun compte, aucune clé et aucune base ne sont nécessaires. Internet et WebGL sont requis. Les tuiles proviennent directement d’OpenFreeMap. Le menu mobilité lance le créateur de ligne. Le réseau SIBRA peut être masqué pour mieux voir les tracés créés.
+
+L’estimation macro utilise les hypothèses modifiables de la ligne 1 puis les recopie sur les 27 lignes. Le total réseau est une extrapolation homogène, pas une mesure. La simulation micro représente les bus de la ligne 1 à partir des horaires statiques et propose un arrêt moyen réglable, initialement de 12 secondes. Les positions ne sont pas du temps réel. Les nouvelles lignes sont enregistrées dans le stockage local du navigateur.
 
 ```sh
 pnpm test
@@ -24,7 +26,10 @@ Le serveur de production écoute également sur le port 5173. `GET /health` et `
 ## Organisation du projet
 
 - `src/app/` : pages, layout et routes serveur Next.js.
+- `src/features/bus/` : créateur de lignes, estimation macro, simulation micro et logique partagée.
 - `src/` : carte MapLibre, interface React, styles et tests Vitest.
+- `public/data/` : réseau SIBRA et horaires GTFS convertis pour l’application.
+- `data/reference/osm/` : extrait routier OSM et manifeste utilisés par le calcul de route du créateur.
 - `supabase/migrations/` : migrations SQL versionnées, sans application automatique.
 - `scripts/` : contrôle HTTP et validation PostGIS jetable ; `docs/` : architecture, sources et exploitation.
 
@@ -62,6 +67,8 @@ Importer `EcoDex-DAO/my-futur-town`, sélectionner le framework Next.js et la ra
 ## Données et architecture
 
 - [Sources, licences et limites](docs/data-sources.md)
+- [Import et couverture des horaires SIBRA](docs/sibra-data.md)
+- [Provenance et limites du graphe de calcul de route](data/reference/osm/README.md)
 - [Modèle de données et politiques RLS](docs/architecture.md)
 - [Exploitation et validation](docs/operations.md)
 
@@ -73,4 +80,4 @@ Consulter le [flux de contribution](docs/workflow.md) pour passer d’une issue 
 
 Créer une branche depuis `main`, préserver les licences et l’attribution, ne pas committer de secrets. Vérifier `pnpm install --frozen-lockfile && pnpm test && pnpm run build` à la racine, ainsi que Compose pour les changements concernés, puis ouvrir une Pull Request décrivant les changements, contrôles et limites. Le code est sous licence Apache-2.0 ([LICENSE](LICENSE)) ; les données et styles conservent leurs propres licences.
 
-L’éditeur de voirie permet de consulter les tronçons disponibles et de gérer des scénarios privés lorsque Supabase est configuré. Les simulations de trafic, agents, import IFC et intégrations BIM ne sont pas implémentés.
+Les valeurs de consommation et d’émission restent des hypothèses à saisir et à sourcer. L’extrapolation macro reprend celles de la ligne 1 sans tenir compte des différences de flotte entre lignes. Le créateur produit des lignes locales à ce navigateur ; la synchronisation entre utilisateurs et les horaires des lignes créées sont hors périmètre V1.

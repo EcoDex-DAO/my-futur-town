@@ -43,5 +43,10 @@ const buildInfo = {
   environment: ["production", "preview", "development"].includes(process.env.VERCEL_ENV || "")
     ? process.env.VERCEL_ENV : "local",
 };
-const nextConfig: NextConfig = { env: { NEXT_PUBLIC_BUILD_INFO: JSON.stringify(buildInfo) } };
+const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_BUILD_INFO: JSON.stringify(buildInfo) },
+  outputFileTracingIncludes: {
+    "/api/bus-route": ["./data/reference/osm/grand-annecy-20261108.*"],
+  },
+};
 export default nextConfig;

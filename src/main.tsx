@@ -1,20 +1,16 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 
 import type { MapGeoJSONFeature } from "maplibre-gl";
 import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 
-import { RoadEditor } from "./RoadEditor";
-import { VersionInfo } from "./VersionInfo";
-import {
-  EMPTY_ROADS,
-  applyProfiles,
-  type Roads,
-  type RoadProfile,
-  type RoadChange,
-} from "./roads";
+import { BusLineCreator } from "./features/bus/creator/BusLineCreator";
+import { BusImpact, BusImpactNetwork } from "./features/bus/macro/BusImpact";
+import { BusSimulation } from "./features/bus/micro/BusSimulation";
+import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
+import type { BusCreatedLine } from "./features/bus/creator/bus-line";
 
 // Let Next.js emit the MapLibre worker as a versioned asset.
 maplibregl.setWorkerUrl(
@@ -22,22 +18,6 @@ maplibregl.setWorkerUrl(
 );
 
 export default function App() {
-  const [roadData, setRoadData] = useState<Roads>(EMPTY_ROADS);
-  const [roadChanges, setRoadChanges] = useState<RoadChange[]>([]);
-  const [roadDraft, setRoadDraft] = useState<{
-    id: string;
-    profile: RoadProfile;
-  }>();
-  const [roadId, setRoadId] = useState<string | null>(null);
-  const selectedRoad =
-    roadData.features.find((f) => f.properties.id === roadId) ?? null;
-  const focusRoads = useCallback(() => {
-    const coords = roadData.features.flatMap((f) => f.geometry.coordinates);
-    if (!coords.length) return;
-    const bounds = new maplibregl.LngLatBounds();
-    coords.forEach((c) => bounds.extend([c[0], c[1]]));
-    map.current?.fitBounds(bounds, { padding: 70, maxZoom: 17 });
-  }, [roadData]);
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [ready, setReady] = useState(false);
@@ -51,6 +31,18 @@ export default function App() {
   const [extrusion, setExtrusion] = useState(true);
   const [hasBuildings, setHasBuildings] = useState(false);
   const [api, setApi] = useState("Mode autonome");
+  const [busData, setBusData] = useState<SibraData | null>(null);
+  const [busError, setBusError] = useState("");
+  const [networkVisible, setNetworkVisible] = useState(true);
+  const [macroOpen, setMacroOpen] = useState(false);
+  const [simulationOpen, setSimulationOpen] = useState(false);
+  const [creatorOpen, setCreatorOpen] = useState(false);
+  const [mapMenuOpen, setMapMenuOpen] = useState(false);
+  const [newLineToken, setNewLineToken] = useState(0);
+  const [createdLines, setCreatedLines] = useState<BusCreatedLine[]>([]);
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+  const [creationMessage, setCreationMessage] = useState("");
+  const busMapAction = useRef(false);
   useEffect(() => {
     const endpoint = process.env.NEXT_PUBLIC_API_URL || "";
     const controller = new AbortController();
@@ -71,6 +63,20 @@ export default function App() {
       controller.abort();
       clearTimeout(timeout);
     };
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/data/sibra.json", { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("Réseau SIBRA introuvable.");
+        return response.json();
+      })
+      .then(parseSibraData)
+      .then(setBusData)
+      .catch((reason: unknown) => {
+        if (!controller.signal.aborted) setBusError(reason instanceof Error ? reason.message : "Réseau SIBRA indisponible.");
+      });
+    return () => controller.abort();
   }, []);
   useEffect(() => {
     if (!container.current) return;
@@ -132,18 +138,7 @@ export default function App() {
       setError("");
     });
     instance.on("click", (e) => {
-      const editable = instance
-        .queryRenderedFeatures([
-          [e.point.x - 5, e.point.y - 5],
-          [e.point.x + 5, e.point.y + 5],
-        ])
-        .find((f) => f.source === "yft-roads");
-      if (editable) {
-        setRoadId(String(editable.properties.id));
-        setSelected(null);
-        return;
-      }
-      setRoadId(null);
+      if (busMapAction.current) return;
       const features = instance.queryRenderedFeatures(e.point);
       setSelected(
         features.find((f) => f.layer.id === "mft-buildings-3d") ||
@@ -160,6 +155,42 @@ export default function App() {
   }, []);
   useEffect(() => {
     const instance = map.current;
+    if (!ready || !instance || !busData) return;
+    const features = sibraFeatures(busData, null, null, instance.getZoom());
+    if (!instance.getSource("yft-sibra-lines")) {
+      instance.addSource("yft-sibra-lines", { type: "geojson", data: features.lines });
+      instance.addSource("yft-sibra-stops", { type: "geojson", data: features.stops });
+      instance.addLayer({
+        id: "yft-sibra-routes",
+        type: "line",
+        source: "yft-sibra-lines",
+        paint: {
+          "line-color": ["coalesce", ["get", "color"], "#31594a"],
+          "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1.8, 16, 4],
+          "line-opacity": 0.88,
+        },
+      });
+      instance.addLayer({
+        id: "yft-sibra-stop-dots",
+        type: "circle",
+        source: "yft-sibra-stops",
+        minzoom: 13,
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 13, 2, 17, 5],
+          "circle-color": "#fffdf5",
+          "circle-stroke-color": "#31594a",
+          "circle-stroke-width": 1.5,
+        },
+      });
+    } else {
+      (instance.getSource("yft-sibra-lines") as maplibregl.GeoJSONSource).setData(features.lines);
+      (instance.getSource("yft-sibra-stops") as maplibregl.GeoJSONSource).setData(features.stops);
+    }
+    for (const id of ["yft-sibra-routes", "yft-sibra-stop-dots"])
+      instance.setLayoutProperty(id, "visibility", networkVisible ? "visible" : "none");
+  }, [ready, busData, networkVisible]);
+  useEffect(() => {
+    const instance = map.current;
     if (!ready || !instance) return;
     for (const layer of instance.getStyle().layers) {
       const group = groupForLayer(layer);
@@ -173,92 +204,6 @@ export default function App() {
         );
     }
   }, [ready, layers, extrusion]);
-  useEffect(() => {
-    const instance = map.current;
-    if (!ready || !instance) return;
-    const data = applyProfiles(roadData, roadChanges, roadDraft);
-    if (!instance.getSource("yft-roads")) {
-      instance.addSource("yft-roads", { type: "geojson", data });
-      instance.addLayer({
-        id: "yft-road-lines",
-        type: "line",
-        source: "yft-roads",
-        paint: {
-          "line-color": [
-            "case",
-            ["==", ["get", "direction"], "closed"],
-            "#9d3434",
-            ["boolean", ["get", "changed"], false],
-            "#df8e30",
-            "#216279",
-          ],
-          "line-width": [
-            "interpolate",
-            ["exponential", 2],
-            ["zoom"],
-            12,
-            ["*", ["coalesce", ["get", "display_width_m"], 6], 0.04],
-            20,
-            ["*", ["coalesce", ["get", "display_width_m"], 6], 10],
-          ],
-          "line-opacity": 0.8,
-        },
-      });
-      instance.addLayer({
-        id: "yft-road-cycles",
-        type: "line",
-        source: "yft-roads",
-        filter: [">", ["get", "cycle_width_m"], 0],
-        paint: { "line-color": "#19a563", "line-width": 4, "line-offset": 6 },
-      });
-      const fontLayer = instance
-        .getStyle()
-        .layers.find((l) => l.type === "symbol" && l.layout?.["text-font"]);
-      const roadFont = fontLayer
-        ? instance.getLayoutProperty(fontLayer.id, "text-font")
-        : ["Noto Sans Regular"];
-      instance.addLayer({
-        id: "yft-road-arrows",
-        type: "symbol",
-        source: "yft-roads",
-        layout: {
-          "symbol-placement": "line",
-          "symbol-spacing": 130,
-          "text-font": roadFont,
-          "text-field": [
-            "match",
-            ["get", "direction"],
-            "forward",
-            "→",
-            "reverse",
-            "←",
-            "closed",
-            "×",
-            "both",
-            "↔",
-            "?",
-          ],
-          "text-size": 20,
-          "text-keep-upright": false,
-        },
-        paint: {
-          "text-color": "#163c40",
-          "text-halo-color": "#fff",
-          "text-halo-width": 2,
-        },
-      });
-    } else {
-      (instance.getSource("yft-roads") as maplibregl.GeoJSONSource).setData(
-        data,
-      );
-    }
-    for (const id of ["yft-road-lines", "yft-road-cycles", "yft-road-arrows"])
-      instance.setLayoutProperty(
-        id,
-        "visibility",
-        layers.roads ? "visible" : "none",
-      );
-  }, [ready, roadData, roadChanges, roadDraft, layers.roads]);
   return (
     <div className="app">
       <header>
@@ -274,7 +219,7 @@ export default function App() {
           <span className="dot" /> Annecy{" "}
           <span className="muted">/ France</span>
         </div>
-        <span className="phase">PROTOTYPE · VOIRIE</span>
+        <span className="phase">MOBILITÉ · BUS</span>
       </header>
       <main>
         <aside className="sidebar">
@@ -324,33 +269,34 @@ export default function App() {
               : empreinte au sol.
             </p>
           </section>
-          <RoadEditor
-            roads={roadData}
-            onSelectRoad={(id) => {
-              setRoadId(id);
-              setSelected(null);
-              const road = roadData.features.find(
-                (f) => f.properties.id === id,
-              );
-              if (road) {
-                const bounds = new maplibregl.LngLatBounds();
-                road.geometry.coordinates.forEach((c) =>
-                  bounds.extend([c[0], c[1]]),
-                );
-                map.current?.fitBounds(bounds, { padding: 100, maxZoom: 18 });
-              }
-            }}
-            selected={selectedRoad}
-            onRoads={setRoadData}
-            onChanges={setRoadChanges}
-            onDraft={setRoadDraft}
-            onFocus={focusRoads}
-          />
+          <section className="bus-tools" aria-labelledby="bus-tools-title">
+            <h2 id="bus-tools-title"><span>02</span> Réseau de bus</h2>
+            <p className="caption">Réseau SIBRA · lignes, estimation et simulation</p>
+            <label className="layer">
+              <span>Afficher les lignes SIBRA</span>
+              <input type="checkbox" checked={networkVisible} onChange={(event) => setNetworkVisible(event.target.checked)} />
+            </label>
+            {busError && <p className="caption" role="alert">{busError}</p>}
+            {!busData && !busError && <p className="caption" role="status">Chargement du réseau SIBRA…</p>}
+            {busData && <>
+              <p className="caption">La ligne 1 sert de profil commun pour l’estimation macro du réseau.</p>
+              <button className="bus-tool-button" type="button" onClick={() => { setMacroOpen((value) => !value); setSimulationOpen(false); }} aria-expanded={macroOpen}>
+                {macroOpen ? "Masquer l’estimation macro" : "Estimation macro énergie et émissions"}
+              </button>
+              <button className="bus-tool-button secondary" type="button" onClick={() => { setMacroOpen(false); setSimulationOpen((value) => !value); }} aria-expanded={simulationOpen}>
+                {simulationOpen ? "Masquer la simulation micro" : "Simulation micro des bus"}
+              </button>
+              {macroOpen && <>
+                <BusImpact lineId="1" lineName="Ligne 1 · profil extrapolé au réseau" scenarioName={null} scenarioId={null} hasReference />
+                <BusImpactNetwork data={busData} />
+              </>}
+              {simulationOpen && <BusSimulation map={map.current} mapReady={ready} data={busData} busVisible={networkVisible} selectedStopId={null} onModeChange={() => undefined} onClockChange={() => undefined} />}
+            </>}
+          </section>
           <div className="sidebar-footer">
             <span className="dot" />
             {api}
             <small>Open source · Construit pour les territoires</small>
-            <VersionInfo />
           </div>
         </aside>
         <div className="map-area">
@@ -359,6 +305,29 @@ export default function App() {
             className="map"
             aria-label="Carte interactive d’Annecy"
           />
+          <div className="map-actions">
+            <button type="button" className="map-menu-trigger" aria-label="Ouvrir le menu mobilité" aria-expanded={mapMenuOpen} onClick={() => setMapMenuOpen((value) => !value)}>☰</button>
+            {mapMenuOpen && <div className="map-menu" role="menu" aria-label="Actions mobilité">
+              <strong>Mobilité</strong>
+              <button type="button" role="menuitem" disabled={!ready} onClick={() => { setNewLineToken((value) => value + 1); setSelectedLineId(null); setCreatorOpen(true); setMapMenuOpen(false); }}>Créer une ligne de bus</button>
+              <label><input type="checkbox" checked={networkVisible} onChange={(event) => setNetworkVisible(event.target.checked)} /> Réseau SIBRA</label>
+              {createdLines.length > 0 && <small>{createdLines.length} ligne{createdLines.length > 1 ? "s" : ""} créée{createdLines.length > 1 ? "s" : ""}</small>}
+            </div>}
+          </div>
+          <BusLineCreator
+            map={map.current}
+            ready={ready}
+            open={creatorOpen}
+            newLineToken={newLineToken}
+            selectedLineId={selectedLineId}
+            onClose={() => setCreatorOpen(false)}
+            onLinesChange={setCreatedLines}
+            onSelectLine={(id) => { setSelectedLineId(id); setCreatorOpen(true); }}
+            onCreated={(line) => { setCreationMessage(`La ligne « ${line.name} » a été enregistrée.`); setCreatorOpen(false); setSelectedLineId(null); window.setTimeout(() => setCreationMessage(""), 4500); }}
+            onDraftChange={() => undefined}
+            mapActionRef={busMapAction}
+          />
+          {creationMessage && <div className="bus-creation-toast" role="status">{creationMessage}</div>}
           <div className="map-heading">
             <span className="eyebrow">VUE DU TERRITOIRE</span>
             <strong>Annecy & son lac</strong>
@@ -385,11 +354,7 @@ export default function App() {
           <div className="info" aria-live="polite">
             <div className="info-title">
               <span className="eyebrow">
-                {selectedRoad
-                  ? "ROUTE DE RÉFÉRENCE"
-                  : selected
-                    ? "OBJET SÉLECTIONNÉ"
-                    : "À VOUS D’EXPLORER"}
+                {selected ? "OBJET SÉLECTIONNÉ" : "RÉSEAU SIBRA"}
               </span>
               {selected && (
                 <button
@@ -400,24 +365,7 @@ export default function App() {
                 </button>
               )}
             </div>
-            {selectedRoad ? (
-              <>
-                <h2>{selectedRoad.properties.name || "Tronçon routier"}</h2>
-                <p>
-                  Objet indépendant issu d’OpenStreetMap. Profil et scénario
-                  dans le panneau Voirie.
-                </p>
-                <p className="caption">
-                  {selectedRoad.properties.source_key}
-                  <br />© OpenStreetMap contributors · ODbL
-                  <br />
-                  {selectedRoad.properties.snapshot_version}
-                </p>
-                <button className="secondary" onClick={() => setRoadId(null)}>
-                  Fermer la route
-                </button>
-              </>
-            ) : selected ? (
+            {selected ? (
               <>
                 <h2>
                   {String(selected.properties?.name || "Objet cartographique")}
@@ -443,10 +391,10 @@ export default function App() {
               </>
             ) : (
               <>
-                <h2>Chaque lieu a une histoire.</h2>
+                <h2>Le réseau de bus d’Annecy.</h2>
                 <p>
-                  Cliquez sur un bâtiment ou un objet de la carte pour découvrir
-                  les informations disponibles.
+                  Utilisez le menu pour créer une ligne ou explorez l’estimation
+                  macro et la simulation des bus.
                 </p>
                 <span className="hint">
                   Glisser pour déplacer · Ctrl + glisser pour incliner

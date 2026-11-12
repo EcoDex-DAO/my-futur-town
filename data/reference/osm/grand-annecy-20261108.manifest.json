@@ -1,0 +1,34 @@
+{
+  "source_filename": "rhone-alpes-261108.osm.pbf",
+  "source_sha256": "84c18b891bed88e36005381c535633db45f2194bd705d04d6484c48951855234",
+  "osm_timestamp": "2026-11-08T21:21:00Z",
+  "source_provider": "Geofabrik / OpenStreetMap",
+  "license": "ODbL-1.0",
+  "attribution": "© OpenStreetMap contributors",
+  "gtfs_routes_sha256_canonical": "3f344a5b6e0b4881d4dd40c02597beb2dd1449fbef04a38b8c99bca07ec2320d",
+  "bbox_south_west_north_east": [
+    45.72,
+    5.98,
+    46.06,
+    6.35
+  ],
+  "margin_degrees": 0.01,
+  "pyosmium_version": "4.3.2",
+  "selected_highway_ways": 55974,
+  "boundary_crossing_selected_ways": 428,
+  "highway_ways_with_missing_location_in_source": 0,
+  "ways_including_restriction_members": 55974,
+  "nodes": 462649,
+  "restriction_relations": 565,
+  "missing_relation_members": {
+    "ways": [],
+    "nodes": [],
+    "relations": []
+  },
+  "missing_required_nodes": [],
+  "restrictions_interpreted": false,
+  "bus_routing_validated": false,
+  "extent_kind": "grand-annecy-map-v1",
+  "archive_sha256": "f9792dbe04a9eaa7c32712ce7b0164567d4629495d9eb91036de4e72278ed82b",
+  "raw_sha256": "2a57b48332134f2e9447c403d277cfe28a1a6cf0c40d0221da8dcbac712a45f2"
+}
