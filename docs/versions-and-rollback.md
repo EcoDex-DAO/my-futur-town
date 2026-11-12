@@ -48,7 +48,7 @@ Sans `--prepare`, la commande décrit seulement le plan. Pour préparer réellem
 python3 scripts/prepare-rollback.py v0.3.0 --prepare
 ```
 
-La commande exige un checkout propre et crée une branche `rollback/…` depuis `HEAD`. Elle restaure uniquement les fichiers applicatifs de la même architecture. Un retour entre les versions Vite et Next.js est refusé : il nécessite un plan de migration manuel revu.
+La commande exige un checkout propre et crée une branche `rollback/…` depuis `HEAD`. Elle restaure uniquement les fichiers applicatifs de l’architecture courante. Un retour vers une architecture incompatible exige un plan de migration manuel revu.
 
 Une base différente peut être choisie avec `--base`, mais elle est refusée si des migrations ou archives actuellement suivies y sont absentes ou modifiées. C’est important tant que main ne contient pas encore toutes les migrations appliquées.
 

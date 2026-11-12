@@ -4,7 +4,7 @@
 
 - Application Next.js à la racine, dépendances verrouillées avec pnpm et routes API intégrées.
 - Portage de l’éditeur de voirie et des scénarios privés ; les migrations et archives de référence sont conservées.
-- Le retour arrière automatisé refuse de traverser les architectures Vite et Next.js.
+- Le retour arrière automatisé reste limité à l’architecture courante.
 - Les validations connectées et le déploiement restent à confirmer pour cette version.
 
 ## 0.2.0-dev.2 — en développement
@@ -26,7 +26,7 @@ Cette préversion ne constitue pas une livraison de tous les modules du CDC. Le 
 
 Référence Git : `92ca40c81f1b6c25b54e50cb7d839b8e93eb5cce`.
 
-- Carte Annecy React/Vite/MapLibre, bâtiments en 2.5D, sélection et couches.
+- Première carte Annecy React/MapLibre, bâtiments en 2.5D, sélection et couches.
 - Déploiement frontend Vercel et backend FastAPI facultatif.
 - Migrations initiales et politiques RLS.
 
