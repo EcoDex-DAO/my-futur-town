@@ -40,6 +40,7 @@ export default function App() {
   const [mapMenuOpen, setMapMenuOpen] = useState(false);
   const [newLineToken, setNewLineToken] = useState(0);
   const [createdLines, setCreatedLines] = useState<BusCreatedLine[]>([]);
+  const [createdVisible, setCreatedVisible] = useState(true);
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [creationMessage, setCreationMessage] = useState("");
   const busMapAction = useRef(false);
@@ -293,7 +294,7 @@ export default function App() {
               {simulationOpen && <BusSimulation map={map.current} mapReady={ready} data={busData} busVisible={networkVisible} selectedStopId={null} onModeChange={() => undefined} onClockChange={() => undefined} />}
             </>}
             <details className="created-bus-category" open>
-              <summary>Créées ({createdLines.length})</summary>
+              <summary><label className="created-bus-heading"><input type="checkbox" checked={createdVisible} onChange={(event) => setCreatedVisible(event.target.checked)} /> Créées ({createdLines.length})</label></summary>
               {createdLines.length ? <ul>{createdLines.map((line) => <li key={line.id}>
                 <button type="button" className="created-bus-line" onClick={() => { setSelectedLineId(line.id); setCreatorOpen(true); }}>{line.name}</button>
                 <button type="button" className="created-bus-delete" aria-label={`Supprimer ${line.name}`} onClick={() => {
@@ -336,6 +337,7 @@ export default function App() {
             open={creatorOpen}
             newLineToken={newLineToken}
             selectedLineId={selectedLineId}
+            createdVisible={createdVisible}
             onClose={() => setCreatorOpen(false)}
             onLinesChange={setCreatedLines}
             onSelectLine={(id) => { setSelectedLineId(id); setCreatorOpen(true); }}

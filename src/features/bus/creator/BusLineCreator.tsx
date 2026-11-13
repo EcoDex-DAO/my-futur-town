@@ -23,6 +23,7 @@ interface Props {
   open: boolean;
   newLineToken: number;
   selectedLineId: string | null;
+  createdVisible: boolean;
   onClose: () => void;
   onLinesChange: (lines: BusCreatedLine[]) => void;
   onSelectLine: (id: string | null) => void;
@@ -49,7 +50,7 @@ function anchors(line: BusLineDraft | BusCreatedLine): BusCoordinate[] {
   return [line.termini[0].coordinates, ...line.passages.map((marker) => marker.coordinates), line.termini[1].coordinates];
 }
 
-export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId, onClose, onLinesChange, onSelectLine, onCreated, onDraftChange, mapActionRef }: Props) {
+export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId, createdVisible, onClose, onLinesChange, onSelectLine, onCreated, onDraftChange, mapActionRef }: Props) {
   const [lines, setLines] = useState<BusCreatedLine[]>([]);
   const [draft, setDraft] = useState<BusLineDraft | null>(null);
   const [step, setStep] = useState<Step>(0);
@@ -244,6 +245,13 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   }, [map, ready, routeLines]);
 
   useEffect(() => {
+    if (!map || !ready) return;
+    for (const id of ["yft-created-bus-line-casing", "yft-created-bus-line"]) {
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", createdVisible ? "visible" : "none");
+    }
+  }, [map, ready, createdVisible, routeLines]);
+
+  useEffect(() => {
     if (!map || !ready || !map.getLayer("yft-created-bus-line")) return;
     const select = (event: maplibregl.MapLayerMouseEvent) => {
       if (draft || mapActionRef.current) return;
@@ -265,7 +273,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   }, [draft, map, mapActionRef, ready]);
 
   useEffect(() => {
-    if (!map || !ready || !activeLine) return;
+    if (!map || !ready || !activeLine || !createdVisible) return;
     const markers = [...activeLine.termini, ...activeLine.passages, ...activeLine.arrets];
     const instances: maplibregl.Marker[] = [];
     markers.forEach((marker) => {
@@ -305,7 +313,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
       instances.push(instance);
     });
     return () => { instances.forEach((marker) => marker.remove()); };
-  }, [activeLine, calculate, map, open, ready, updateActive]);
+  }, [activeLine, calculate, createdVisible, map, open, ready, updateActive]);
 
   const handleMapRequest = (target: Exclude<PlacementTarget, null>) => {
     setPlacementTarget(target);
