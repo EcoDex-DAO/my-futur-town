@@ -27,7 +27,7 @@ interface Props {
   visibleCreatedLineIds: string[];
   onClose: () => void;
   onLinesChange: (lines: BusCreatedLine[]) => void;
-  onSelectLine: (id: string | null) => void;
+  onSelectLine: (id: string | null, point?: { x: number; y: number }) => void;
   onCreated: (line: BusCreatedLine) => void;
   onDraftChange: (hasDraft: boolean) => void;
   mapActionRef: MutableRefObject<boolean>;
@@ -255,11 +255,11 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   useEffect(() => {
     if (!map || !ready || !map.getLayer("yft-created-bus-line")) return;
     const select = (event: maplibregl.MapLayerMouseEvent) => {
-      if (draft || mapActionRef.current) return;
+      if (event.defaultPrevented || draft || mapActionRef.current) return;
       const id = event.features?.[0]?.properties?.lineId;
       if (typeof id !== "string") return;
       event.preventDefault();
-      selectLineRef.current(id);
+      selectLineRef.current(id, event.point);
     };
     const enter = () => { map.getCanvas().style.cursor = "pointer"; };
     const leave = () => { map.getCanvas().style.cursor = ""; };

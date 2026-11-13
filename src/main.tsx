@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 
 import type { MapGeoJSONFeature } from "maplibre-gl";
@@ -9,8 +9,9 @@ import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 import { BusLineCreator } from "./features/bus/creator/BusLineCreator";
 import { BusImpact, BusImpactNetwork } from "./features/bus/macro/BusImpact";
 import { BusSimulation } from "./features/bus/micro/BusSimulation";
+import { BusStopTimetable } from "./features/bus/shared/BusStopTimetable";
 import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
-import { BUS_CREATED_LINES_KEY, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
+import { BUS_CREATED_LINES_KEY, busCreatedMarkerFeatures, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
 
 const BUS_GROUPS = [
   { category: "Urbain", sub: "Rythmo", ids: ["1", "2", "3"] },
@@ -48,7 +49,8 @@ export default function App() {
   const [simulationOpen, setSimulationOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [manageCreatedOpen, setManageCreatedOpen] = useState(false);
-  const [mapMenuOpen, setMapMenuOpen] = useState(false);
+  const [busSelection, setBusSelection] = useState<{ kind: "line" | "created"; id: string } | { kind: "stop" | "created-stop"; id: string; name: string; lineId?: string } | null>(null);
+  const [busInfoPosition, setBusInfoPosition] = useState<{ side: "left" | "right"; vertical: "top" | "bottom" }>({ side: "right", vertical: "top" });
   const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | null>(null);
   const [newLineToken, setNewLineToken] = useState(0);
   const [createdLines, setCreatedLines] = useState<BusCreatedLine[]>([]);
@@ -57,8 +59,16 @@ export default function App() {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [creationMessage, setCreationMessage] = useState("");
   const busMapAction = useRef(false);
+  const busSelectionRef = useRef(busSelection);
+  const lastBusHit = useRef<{ x: number; y: number } | null>(null);
+  busSelectionRef.current = busSelection;
   const selectedNetworkIds = (busData?.lines ?? []).filter((line) => !hiddenBusLineIds.includes(line.id)).map((line) => line.id);
-  const visibleBusData = busData ? { ...busData, lines: busData.lines.filter((line) => selectedNetworkIds.includes(line.id)) } : null;
+  const visibleBusData = useMemo(() => busData ? { ...busData, lines: busData.lines.filter((line) => !hiddenBusLineIds.includes(line.id)) } : null, [busData, hiddenBusLineIds]);
+  const createdStopFeatures = useMemo(() => {
+    const lines = busStopsMode === "none" ? [] : busStopsMode === "all" ? createdLines : createdVisible ? createdLines.filter((line) => !hiddenCreatedLineIds.includes(line.id)) : [];
+    const collection = busCreatedMarkerFeatures(lines);
+    return { ...collection, features: collection.features.filter((feature) => feature.properties.kind === "arret") };
+  }, [busStopsMode, createdLines, createdVisible, hiddenCreatedLineIds]);
   useEffect(() => {
     try { setCreatedLines(readBusCreatedLines(window.localStorage.getItem(BUS_CREATED_LINES_KEY))); }
     catch { setCreationMessage("Les lignes créées ne sont pas accessibles dans ce navigateur."); }
@@ -158,7 +168,61 @@ export default function App() {
       setError("");
     });
     instance.on("click", (e) => {
-      if (busMapAction.current) return;
+      if (busMapAction.current || e.defaultPrevented) return;
+      if (busSelectionRef.current && lastBusHit.current && Math.hypot(e.point.x - lastBusHit.current.x, e.point.y - lastBusHit.current.y) <= 10) {
+        lastBusHit.current = null;
+        setBusSelection(null);
+        setSelected(null);
+        return;
+      }
+      const busLayers = ["yft-created-bus-stops", "yft-sibra-stop-dots", "yft-created-bus-line", "yft-sibra-routes"].filter((id) => instance.getLayer(id));
+      const nearby = busLayers.length ? instance.queryRenderedFeatures([[e.point.x - 7, e.point.y - 7], [e.point.x + 7, e.point.y + 7]], { layers: busLayers }) : [];
+      const createdStop = nearby.find((feature) => feature.layer.id === "yft-created-bus-stops" && feature.properties?.markerId);
+      if (createdStop) {
+        e.preventDefault();
+        lastBusHit.current = { x: e.point.x, y: e.point.y };
+        setBusInfoPosition({ side: e.point.x < instance.getCanvas().clientWidth / 2 ? "right" : "left", vertical: e.point.y < instance.getCanvas().clientHeight / 2 ? "bottom" : "top" });
+        const id = String(createdStop.properties.markerId);
+        const lineId = String(createdStop.properties.lineId);
+        const name = String(createdStop.properties.name ?? "Arrêt");
+        setBusSelection((current) => current?.kind === "created-stop" && current.id === id && current.lineId === lineId ? null : { kind: "created-stop", id, name, lineId });
+        setSelected(null);
+        return;
+      }
+      const stop = nearby.find((feature) => feature.layer.id === "yft-sibra-stop-dots" && feature.properties?.id);
+      if (stop) {
+        e.preventDefault();
+        lastBusHit.current = { x: e.point.x, y: e.point.y };
+        setBusInfoPosition({ side: e.point.x < instance.getCanvas().clientWidth / 2 ? "right" : "left", vertical: e.point.y < instance.getCanvas().clientHeight / 2 ? "bottom" : "top" });
+        const id = String(stop.properties.id);
+        const name = String(stop.properties.name ?? "Arrêt");
+        const lineId = stop.properties.lineId ? String(stop.properties.lineId) : undefined;
+        setBusSelection((current) => current?.kind === "stop" && current.id === id ? null : { kind: "stop", id, name, lineId });
+        setSelected(null);
+        return;
+      }
+      const createdRoute = nearby.find((feature) => feature.layer.id === "yft-created-bus-line" && feature.properties?.lineId);
+      if (createdRoute) {
+        e.preventDefault();
+        lastBusHit.current = { x: e.point.x, y: e.point.y };
+        setBusInfoPosition({ side: e.point.x < instance.getCanvas().clientWidth / 2 ? "right" : "left", vertical: e.point.y < instance.getCanvas().clientHeight / 2 ? "bottom" : "top" });
+        const id = String(createdRoute.properties.lineId);
+        setBusSelection((current) => current?.kind === "created" && current.id === id ? null : { kind: "created", id });
+        setSelected(null);
+        return;
+      }
+      const route = nearby.find((feature) => feature.layer.id === "yft-sibra-routes" && feature.properties?.lineId);
+      if (route) {
+        e.preventDefault();
+        lastBusHit.current = { x: e.point.x, y: e.point.y };
+        setBusInfoPosition({ side: e.point.x < instance.getCanvas().clientWidth / 2 ? "right" : "left", vertical: e.point.y < instance.getCanvas().clientHeight / 2 ? "bottom" : "top" });
+        const id = String(route.properties.lineId);
+        setBusSelection((current) => current?.kind === "line" && current.id === id ? null : { kind: "line", id });
+        setSelected(null);
+        return;
+      }
+      setBusSelection(null);
+      lastBusHit.current = null;
       const features = instance.queryRenderedFeatures(e.point);
       setSelected(
         features.find((f) => f.layer.id === "mft-buildings-3d") ||
@@ -168,6 +232,7 @@ export default function App() {
           null,
       );
     });
+    instance.on("movestart", () => { lastBusHit.current = null; });
     return () => {
       instance.remove();
       map.current = null;
@@ -211,6 +276,32 @@ export default function App() {
     instance.setLayoutProperty("yft-sibra-routes", "visibility", "visible");
     instance.setLayoutProperty("yft-sibra-stop-dots", "visibility", busStopsMode === "none" ? "none" : "visible");
   }, [ready, busData, visibleBusData, busStopsMode]);
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance) return;
+    if (!instance.getSource("yft-created-bus-stops")) {
+      instance.addSource("yft-created-bus-stops", { type: "geojson", data: createdStopFeatures });
+      instance.addLayer({ id: "yft-created-bus-stops", type: "circle", source: "yft-created-bus-stops", minzoom: 10, paint: { "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2, 14, 4, 17, 6], "circle-color": "#d7e89b", "circle-stroke-color": "#31594a", "circle-stroke-width": 1.5 } });
+    } else (instance.getSource("yft-created-bus-stops") as maplibregl.GeoJSONSource).setData(createdStopFeatures);
+  }, [ready, createdStopFeatures]);
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance) return;
+    const lineId = busSelection?.kind === "line" ? busSelection.id : null;
+    const stopId = busSelection?.kind === "stop" ? busSelection.id : null;
+    if (instance.getLayer("yft-sibra-routes")) {
+      instance.setPaintProperty("yft-sibra-routes", "line-opacity", lineId ? ["case", ["==", ["get", "lineId"], lineId], 1, 0.35] : 0.88);
+      instance.setPaintProperty("yft-sibra-routes", "line-width", lineId ? ["case", ["==", ["get", "lineId"], lineId], 6, 2] : ["interpolate", ["linear"], ["zoom"], 10, 1.8, 16, 4]);
+    }
+    if (instance.getLayer("yft-sibra-stop-dots")) {
+      instance.setPaintProperty("yft-sibra-stop-dots", "circle-color", stopId ? ["case", ["==", ["get", "id"], stopId], "#e9b142", "#fffdf5"] : "#fffdf5");
+      instance.setPaintProperty("yft-sibra-stop-dots", "circle-radius", stopId ? ["case", ["==", ["get", "id"], stopId], 7, 3] : ["interpolate", ["linear"], ["zoom"], 10, 1, 14, 3, 17, 5]);
+    }
+    if (instance.getLayer("yft-created-bus-stops")) {
+      const createdStopId = busSelection?.kind === "created-stop" ? busSelection.id : null;
+      instance.setPaintProperty("yft-created-bus-stops", "circle-color", createdStopId ? ["case", ["==", ["get", "markerId"], createdStopId], "#e9b142", "#d7e89b"] : "#d7e89b");
+    }
+  }, [ready, busData, busSelection, createdStopFeatures]);
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance) return;
@@ -324,14 +415,6 @@ export default function App() {
             className="map"
             aria-label="Carte interactive d’Annecy"
           />
-          <div className="map-actions">
-            <button type="button" className="map-menu-trigger" aria-label="Ouvrir le menu mobilité" aria-expanded={mapMenuOpen} onClick={() => setMapMenuOpen((value) => !value)}>☰</button>
-            {mapMenuOpen && <div className="map-menu" role="menu" aria-label="Actions mobilité">
-              <strong>Mobilité</strong>
-              <button type="button" role="menuitem" disabled={!ready} onClick={() => { setNewLineToken((value) => value + 1); setSelectedLineId(null); setCreatorOpen(true); setMapMenuOpen(false); }}>Créer une ligne de bus</button>
-              {createdLines.length > 0 && <small>{createdLines.length} ligne{createdLines.length > 1 ? "s" : ""} créée{createdLines.length > 1 ? "s" : ""}</small>}
-            </div>}
-          </div>
           <BusLineCreator
             map={map.current}
             ready={ready}
@@ -342,7 +425,7 @@ export default function App() {
             visibleCreatedLineIds={createdLines.filter((line) => !hiddenCreatedLineIds.includes(line.id)).map((line) => line.id)}
             onClose={() => setCreatorOpen(false)}
             onLinesChange={setCreatedLines}
-            onSelectLine={(id) => { setSelectedLineId(id); setCreatorOpen(true); }}
+            onSelectLine={(id, point) => { if (!id) { setSelectedLineId(null); return; } if (creatorOpen) { setSelectedLineId(id); return; } if (point && map.current) setBusInfoPosition({ side: point.x < map.current.getCanvas().clientWidth / 2 ? "right" : "left", vertical: point.y < map.current.getCanvas().clientHeight / 2 ? "bottom" : "top" }); setSelected(null); setBusSelection((current) => current?.kind === "created" && current.id === id ? null : { kind: "created", id }); }}
             onCreated={(line) => { setCreationMessage(`La ligne « ${line.name} » a été enregistrée.`); setCreatorOpen(false); setSelectedLineId(null); window.setTimeout(() => setCreationMessage(""), 4500); }}
             onDraftChange={() => undefined}
             mapActionRef={busMapAction}
@@ -368,6 +451,14 @@ export default function App() {
               </button>
             </div>
           )}
+          {!creatorOpen && busSelection && <aside className={`bus-info bus-info--${busSelection.kind} bus-info--${busInfoPosition.side} bus-info--${busInfoPosition.vertical}`} aria-label="Informations bus" aria-live="polite">
+            <button type="button" className="bus-info-close" aria-label="Fermer les informations bus" onClick={() => setBusSelection(null)}>×</button>
+            {busSelection.kind === "stop" && busData ? <>
+              <h2>Arrêt {busSelection.name}</h2>
+              <p className="bus-info-subtitle">Horaires de passage par ligne et direction</p>
+              <BusStopTimetable key={busSelection.id} data={busData} stopId={busSelection.id} preferredLineId={busSelection.lineId} />
+            </> : busSelection.kind === "line" && busData ? (() => { const line = busData.lines.find((item) => item.id === busSelection.id); return line ? <><div className="bus-info-line-heading"><span className="bus-info-line-number" style={{ backgroundColor: line.color.startsWith("#") ? line.color : `#${line.color}` }}>{line.shortName}</span><div><h2>Ligne {line.shortName}</h2><p>{line.longName}</p></div></div><p>{line.variants.length} parcours référencés · {new Set(line.variants.flatMap((variant) => variant.stops.map((stop) => stop.id))).size} arrêts</p><h3>Directions</h3><ul className="bus-info-directions">{[...new Set(line.variants.map((variant) => variant.headsign).filter(Boolean))].map((headsign) => <li key={headsign}>{headsign}</li>)}</ul><p className="bus-info-note">Données SIBRA théoriques · valides du {busData.metadata.validFrom} au {busData.metadata.validTo}.</p></> : <p>Ligne indisponible dans les données chargées.</p>; })() : busSelection.kind === "created-stop" ? <><h2>Arrêt {busSelection.name}</h2><p>Ligne créée : {createdLines.find((line) => line.id === busSelection.lineId)?.name ?? "ligne indisponible"}</p><p className="bus-info-note">Aucun horaire n’est encore défini pour cet arrêt.</p></> : busSelection.kind === "created" ? (() => { const line = createdLines.find((item) => item.id === busSelection.id); return line ? <><h2>{line.name}</h2><p>Ligne créée · {line.arrets.length} arrêts · {line.passages.length} points de passage</p><p className="bus-info-note">Cette ligne est enregistrée dans ce navigateur.</p><button type="button" className="secondary" onClick={() => { setSelectedLineId(line.id); setCreatorOpen(true); }}>Modifier la ligne</button></> : <p>Ligne créée indisponible.</p>; })() : null}
+          </aside>}
           {selected && <div className="info" aria-live="polite">
             <div className="info-title">
               <span className="eyebrow">

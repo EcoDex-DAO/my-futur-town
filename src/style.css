@@ -1068,12 +1068,6 @@ section h2 span {
 .bus-tools h2 { font-size: 15px; }
 .bus-tool-button { display: block; width: 100%; min-height: 40px; margin: 8px 0; padding: 8px 10px; border: 1px solid #31594a; border-radius: 5px; background: #31594a; color: #fff; font: inherit; font-size: 11px; text-align: left; }
 .bus-tool-button.secondary { border-color: #a8bdb0; background: #fff; color: #31594a; }
-.map-actions { position: absolute; z-index: 8; top: 18px; left: 18px; }
-.map-menu-trigger { width: 44px; height: 44px; border: 1px solid #dfe6df; border-radius: 8px; background: #fff; color: #173b3b; box-shadow: 0 3px 12px #173b3b22; font-size: 21px; }
-.map-menu { display: grid; gap: 9px; width: 240px; margin-top: 8px; padding: 14px; border: 1px solid #dfe6df; border-radius: 8px; background: #fff; box-shadow: 0 8px 22px #173b3b22; color: #173b3b; font-size: 12px; }
-.map-menu button { min-height: 38px; border: 0; border-radius: 5px; background: #31594a; color: #fff; font: inherit; font-weight: 700; }
-.map-menu button:disabled { opacity: .5; }
-.map-menu label { display: flex; gap: 8px; align-items: center; }
 .bus-tools .bus-simulation { overflow: visible; }
 .created-bus-category { margin:3px 0; padding:0; border:0; border-radius:0; background:transparent; }
 .created-bus-category > summary { cursor:pointer; font-weight:700; }
@@ -1099,7 +1093,34 @@ section h2 span {
 .created-manager button { border:1px solid #a8bdb0; border-radius:5px; padding:7px 10px; background:#fff; color:#31594a; cursor:pointer; }
 .created-manager .created-bus-delete { border-color:#caa9a4; color:#8d302e; }
 .created-manager-close { position:absolute; top:12px; right:12px; font-size:22px; }
-@media (max-width: 760px) { .bus-creator-panel { top: 68px; right: 10px; width: min(370px, calc(100% - 20px)); max-height: calc(100% - 78px); padding: 14px; } .map-actions { top: 10px; left: 10px; } }
+.bus-info { position:absolute; z-index:9; top:18px; width:min(580px,calc(50% - 30px)); max-height:calc(100% - 36px); overflow:auto; padding:22px; border:1px solid #dbe2d9; border-radius:10px; background:#fff; color:#173b3b; box-shadow:0 10px 32px #193e3a24; }
+.bus-info--right { right:18px; }
+.bus-info--left { left:18px; }
+.bus-info h2 { margin:0 32px 5px 0; font-size:19px; }
+.bus-info h3 { margin:18px 0 8px; font-size:13px; }
+.bus-info p { font-size:12px; line-height:1.5; }
+.bus-info-close { position:absolute; top:12px; right:12px; width:36px; height:36px; border:0; background:transparent; color:#31594a; font-size:26px; cursor:pointer; }
+.bus-info-subtitle,.bus-info-note { color:#536b60; }
+.bus-info-line-heading,.stop-timetable-hero { display:flex; align-items:center; gap:13px; margin:12px 0; }
+.bus-info-line-heading p { margin:0; }
+.bus-info-line-number { display:grid; flex:none; min-width:48px; height:48px; padding:0 7px; place-items:center; border-radius:7px; color:#fff; font-size:23px; font-weight:800; text-shadow:0 1px 2px #0008; }
+.stop-timetable-hero strong,.stop-timetable-hero span:not(.bus-info-line-number) { display:block; }
+.stop-timetable-hero strong { font-size:16px; }
+.stop-timetable-hero div > span { color:#536b60; font-size:11px; margin-top:3px; }
+.stop-timetable-controls { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:14px 0; }
+.stop-timetable-controls label { display:grid; gap:4px; color:#31594a; font-size:11px; font-weight:700; }
+.stop-timetable-controls select,.stop-timetable-controls input { width:100%; min-width:0; min-height:38px; padding:7px; border:1px solid #cbd8cc; border-radius:5px; background:#fff; color:#173b3b; font:inherit; font-weight:400; }
+.timetable-heading { padding:8px 10px; background:#31594a; color:#fff; font-size:12px; font-weight:700; }
+.timetable-scroll { overflow-x:auto; }
+.timetable { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+.timetable th,.timetable td { min-width:43px; padding:6px 5px; text-align:center; vertical-align:top; font-size:12px; }
+.timetable th:nth-child(odd),.timetable td:nth-child(odd) { background:#edf2ee; }
+.timetable td span { display:block; line-height:1.7; white-space:nowrap; }
+.timetable th small { display:block; font-size:9px; }
+.bus-info-directions { padding-left:18px; font-size:12px; line-height:1.7; }
+@media(max-width:760px) { .bus-info,.bus-info--left,.bus-info--right { left:10px; right:10px; width:auto; max-height:45%; padding:14px; } .bus-info--top { top:10px; bottom:auto; } .bus-info--bottom { top:auto; bottom:10px; } .stop-timetable-controls { grid-template-columns:1fr 1fr; } .stop-timetable-controls label:last-child { grid-column:1 / -1; } }
+@media(max-width:500px) { .brand > span:last-child,.location .muted { display:none; } }
+@media (max-width: 760px) { .bus-creator-panel { top: 68px; right: 10px; width: min(370px, calc(100% - 20px)); max-height: calc(100% - 78px); padding: 14px; } }
 .app { height:100dvh; overflow:hidden; }
 .app > header { height:64px; position:relative; z-index:20; }
 main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
