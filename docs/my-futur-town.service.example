@@ -1,0 +1,17 @@
+[Unit]
+Description=My Futur Town - serveur local main
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/orca/workspaces/my-futur-town/Orchestrateur/main-local
+Environment=PATH=%h/.nvm/versions/node/v22.23.4/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.nvm/versions/node/v22.23.4/bin/node %h/orca/workspaces/my-futur-town/Orchestrateur/main-local/node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 5173
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target

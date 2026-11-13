@@ -69,6 +69,7 @@ Importer `EcoDex-DAO/my-futur-town`, sélectionner le framework Next.js et la ra
 - [Sources, licences et limites](docs/data-sources.md)
 - [Feuille de route Bus V1](docs/roadmap-bus-v1.md)
 - [Créateur de ligne V1](docs/bus-line-creator-v1.md)
+- [Démarrage local après redémarrage](docs/demarrage-local.md)
 - [Import et couverture des horaires SIBRA](docs/sibra-data.md)
 - [Provenance et limites du graphe de calcul de route](data/reference/osm/README.md)
 - [Modèle de données et politiques RLS](docs/architecture.md)
