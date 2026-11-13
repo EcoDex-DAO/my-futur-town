@@ -24,6 +24,7 @@ interface Props {
   newLineToken: number;
   selectedLineId: string | null;
   createdVisible: boolean;
+  visibleCreatedLineIds: string[];
   onClose: () => void;
   onLinesChange: (lines: BusCreatedLine[]) => void;
   onSelectLine: (id: string | null) => void;
@@ -50,7 +51,7 @@ function anchors(line: BusLineDraft | BusCreatedLine): BusCoordinate[] {
   return [line.termini[0].coordinates, ...line.passages.map((marker) => marker.coordinates), line.termini[1].coordinates];
 }
 
-export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId, createdVisible, onClose, onLinesChange, onSelectLine, onCreated, onDraftChange, mapActionRef }: Props) {
+export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId, createdVisible, visibleCreatedLineIds, onClose, onLinesChange, onSelectLine, onCreated, onDraftChange, mapActionRef }: Props) {
   const [lines, setLines] = useState<BusCreatedLine[]>([]);
   const [draft, setDraft] = useState<BusLineDraft | null>(null);
   const [step, setStep] = useState<Step>(0);
@@ -227,10 +228,10 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   }, [map, ready]);
 
   const routeLines = useMemo(() => {
-    const visible = lines.filter((line) => line.id !== selectedLineId);
+    const visible = lines.filter((line) => line.id !== selectedLineId && visibleCreatedLineIds.includes(line.id));
     const active = draft ? lineForMap(draft) : lines.find((line) => line.id === selectedLineId) ?? null;
     return active ? [...visible, active] : visible;
-  }, [draft, lines, selectedLineId]);
+  }, [draft, lines, selectedLineId, visibleCreatedLineIds]);
 
   useEffect(() => {
     if (!map || !ready) return;

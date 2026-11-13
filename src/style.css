@@ -1092,6 +1092,17 @@ section h2 span {
 .sibra-line-tree input { accent-color:#31594a; }
 .sibra-line-tree button { border:0; padding:4px; background:transparent; color:#24493f; text-align:left; cursor:pointer; }
 .created-bus-row { display:flex; gap:7px; padding:5px; }
+.bus-line-actions { margin:12px 0; padding:12px; border:1px solid #cad8ce; border-radius:7px; background:#f5f8f2; }
+.bus-line-actions h3 { margin:0 0 8px; font-size:13px; }
+.created-manager-backdrop { position:fixed; inset:0; z-index:40; display:grid; place-items:center; padding:20px; background:#102c3270; }
+.created-manager { position:relative; width:min(540px,100%); max-height:min(80dvh,700px); overflow:auto; padding:24px; border-radius:10px; background:#fff; color:#173b3b; box-shadow:0 12px 36px #193e3a35; }
+.created-manager h2 { margin:0 32px 16px 0; }
+.created-manager ul { margin:0; padding:0; list-style:none; }
+.created-manager li { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid #e0e8de; }
+.created-manager li span { flex:1; }
+.created-manager button { border:1px solid #a8bdb0; border-radius:5px; padding:7px 10px; background:#fff; color:#31594a; cursor:pointer; }
+.created-manager .created-bus-delete { border-color:#caa9a4; color:#8d302e; }
+.created-manager-close { position:absolute; top:12px; right:12px; font-size:22px; }
 @media (max-width: 760px) { .bus-creator-panel { top: 68px; right: 10px; width: min(370px, calc(100% - 20px)); max-height: calc(100% - 78px); padding: 14px; } .map-actions { top: 10px; left: 10px; } }
 .app { height:100dvh; overflow:hidden; }
 .app > header { height:64px; position:relative; z-index:20; }
