@@ -51,12 +51,13 @@ export function scheduledNetworkActivity(network: SibraNetwork, schedule: SibraS
   return { vehicleKm: !unmeasurableTrips ? vehicleKm : null, includedTrips, unmeasurableTrips, coveredLines: coveredLines.size, activeServices: active.size, inCoverage };
 }
 
-export function stopFeatures(network: SibraNetwork, lineId: string | null): FeatureCollection<import("geojson").Point, { stopId: string; name: string }> {
-  if (!lineId) return { type: "FeatureCollection", features: [] };
+export function stopFeatures(network: SibraNetwork, lineId: string | null, all = false, lineIds?: string[]): FeatureCollection<import("geojson").Point, { stopId: string; name: string }> {
+  if (!lineId && !all && !lineIds) return { type: "FeatureCollection", features: [] };
   const seen = new Set<string>();
   const features: Feature<import("geojson").Point, { stopId: string; name: string }>[] = [];
   for (const line of network.lines) {
     if (lineId && line.id !== lineId) continue;
+    if (lineIds && !lineIds.includes(line.id)) continue;
     for (const variant of line.variants) for (const stop of variant.stops) {
       const key = `${stop.id}:${stop.coordinates.join(",")}`;
       if (seen.has(key)) continue;

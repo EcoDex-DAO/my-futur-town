@@ -157,9 +157,37 @@ header {
 }
 main {
   display: flex;
-  height: calc(100dvh - 88px);
-  min-height: 600px;
+  height: calc(100dvh - 64px);
+  min-height: 0;
+  overflow: hidden;
 }
+.app { height: 100dvh; overflow: hidden; }
+.app > header { height: 64px; }
+.tool-nav { display:flex; gap:8px; align-items:center; margin-left:auto; }
+.tool-nav button { display:flex; align-items:center; gap:7px; min-height:40px; padding:7px 12px; border:1px solid #dbe2d9; border-radius:7px; color:#31594a; background:#fff; font:600 12px inherit; cursor:pointer; }
+.tool-nav button:hover,.tool-nav button.is-active { color:#fff; background:#31594a; border-color:#31594a; }
+.tool-nav svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.sidebar { display:none; position:fixed; z-index:10; top:76px; right:14px; bottom:14px; width:min(390px,calc(100vw - 28px)); padding:24px; overflow:auto; background:#fff; border:1px solid #dbe2d9; border-radius:10px; box-shadow:0 12px 36px #193e3a24; }
+.sidebar.panel-bus,.sidebar.panel-layers,.sidebar.panel-bilan { display:block; }
+.sidebar:not(.panel-bus):not(.panel-layers):not(.panel-bilan) { display:none !important; }
+.bus-select-all,.bus-line-select,.bus-lines summary label { display:flex; align-items:center; gap:8px; }
+.bus-select-all { margin:10px 0; padding:9px; font-size:12px; font-weight:700; }
+.bus-lines details { padding:3px 0; }
+.bus-lines summary { cursor:pointer; color:#24493f; font-size:12px; font-weight:700; }
+.bus-lines > li > details { padding-left:8px; }
+.bus-lines > li > details > details { margin-left:14px; border-left:1px solid #dbe2d9; padding-left:10px; }
+.bus-lines > li > details > details ul { margin-left:10px; padding-left:8px; border-left:1px solid #e6ebe4; }
+.bus-network-parent { margin:4px 0 8px; padding:7px 8px; background:#edf2e9; border-radius:5px; }
+.bus-network-parent > details > summary { list-style-position:inside; font-size:13px; }
+.bus-network-children { max-height:none; margin:4px 0 0 8px; padding-left:12px; border-left:1px solid #cbd8cc; }
+.bus-lines summary input,.bus-line-select input { accent-color:#31594a; flex:none; }
+.bus-line-select { padding-left:10px; }
+.bus-line-select button { flex:1; }
+.sidebar > * { display:none !important; }
+.sidebar .panel-close { display:block !important; float:right; border:0; background:transparent; color:#31594a; font-size:27px; cursor:pointer; }
+.sidebar.panel-layers .reference-panel,.sidebar.panel-bus .bus-network,.sidebar.panel-bilan .bus-impact { display:block !important; }
+[hidden] { display:none !important; }
+.map-heading { display:none; }
 .sidebar {
   width: 330px;
   flex-shrink: 0;
@@ -874,6 +902,11 @@ section h2 span {
   }
 }
 @media (max-width: 760px) {
+  .tool-nav { gap:4px; }
+  .tool-nav button { width:42px; height:42px; min-height:42px; padding:8px; justify-content:center; }
+  .tool-nav button span { display:none; }
+  .sidebar { top:74px; right:8px; bottom:8px; width:min(360px,calc(100vw - 16px)); }
+  main { height:calc(100dvh - 68px); }
   header {
     height: 68px;
     padding: 0 15px;
@@ -1130,6 +1163,12 @@ section h2 span {
 .version-dialog p {
   font-size: 12px;
   line-height: 1.7;
+}
+@media (max-width: 760px) {
+  .app { height:100dvh; overflow:hidden; }
+  .app > header { height:68px; }
+  main { height:calc(100dvh - 68px); min-height:0; overflow:hidden; }
+  .map-area { height:100%; min-height:0; }
 }
 .version-dialog button {
   padding: 9px;

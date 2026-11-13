@@ -62,7 +62,10 @@ export default function App() {
   const [hasBuildings, setHasBuildings] = useState(false);
   const [api, setApi] = useState("Mode autonome");
   const [busNetwork, setBusNetwork] = useState<SibraNetwork | null>(null);
-  const [showSibraNetwork, setShowSibraNetwork] = useState(true);
+  const [showBusStops, setShowBusStops] = useState(false);
+  const [selectedLineStopsOnly, setSelectedLineStopsOnly] = useState(false);
+  const [hiddenBusLines, setHiddenBusLines] = useState<string[]>([]);
+  const [macroRun, setMacroRun] = useState(false);
   const [busSearch, setBusSearch] = useState("");
   const [busLineId, setBusLineId] = useState<string | null>(null);
   const [busError, setBusError] = useState("");
@@ -77,6 +80,7 @@ export default function App() {
   const [draftStop, setDraftStop] = useState({ name: "", longitude: "", latitude: "" });
   const [scenarioError, setScenarioError] = useState("");
   const [appMenuOpen, setAppMenuOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | null>(null);
   const appMenuRef = useRef<HTMLDivElement>(null);
   const [busCreatorOpen, setBusCreatorOpen] = useState(false);
   const [busLineDraftExists, setBusLineDraftExists] = useState(false);
@@ -145,6 +149,22 @@ export default function App() {
   const visibleBusLines = (busNetwork?.lines ?? []).filter((line) =>
     `${line.shortName} ${line.longName}`.toLocaleLowerCase("fr").includes(busSearch.toLocaleLowerCase("fr")),
   );
+  const busGroups = [
+    { category: "Urbain", sub: "Rythmo", ids: ["1", "2", "3"] },
+    { category: "Urbain", sub: "Principales", ids: ["4", "5"] },
+    { category: "Urbain", sub: "Fortes", ids: ["10", "11", "12", "13", "14"] },
+    { category: "Interurbain - Rives du Lac", sub: "Rives du Lac", ids: ["20", "15"] },
+    { category: "Interurbain - Rives du Lac", sub: "Secondaires", ids: ["20", "21", "22", "23", "24", "25", "26", "27", "28", "30"] },
+    { category: "Pays d’Alby", sub: "Autre", ids: ["40", "41", "42"] },
+    { category: "Pays de Fillière", sub: "Autre", ids: ["80", "81", "82"] },
+  ];
+  const selectedBusIds = (busNetwork?.lines ?? []).filter((line) => !hiddenBusLines.includes(line.id)).map((line) => line.id);
+  const toggleBusIds = (ids: string[], enabled: boolean) => setHiddenBusLines((hidden) => enabled ? hidden.filter((id) => !ids.includes(id)) : [...new Set([...hidden, ...ids])]);
+  const macroActivity = useMemo(() => {
+    if (!busNetwork || !busSchedule) return null;
+    const selected = new Set(selectedBusIds);
+    return scheduledNetworkActivity({ ...busNetwork, lines: busNetwork.lines.filter((line) => selected.has(line.id)) }, { ...busSchedule, trips: busSchedule.trips.filter((trip) => selected.has(trip.lineId)) }, scheduleDate);
+  }, [busNetwork, busSchedule, scheduleDate, hiddenBusLines]);
   useEffect(() => {
     let cancelled = false;
     fetch("/data/sibra.json")
@@ -177,7 +197,7 @@ export default function App() {
       .flatMap((trip) => trip.stops.filter((stop) => stop.stopId === busStopId && stop.departure >= after).map((stop) => ({ seconds: stop.departure })))
       .sort((a, b) => a.seconds - b.seconds).slice(0, 5);
   })();
-  const networkActivity = useMemo(() => busNetwork && busSchedule ? scheduledNetworkActivity(busNetwork, busSchedule, scheduleDate) : null, [busNetwork, busSchedule, scheduleDate]);
+  const networkActivity = macroActivity;
   const networkEstimate = calculateBusEstimate({ vehicles: networkActivity?.vehicleKm === null || networkActivity?.vehicleKm === undefined ? null : 1, kmPerVehicle: networkActivity?.vehicleKm ?? null, consumptionPerKm: impactNumber(impactInputs.consumptionPerKm), ghgKgPerUnit: impactNumber(impactInputs.ghgKgPerUnit), energyVector: impactInputs.vector, energyUnit: impactInputs.unit, source: impactInputs.source, sourceVersion: impactInputs.version, sourceScope: impactInputs.scope });
   useEffect(() => {
     const endpoint = process.env.NEXT_PUBLIC_API_URL || "";
@@ -408,7 +428,7 @@ export default function App() {
       instance.on("click", "sibra-route-lines", (event) => {
         if (creatorMapActionRef.current) return;
         const feature = event.features?.[0];
-        if (feature?.properties?.lineId) setBusLineId(String(feature.properties.lineId));
+        if (feature?.properties?.lineId) setBusLineId((current) => current === String(feature.properties?.lineId) ? null : String(feature.properties?.lineId));
       });
       instance.on("mouseenter", "sibra-route-lines", () => { instance.getCanvas().style.cursor = "pointer"; });
       instance.on("mouseleave", "sibra-route-lines", () => { instance.getCanvas().style.cursor = ""; });
@@ -418,23 +438,25 @@ export default function App() {
   }, [ready, busNetwork]);
   useEffect(() => {
     const source = map.current?.getSource("sibra-stops") as maplibregl.GeoJSONSource | undefined;
-    if (source && busNetwork) source.setData(stopFeatures(busNetwork, busLineId));
-    setBusStopId(null);
-  }, [busNetwork, busLineId]);
+    if (source && busNetwork) source.setData(showBusStops ? stopFeatures(busNetwork, null, true, selectedLineStopsOnly ? selectedBusIds : undefined) : stopFeatures(busNetwork, null));
+  }, [busNetwork, busLineId, showBusStops, selectedLineStopsOnly, busStopId, hiddenBusLines]);
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance || !instance.getLayer("sibra-route-lines")) return;
-    const filter = busLineId ? ["==", ["get", "lineId"], busLineId] : null;
+    const filter = ["in", ["get", "lineId"], ["literal", selectedBusIds]];
     instance.setFilter("sibra-route-lines", filter as maplibregl.FilterSpecification | null);
     instance.setFilter("sibra-route-casing", filter as maplibregl.FilterSpecification | null);
-  }, [ready, busLineId]);
+  }, [ready, hiddenBusLines, busNetwork]);
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance) return;
-    for (const id of ["sibra-route-casing", "sibra-route-lines", "sibra-stop-points"]) {
-      if (instance.getLayer(id)) instance.setLayoutProperty(id, "visibility", showSibraNetwork ? "visible" : "none");
+    if (instance.getLayer("sibra-stop-points")) instance.setLayoutProperty("sibra-stop-points", "visibility", showBusStops ? "visible" : "none");
+    if (instance.getLayer("sibra-route-lines")) {
+      instance.setPaintProperty("sibra-route-lines", "line-color", busLineId ? ["case", ["==", ["get", "lineId"], busLineId], "#f0a32d", ["get", "color"]] : ["get", "color"]);
+      instance.setPaintProperty("sibra-route-lines", "line-opacity", busLineId ? ["case", ["==", ["get", "lineId"], busLineId], 1, 0.28] : 0.88);
+      instance.setPaintProperty("sibra-route-lines", "line-width", busLineId ? ["case", ["==", ["get", "lineId"], busLineId], 5, 2] : ["interpolate", ["linear"], ["zoom"], 9, 1.1, 15, 3, 18, 5]);
     }
-  }, [ready, busNetwork, showSibraNetwork]);
+  }, [ready, busNetwork, showBusStops, busLineId]);
   return (
     <div className="app">
       <header>
@@ -450,34 +472,16 @@ export default function App() {
           <span className="dot" /> Annecy{" "}
           <span className="muted">/ France</span>
         </div>
-        <span className="phase">PROTOTYPE · VOIRIE</span>
-        <div className="app-menu" ref={appMenuRef}>
-          <button type="button" className="app-menu-trigger" aria-label="Ouvrir le menu principal" aria-expanded={appMenuOpen} aria-controls="app-menu-content" onClick={() => setAppMenuOpen((value) => !value)}>
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
-          </button>
-          {appMenuOpen && <div className="app-menu-content" id="app-menu-content" role="menu" aria-label="Menu principal">
-            <button type="button" role="menuitem" disabled={!ready} onClick={startBusLineCreation}>{busLineDraftExists ? "Reprendre la création de ligne" : "Créer une ligne de bus"}</button>
-            {createdBusLines.length > 0 && <>
-              <p>{busLineDraftExists ? "Terminez ou fermez le brouillon pour changer de ligne." : "Lignes créées"}</p>
-              {createdBusLines.map((line) => <button type="button" role="menuitem" disabled={busLineDraftExists} key={line.id} onClick={() => openCreatedBusLine(line.id)}>{line.name}</button>)}
-            </>}
-            {!createdBusLines.length && <span>Aucune ligne créée</span>}
-          </div>}
-        </div>
+        <nav className="tool-nav" aria-label="Outils de la carte">
+          <button type="button" className={activePanel === "bus" ? "is-active" : ""} aria-label="Menu Bus" aria-expanded={activePanel === "bus"} onClick={() => setActivePanel(activePanel === "bus" ? null : "bus")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V16M5 12h14M8 16v3m8-3v3M7.5 8h.01M16.5 8h.01M7 19h10" /></svg><span>Bus</span></button>
+          <button type="button" className={activePanel === "layers" ? "is-active" : ""} aria-label="Menu Couches de référence" aria-expanded={activePanel === "layers"} onClick={() => setActivePanel(activePanel === "layers" ? null : "layers")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" /></svg><span>Couches</span></button>
+          <button type="button" className={activePanel === "bilan" ? "is-active" : ""} aria-label="Menu Bilan" aria-expanded={activePanel === "bilan"} onClick={() => setActivePanel(activePanel === "bilan" ? null : "bilan")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 1 9-9M12 7v5l3 2m2 5 2 2 4-5" /></svg><span>Bilan</span></button>
+        </nav>
       </header>
       <main>
-        <aside className="sidebar">
-          <p className="eyebrow">EXPLORER LE TERRITOIRE</p>
-          <h1>
-            Annecy, aujourd’hui.
-            <br />
-            <em>Et demain ?</em>
-          </h1>
-          <p className="intro">
-            Une première fenêtre sur la ville pour comprendre le présent et
-            imaginer ses futurs.
-          </p>
-          <section>
+        <aside className={`sidebar${activePanel ? ` panel-${activePanel}` : ""}`}>
+          <button className="panel-close" type="button" aria-label="Fermer le menu" onClick={() => setActivePanel(null)}>×</button>
+          <section className="reference-panel" hidden={activePanel !== "layers"}>
             <h2>
               <span>01</span> Couches de référence
             </h2>
@@ -513,23 +517,25 @@ export default function App() {
               : empreinte au sol.
             </p>
           </section>
-          <section className="bus-network" aria-labelledby="bus-heading">
+          <section className="bus-network" aria-labelledby="bus-heading" hidden={activePanel !== "bus"}>
             <h2 id="bus-heading">Réseau de bus SIBRA</h2>
-            <label className="layer bus-network-toggle">
-              <span>Afficher le réseau SIBRA</span>
-              <input type="checkbox" checked={showSibraNetwork} onChange={(event) => setShowSibraNetwork(event.target.checked)} />
-            </label>
+            <button type="button" className="bus-all" disabled={!ready} onClick={startBusLineCreation}>{busLineDraftExists ? "Reprendre la création de ligne" : "Créer une ligne de bus"}</button>
+            <label className="layer bus-network-toggle"><span>Afficher les arrêts</span><input type="checkbox" checked={showBusStops} onChange={(event) => setShowBusStops(event.target.checked)} /></label>
+            {showBusStops && <label className="toggle stop-filter-toggle"><input type="checkbox" checked={selectedLineStopsOnly} onChange={(event) => setSelectedLineStopsOnly(event.target.checked)} /> Arrêts des lignes cochées uniquement</label>}
             {busNetwork ? <>
               <p className="caption">Données valides du {busNetwork.metadata.validFrom} au {busNetwork.metadata.validTo} · horaires théoriques, sans temps réel.</p>
               <label className="bus-search-label" htmlFor="bus-search">Rechercher une ligne</label>
               <input id="bus-search" className="bus-search" type="search" value={busSearch} onChange={(event) => setBusSearch(event.target.value)} placeholder="Numéro ou destination" />
-              <button className={`bus-all${busLineId === null ? " is-selected" : ""}`} onClick={() => { setBusLineId(null); if (busNetwork.lines[0]) map.current?.fitBounds(lineBounds(busNetwork.lines[0]) ?? [[6.0,45.7],[6.5,46.1]], { padding: 70, maxZoom: 12 }); }}>Tout le réseau ({busNetwork.lines.length})</button>
+              <button className="bus-all" onClick={() => setMacroRun(true)}>Lancer la simulation macro ({selectedBusIds.length} lignes)</button>
+              {macroRun && <p className="caption" role="status">Simulation macro : {macroActivity?.coveredLines ?? 0} lignes calculées sur la sélection, {macroActivity?.includedTrips ?? 0} courses. Les distances GTFS non mesurables restent exclues.</p>}
               <ul className="bus-lines" aria-label="Lignes SIBRA">
-                {visibleBusLines.map((line) => <li key={line.id}><button className={busLineId === line.id ? "is-selected" : ""} onClick={() => {
-                  setBusLineId(line.id);
+                <li className="bus-network-parent"><details open><summary><label className="bus-select-all"><input type="checkbox" checked={selectedBusIds.length === busNetwork.lines.length} onChange={(event) => toggleBusIds(busNetwork.lines.map((line) => line.id), event.target.checked)} /> Tout le réseau ({busNetwork.lines.length})</label></summary><ul className="bus-network-children">
+                {Array.from(new Set(busGroups.map((g) => g.category))).map((category) => { const groups = busGroups.filter((g) => g.category === category); const categoryIds = [...new Set(groups.flatMap((g) => g.ids.map((id) => busNetwork.lines.find((line) => line.id === id)?.id).filter((id): id is string => !!id)))]; return <li key={category}><details open><summary><label><input type="checkbox" checked={categoryIds.length > 0 && categoryIds.every((id) => selectedBusIds.includes(id))} onChange={(e) => toggleBusIds(categoryIds, e.target.checked)} /> {category}</label></summary>{groups.map((group) => { const ids = [...new Set(group.ids.map((id) => busNetwork.lines.find((line) => line.id === id)?.id).filter((id): id is string => !!id))]; return <details key={group.sub} open><summary><label><input type="checkbox" checked={ids.length > 0 && ids.every((id) => selectedBusIds.includes(id))} onChange={(e) => toggleBusIds(ids, e.target.checked)} /> {group.sub}</label></summary><ul>{visibleBusLines.filter((line) => ids.includes(line.id)).map((line) => <li key={`${group.sub}-${line.id}`}><label className="bus-line-select"><input type="checkbox" checked={selectedBusIds.includes(line.id)} onChange={(e) => toggleBusIds([line.id], e.target.checked)} /><button className={busLineId === line.id ? "is-selected" : ""} onClick={() => {
+                  setBusLineId((current) => current === line.id ? null : line.id);
                   const bounds = lineBounds(line);
                   if (bounds) map.current?.fitBounds(bounds, { padding: 80, maxZoom: 15 });
-                }}><span className="bus-line-chip" style={{ backgroundColor: line.color }}>{line.shortName}</span><span>{line.longName}</span><small>{line.variants.length} variantes</small></button></li>)}
+                }}><span className="bus-line-chip" style={{ backgroundColor: line.color }}>{line.shortName}</span><span>{line.longName}</span><small>{line.variants.length} variantes</small></button></label></li>)}</ul></details>; })}</details></li>; })}
+                </ul></details></li>
               </ul>
               {busLine && <div className="bus-line-detail"><strong>Ligne {busLine.shortName}</strong><p>{busLine.variants.length} itinéraires et {new Set(busLine.variants.flatMap((variant) => variant.stops.map((stop) => stop.id))).size} arrêts référencés. Sélectionnez un tracé sur la carte pour voir sa direction.</p>
                 <label className="bus-search-label" htmlFor="bus-variant">Variante à modifier</label>
@@ -593,10 +599,6 @@ export default function App() {
             mapActionRef={creatorMapActionRef}
           />
           {busCreationNotice && <div className="bus-creation-toast" role="status">{busCreationNotice}</div>}
-          <div className="map-heading">
-            <span className="eyebrow">VUE DU TERRITOIRE</span>
-            <strong>Annecy & son lac</strong>
-          </div>
           {!busCreatorOpen && <button
             className="recenter"
             onClick={() => map.current?.flyTo({ ...ANNECY, essential: true })}
@@ -616,7 +618,7 @@ export default function App() {
               </button>
             </div>
           )}
-          {!busCreatorOpen && <div className="info" aria-live="polite">
+          {!busCreatorOpen && (selectedRoad || selected) && <div className="info" aria-live="polite">
             <div className="info-title">
               <span className="eyebrow">
                 {selectedRoad

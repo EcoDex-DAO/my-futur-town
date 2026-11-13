@@ -1,5 +1,17 @@
 # Repository Guidelines
 
+## Token-efficient agent workflow
+
+- All coding agents use the installed `caveman` skill for concise user-facing responses. Preserve technical facts and keep this mode active until the user disables it.
+- Use `rtk` for supported command-line operations. Use the direct command when RTK has no suitable wrapper; never bypass RTK only to avoid its output limits.
+- For structural codebase questions, query Codebase Memory and the existing Graphify graph before broad file searches. Use Graphify's code-only mode when semantic document extraction is unnecessary.
+
+<!-- codebase-memory-mcp:start -->
+For structural codebase exploration, use the installed `codebase-memory` skill.
+<!-- codebase-memory-mcp:end -->
+
+@/home/lammeur-mint/.codex/RTK.md
+
 ## Project Structure & Module Organization
 
 - `src/` contains the React/TypeScript interface, MapLibre helpers (`map.ts`), styles, and colocated tests. `src/app/` contains the Next.js App Router layout, page, and API route handlers for `GET /health` and `GET /api/layers`. The map must remain usable without the API.
