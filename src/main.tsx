@@ -273,6 +273,18 @@ export default function App() {
           <section className="bus-tools" aria-labelledby="bus-tools-title">
             <h2 id="bus-tools-title"><span>02</span> Réseau de bus</h2>
             <p className="caption">Réseau SIBRA · lignes, estimation et simulation</p>
+            <section className="created-bus-category" aria-labelledby="created-lines-heading">
+              <h3 id="created-lines-heading"><label className="created-bus-heading"><input type="checkbox" checked={createdVisible} onChange={(event) => setCreatedVisible(event.target.checked)} /> Créées ({createdLines.length})</label></h3>
+              {createdLines.length ? <ul>{createdLines.map((line) => <li key={line.id}>
+                <button type="button" className="created-bus-line" onClick={() => { setSelectedLineId(line.id); setCreatorOpen(true); }}>{line.name}</button>
+                <button type="button" className="created-bus-delete" aria-label={`Supprimer ${line.name}`} onClick={() => {
+                  if (!window.confirm(`Supprimer la ligne « ${line.name} » ? Cette action est définitive.`)) return;
+                  const next = createdLines.filter((item) => item.id !== line.id);
+                  try { window.localStorage.setItem("yft.bus-created-lines.v1", JSON.stringify(next)); setCreatedLines(next); window.dispatchEvent(new Event("yft:bus-lines-updated")); if (selectedLineId === line.id) { setSelectedLineId(null); setCreatorOpen(false); } }
+                  catch { setCreationMessage("Suppression impossible : le stockage local est inaccessible."); }
+                }}>Supprimer</button>
+              </li>)}</ul> : <p className="caption">Les lignes que tu crées apparaîtront ici.</p>}
+            </section>
             <label className="layer">
               <span>Afficher les lignes SIBRA</span>
               <input type="checkbox" checked={networkVisible} onChange={(event) => setNetworkVisible(event.target.checked)} />
@@ -293,22 +305,6 @@ export default function App() {
               </>}
               {simulationOpen && <BusSimulation map={map.current} mapReady={ready} data={busData} busVisible={networkVisible} selectedStopId={null} onModeChange={() => undefined} onClockChange={() => undefined} />}
             </>}
-            <details className="created-bus-category" open>
-              <summary><label className="created-bus-heading"><input type="checkbox" checked={createdVisible} onChange={(event) => setCreatedVisible(event.target.checked)} /> Créées ({createdLines.length})</label></summary>
-              {createdLines.length ? <ul>{createdLines.map((line) => <li key={line.id}>
-                <button type="button" className="created-bus-line" onClick={() => { setSelectedLineId(line.id); setCreatorOpen(true); }}>{line.name}</button>
-                <button type="button" className="created-bus-delete" aria-label={`Supprimer ${line.name}`} onClick={() => {
-                  if (!window.confirm(`Supprimer la ligne « ${line.name} » ? Cette action est définitive.`)) return;
-                  const next = createdLines.filter((item) => item.id !== line.id);
-                  try {
-                    window.localStorage.setItem("yft.bus-created-lines.v1", JSON.stringify(next));
-                    setCreatedLines(next);
-                    window.dispatchEvent(new Event("yft:bus-lines-updated"));
-                    if (selectedLineId === line.id) { setSelectedLineId(null); setCreatorOpen(false); }
-                  } catch { setCreationMessage("Suppression impossible : le stockage local est inaccessible."); }
-                }}>Supprimer</button>
-              </li>)}</ul> : <p className="caption">Aucune ligne créée pour le moment.</p>}
-            </details>
           </section>
           <div className="sidebar-footer">
             <span className="dot" />
