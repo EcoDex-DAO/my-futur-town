@@ -1084,3 +1084,19 @@ section h2 span {
 .created-bus-line { flex:1; border:0; background:transparent; color:#24493f; text-align:left; cursor:pointer; }
 .created-bus-delete { border:1px solid #caa9a4; border-radius:4px; padding:4px 7px; background:#fff; color:#8d302e; cursor:pointer; }
 @media (max-width: 760px) { .bus-creator-panel { top: 68px; right: 10px; width: min(370px, calc(100% - 20px)); max-height: calc(100% - 78px); padding: 14px; } .map-actions { top: 10px; left: 10px; } }
+.app { height:100dvh; overflow:hidden; }
+.app > header { height:64px; position:relative; z-index:20; }
+main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
+.map-area { height:100%; min-height:0; }
+.tool-nav { display:flex; gap:7px; align-items:center; margin-left:auto; }
+.tool-nav button { display:flex; align-items:center; gap:7px; min-height:40px; padding:7px 11px; border:1px solid #dbe2d9; border-radius:7px; background:white; color:#31594a; cursor:pointer; }
+.tool-nav button.is-active,.tool-nav button:hover { background:#31594a; border-color:#31594a; color:white; }
+.tool-nav svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+.sidebar:not(.panel-bus):not(.panel-layers):not(.panel-bilan) { display:none !important; }
+.sidebar.panel-bus,.sidebar.panel-layers,.sidebar.panel-bilan { display:block; position:fixed; z-index:15; top:76px; right:14px; bottom:14px; width:min(400px,calc(100vw - 28px)); padding:24px; overflow:auto; background:#fff; border:1px solid #dbe2d9; border-radius:10px; box-shadow:0 12px 36px #193e3a24; }
+.sidebar > * { display:none !important; }
+.sidebar .panel-close { display:block !important; float:right; border:0; background:transparent; color:#31594a; font-size:27px; cursor:pointer; }
+.sidebar.panel-layers .reference-panel,.sidebar.panel-bus .bus-tools,.sidebar.panel-bilan .bilan-tools { display:block !important; }
+[hidden] { display:none !important; }
+.map-heading { display:none; }
+@media(max-width:760px) { .app > header { height:68px; } main { height:calc(100dvh - 68px); } .tool-nav { gap:4px; } .tool-nav button { width:42px; height:42px; min-height:42px; justify-content:center; padding:8px; } .tool-nav button span { display:none; } .sidebar.panel-bus,.sidebar.panel-layers,.sidebar.panel-bilan { top:76px; right:8px; bottom:8px; width:min(370px,calc(100vw - 16px)); } }

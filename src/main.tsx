@@ -34,10 +34,10 @@ export default function App() {
   const [busData, setBusData] = useState<SibraData | null>(null);
   const [busError, setBusError] = useState("");
   const [networkVisible, setNetworkVisible] = useState(true);
-  const [macroOpen, setMacroOpen] = useState(false);
   const [simulationOpen, setSimulationOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [mapMenuOpen, setMapMenuOpen] = useState(false);
+  const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | null>(null);
   const [newLineToken, setNewLineToken] = useState(0);
   const [createdLines, setCreatedLines] = useState<BusCreatedLine[]>([]);
   const [createdVisible, setCreatedVisible] = useState(true);
@@ -224,21 +224,16 @@ export default function App() {
           <span className="dot" /> Annecy{" "}
           <span className="muted">/ France</span>
         </div>
-        <span className="phase">MOBILITÉ · BUS</span>
+        <nav className="tool-nav" aria-label="Outils de la carte">
+          <button type="button" aria-label="Menu Bus" aria-expanded={activePanel === "bus"} className={activePanel === "bus" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "bus" ? null : "bus")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V16M5 12h14M8 16v3m8-3v3M7 19h10" /></svg><span>Bus</span></button>
+          <button type="button" aria-label="Menu Couches de référence" aria-expanded={activePanel === "layers"} className={activePanel === "layers" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "layers" ? null : "layers")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" /></svg><span>Couches</span></button>
+          <button type="button" aria-label="Menu Bilan" aria-expanded={activePanel === "bilan"} className={activePanel === "bilan" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "bilan" ? null : "bilan")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 1 9-9M12 7v5l3 2m2 5 2 2 4-5" /></svg><span>Bilan</span></button>
+        </nav>
       </header>
       <main>
-        <aside className="sidebar">
-          <p className="eyebrow">EXPLORER LE TERRITOIRE</p>
-          <h1>
-            Annecy, aujourd’hui.
-            <br />
-            <em>Et demain ?</em>
-          </h1>
-          <p className="intro">
-            Une première fenêtre sur la ville pour comprendre le présent et
-            imaginer ses futurs.
-          </p>
-          <section>
+        <aside className={`sidebar${activePanel ? ` panel-${activePanel}` : ""}`}>
+          <button className="panel-close" type="button" aria-label="Fermer le menu" onClick={() => setActivePanel(null)}>×</button>
+          <section className="reference-panel" hidden={activePanel !== "layers"}>
             <h2>
               <span>01</span> Couches de référence
             </h2>
@@ -274,7 +269,7 @@ export default function App() {
               : empreinte au sol.
             </p>
           </section>
-          <section className="bus-tools" aria-labelledby="bus-tools-title">
+          <section className="bus-tools" aria-labelledby="bus-tools-title" hidden={activePanel !== "bus"}>
             <h2 id="bus-tools-title"><span>02</span> Réseau de bus</h2>
             <p className="caption">Réseau SIBRA · lignes, estimation et simulation</p>
             <section className="created-bus-category" aria-labelledby="created-lines-heading">
@@ -297,19 +292,15 @@ export default function App() {
             {busError && <p className="caption" role="alert">{busError}</p>}
             {!busData && !busError && <p className="caption" role="status">Chargement du réseau SIBRA…</p>}
             {busData && <>
-              <p className="caption">La ligne 1 sert de profil commun pour l’estimation macro du réseau.</p>
-              <button className="bus-tool-button" type="button" onClick={() => { setMacroOpen((value) => !value); setSimulationOpen(false); }} aria-expanded={macroOpen}>
-                {macroOpen ? "Masquer l’estimation macro" : "Estimation macro énergie et émissions"}
-              </button>
-              <button className="bus-tool-button secondary" type="button" onClick={() => { setMacroOpen(false); setSimulationOpen((value) => !value); }} aria-expanded={simulationOpen}>
+              <button className="bus-tool-button secondary" type="button" onClick={() => setSimulationOpen((value) => !value)} aria-expanded={simulationOpen}>
                 {simulationOpen ? "Masquer la simulation micro" : "Simulation micro des bus"}
               </button>
-              {macroOpen && <>
-                <BusImpact lineId="1" lineName="Ligne 1 · profil extrapolé au réseau" scenarioName={null} scenarioId={null} hasReference />
-                <BusImpactNetwork data={busData} />
-              </>}
               {simulationOpen && <BusSimulation map={map.current} mapReady={ready} data={busData} busVisible={networkVisible} selectedStopId={null} onModeChange={() => undefined} onClockChange={() => undefined} />}
             </>}
+          </section>
+          <section className="bilan-tools" hidden={activePanel !== "bilan"}>
+            <h2>Bilan énergie et environnement</h2>
+            {busData ? <><BusImpact lineId="1" lineName="Ligne 1 · profil extrapolé au réseau" scenarioName={null} scenarioId={null} hasReference /><BusImpactNetwork data={busData} /></> : <p className="caption">Chargement des données SIBRA…</p>}
           </section>
           <div className="sidebar-footer">
             <span className="dot" />
@@ -347,10 +338,6 @@ export default function App() {
             mapActionRef={busMapAction}
           />
           {creationMessage && <div className="bus-creation-toast" role="status">{creationMessage}</div>}
-          <div className="map-heading">
-            <span className="eyebrow">VUE DU TERRITOIRE</span>
-            <strong>Annecy & son lac</strong>
-          </div>
           <button
             className="recenter"
             onClick={() => map.current?.flyTo({ ...ANNECY, essential: true })}
@@ -370,7 +357,7 @@ export default function App() {
               </button>
             </div>
           )}
-          <div className="info" aria-live="polite">
+          {selected && <div className="info" aria-live="polite">
             <div className="info-title">
               <span className="eyebrow">
                 {selected ? "OBJET SÉLECTIONNÉ" : "RÉSEAU SIBRA"}
@@ -420,7 +407,7 @@ export default function App() {
                 </span>
               </>
             )}
-          </div>
+          </div>}
           <div className="map-badge">
             <span className="dot" /> DONNÉES DE RÉFÉRENCE <span>·</span>{" "}
             {extrusion && hasBuildings ? "2.5D" : "2D"}
