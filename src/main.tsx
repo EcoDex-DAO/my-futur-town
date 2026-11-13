@@ -10,7 +10,7 @@ import { BusLineCreator } from "./features/bus/creator/BusLineCreator";
 import { BusImpact, BusImpactNetwork } from "./features/bus/macro/BusImpact";
 import { BusSimulation } from "./features/bus/micro/BusSimulation";
 import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
-import type { BusCreatedLine } from "./features/bus/creator/bus-line";
+import { BUS_CREATED_LINES_KEY, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
 
 // Let Next.js emit the MapLibre worker as a versioned asset.
 maplibregl.setWorkerUrl(
@@ -44,6 +44,10 @@ export default function App() {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [creationMessage, setCreationMessage] = useState("");
   const busMapAction = useRef(false);
+  useEffect(() => {
+    try { setCreatedLines(readBusCreatedLines(window.localStorage.getItem(BUS_CREATED_LINES_KEY))); }
+    catch { setCreationMessage("Les lignes créées ne sont pas accessibles dans ce navigateur."); }
+  }, []);
   useEffect(() => {
     const endpoint = process.env.NEXT_PUBLIC_API_URL || "";
     const controller = new AbortController();
@@ -275,6 +279,7 @@ export default function App() {
             <p className="caption">Réseau SIBRA · lignes, estimation et simulation</p>
             <section className="created-bus-category" aria-labelledby="created-lines-heading">
               <h3 id="created-lines-heading"><label className="created-bus-heading"><input type="checkbox" checked={createdVisible} onChange={(event) => setCreatedVisible(event.target.checked)} /> Créées ({createdLines.length})</label></h3>
+              <button type="button" className="bus-tool-button" disabled={!ready} onClick={() => { setNewLineToken((value) => value + 1); setSelectedLineId(null); setCreatorOpen(true); }}>Créer une ligne</button>
               {createdLines.length ? <ul>{createdLines.map((line) => <li key={line.id}>
                 <button type="button" className="created-bus-line" onClick={() => { setSelectedLineId(line.id); setCreatorOpen(true); }}>{line.name}</button>
                 <button type="button" className="created-bus-delete" aria-label={`Supprimer ${line.name}`} onClick={() => {
