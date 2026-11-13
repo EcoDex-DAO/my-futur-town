@@ -440,9 +440,6 @@ export function sibraFeatures(
         emitMosaic();
         emitDirection();
       }
-      // At network scale, show routes only. Stop markers belong to the selected
-      // line view, where individual quay identities remain visible and selectable.
-      if (!selectedLineId) continue;
       for (const stop of variant.stops) {
         // Reused quays produce one marker, with all source variants retained.
         // Distinct IDs or coordinates remain separate, including opposite quays.
