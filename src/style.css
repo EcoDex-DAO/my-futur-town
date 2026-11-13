@@ -1075,14 +1075,8 @@ section h2 span {
 .map-menu button:disabled { opacity: .5; }
 .map-menu label { display: flex; gap: 8px; align-items: center; }
 .bus-tools .bus-simulation { overflow: visible; }
-.created-bus-category { margin:12px 0 16px; padding:10px; border:1px solid #cad8ce; border-radius:6px; background:#f5f8f2; }
-.created-bus-category h3 { margin:0 0 8px; font-size:13px; }
-.created-bus-heading { display:flex; align-items:center; gap:8px; }
-.created-bus-heading input { accent-color:#31594a; }
-.created-bus-category ul { margin:0; padding:0; list-style:none; }
-.created-bus-category li { display:flex; align-items:center; gap:6px; padding:5px 0; border-top:1px solid #e0e8de; }
-.created-bus-line { flex:1; border:0; background:transparent; color:#24493f; text-align:left; cursor:pointer; }
-.created-bus-delete { border:1px solid #caa9a4; border-radius:4px; padding:4px 7px; background:#fff; color:#8d302e; cursor:pointer; }
+.created-bus-category { margin:3px 0; padding:0; border:0; border-radius:0; background:transparent; }
+.created-bus-category > summary { cursor:pointer; font-weight:700; }
 .sibra-line-tree { max-height:38vh; overflow:auto; padding:8px 4px; border:1px solid #cad8ce; border-radius:6px; }
 .sibra-line-tree details { margin:3px 0; }
 .sibra-line-tree > details > details { margin-left:12px; padding-left:10px; border-left:1px solid #cad8ce; }
