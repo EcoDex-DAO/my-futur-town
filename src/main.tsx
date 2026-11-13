@@ -44,7 +44,7 @@ export default function App() {
   const [busData, setBusData] = useState<SibraData | null>(null);
   const [busError, setBusError] = useState("");
   const [hiddenBusLineIds, setHiddenBusLineIds] = useState<string[]>([]);
-  const [showBusStops, setShowBusStops] = useState(false);
+  const [busStopsMode, setBusStopsMode] = useState<"all" | "selected" | "none">("none");
   const [simulationOpen, setSimulationOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [manageCreatedOpen, setManageCreatedOpen] = useState(false);
@@ -177,9 +177,11 @@ export default function App() {
     const instance = map.current;
     if (!ready || !instance || !busData) return;
     const features = sibraFeatures(visibleBusData ?? busData, null, null, instance.getZoom());
+    const allStops = busStopsMode === "all" ? sibraFeatures(busData, null, null, instance.getZoom()).stops : null;
+    const stopFeatures = busStopsMode === "none" ? { type: "FeatureCollection" as const, features: [] } : allStops ?? features.stops;
     if (!instance.getSource("yft-sibra-lines")) {
       instance.addSource("yft-sibra-lines", { type: "geojson", data: features.lines });
-      instance.addSource("yft-sibra-stops", { type: "geojson", data: features.stops });
+      instance.addSource("yft-sibra-stops", { type: "geojson", data: stopFeatures });
       instance.addLayer({
         id: "yft-sibra-routes",
         type: "line",
@@ -194,9 +196,9 @@ export default function App() {
         id: "yft-sibra-stop-dots",
         type: "circle",
         source: "yft-sibra-stops",
-        minzoom: 13,
+        minzoom: 10,
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 13, 2, 17, 5],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 1, 14, 3, 17, 5],
           "circle-color": "#fffdf5",
           "circle-stroke-color": "#31594a",
           "circle-stroke-width": 1.5,
@@ -204,11 +206,11 @@ export default function App() {
       });
     } else {
       (instance.getSource("yft-sibra-lines") as maplibregl.GeoJSONSource).setData(features.lines);
-      (instance.getSource("yft-sibra-stops") as maplibregl.GeoJSONSource).setData(features.stops);
+      (instance.getSource("yft-sibra-stops") as maplibregl.GeoJSONSource).setData(stopFeatures);
     }
     instance.setLayoutProperty("yft-sibra-routes", "visibility", "visible");
-    instance.setLayoutProperty("yft-sibra-stop-dots", "visibility", showBusStops ? "visible" : "none");
-  }, [ready, busData, visibleBusData, showBusStops]);
+    instance.setLayoutProperty("yft-sibra-stop-dots", "visibility", busStopsMode === "none" ? "none" : "visible");
+  }, [ready, busData, visibleBusData, busStopsMode]);
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance) return;
@@ -292,7 +294,7 @@ export default function App() {
               <button type="button" className="bus-tool-button" disabled={!ready} onClick={() => { setNewLineToken((value) => value + 1); setSelectedLineId(null); setCreatorOpen(true); }}>Créer une ligne de bus</button>
               <button type="button" className="bus-tool-button secondary" onClick={() => setManageCreatedOpen(true)}>Administrer les lignes créées ({createdLines.length})</button>
             </section>
-            <label className="layer"><span>Afficher les arrêts</span><input type="checkbox" checked={showBusStops} onChange={(event) => setShowBusStops(event.target.checked)} /></label>
+            <label className="bus-stops-mode">Arrêts de bus<select value={busStopsMode} onChange={(event) => setBusStopsMode(event.target.value as "all" | "selected" | "none")}><option value="all">Tous les arrêts</option><option value="selected">Des lignes cochées</option><option value="none">Aucun arrêt</option></select></label>
             {busError && <p className="caption" role="alert">{busError}</p>}
             {!busData && !busError && <p className="caption" role="status">Chargement du réseau SIBRA…</p>}
             {busData && <div className="sibra-line-tree"><details open><summary><label><input type="checkbox" checked={selectedNetworkIds.length === busData.lines.length && createdVisible} onChange={(event) => { setHiddenBusLineIds(event.target.checked ? [] : busData.lines.map((line) => line.id)); setCreatedVisible(event.target.checked); }} /> Tout le réseau ({busData.lines.length + createdLines.length})</label></summary>
