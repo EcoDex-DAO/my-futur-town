@@ -12,6 +12,16 @@ import { BusSimulation } from "./features/bus/micro/BusSimulation";
 import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
 import { BUS_CREATED_LINES_KEY, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
 
+const BUS_GROUPS = [
+  { category: "Urbain", sub: "Rythmo", ids: ["1", "2", "3"] },
+  { category: "Urbain", sub: "Principales", ids: ["4", "5"] },
+  { category: "Urbain", sub: "Fortes", ids: ["10", "11", "12", "13", "14"] },
+  { category: "Interurbain - Rives du Lac", sub: "Rives du Lac", ids: ["15", "20"] },
+  { category: "Interurbain - Rives du Lac", sub: "Secondaires", ids: ["20", "21", "22", "23", "24", "25", "26", "27", "28", "30"] },
+  { category: "Pays d’Alby", sub: "Autre", ids: ["40", "41", "42"] },
+  { category: "Pays de Fillière", sub: "Autre", ids: ["80", "81", "82"] },
+];
+
 // Let Next.js emit the MapLibre worker as a versioned asset.
 maplibregl.setWorkerUrl(
   new URL("maplibre-gl/dist/maplibre-gl-worker.mjs", import.meta.url).toString(),
@@ -33,7 +43,10 @@ export default function App() {
   const [api, setApi] = useState("Mode autonome");
   const [busData, setBusData] = useState<SibraData | null>(null);
   const [busError, setBusError] = useState("");
-  const [networkVisible, setNetworkVisible] = useState(true);
+  const [hiddenBusLineIds, setHiddenBusLineIds] = useState<string[]>([]);
+  const [selectedNetworkLineId, setSelectedNetworkLineId] = useState<string | null>(null);
+  const [showBusStops, setShowBusStops] = useState(false);
+  const [selectedStopsOnly, setSelectedStopsOnly] = useState(false);
   const [simulationOpen, setSimulationOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [mapMenuOpen, setMapMenuOpen] = useState(false);
@@ -44,6 +57,8 @@ export default function App() {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [creationMessage, setCreationMessage] = useState("");
   const busMapAction = useRef(false);
+  const selectedNetworkIds = (busData?.lines ?? []).filter((line) => !hiddenBusLineIds.includes(line.id)).map((line) => line.id);
+  const visibleBusData = busData ? { ...busData, lines: busData.lines.filter((line) => selectedNetworkIds.includes(line.id)) } : null;
   useEffect(() => {
     try { setCreatedLines(readBusCreatedLines(window.localStorage.getItem(BUS_CREATED_LINES_KEY))); }
     catch { setCreationMessage("Les lignes créées ne sont pas accessibles dans ce navigateur."); }
@@ -145,6 +160,13 @@ export default function App() {
     instance.on("click", (e) => {
       if (busMapAction.current) return;
       const features = instance.queryRenderedFeatures(e.point);
+      const busFeature = features.find((feature) => feature.layer.id === "yft-sibra-routes");
+      if (busFeature?.properties?.lineId) {
+        const lineId = String(busFeature.properties.lineId);
+        setSelectedNetworkLineId((current) => current === lineId ? null : lineId);
+        setSelected(null);
+        return;
+      }
       setSelected(
         features.find((f) => f.layer.id === "mft-buildings-3d") ||
           features.find((f) => f.sourceLayer === "building") ||
@@ -161,7 +183,7 @@ export default function App() {
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance || !busData) return;
-    const features = sibraFeatures(busData, null, null, instance.getZoom());
+    const features = sibraFeatures(visibleBusData ?? busData, null, null, instance.getZoom());
     if (!instance.getSource("yft-sibra-lines")) {
       instance.addSource("yft-sibra-lines", { type: "geojson", data: features.lines });
       instance.addSource("yft-sibra-stops", { type: "geojson", data: features.stops });
@@ -191,9 +213,11 @@ export default function App() {
       (instance.getSource("yft-sibra-lines") as maplibregl.GeoJSONSource).setData(features.lines);
       (instance.getSource("yft-sibra-stops") as maplibregl.GeoJSONSource).setData(features.stops);
     }
-    for (const id of ["yft-sibra-routes", "yft-sibra-stop-dots"])
-      instance.setLayoutProperty(id, "visibility", networkVisible ? "visible" : "none");
-  }, [ready, busData, networkVisible]);
+    instance.setLayoutProperty("yft-sibra-routes", "visibility", "visible");
+    instance.setLayoutProperty("yft-sibra-stop-dots", "visibility", showBusStops ? "visible" : "none");
+    instance.setPaintProperty("yft-sibra-routes", "line-color", selectedNetworkLineId ? ["case", ["==", ["get", "lineId"], selectedNetworkLineId], "#f0a32d", ["get", "color"]] : ["coalesce", ["get", "color"], "#31594a"]);
+    instance.setPaintProperty("yft-sibra-routes", "line-opacity", selectedNetworkLineId ? ["case", ["==", ["get", "lineId"], selectedNetworkLineId], 1, 0.3] : 0.88);
+  }, [ready, busData, visibleBusData, showBusStops, selectedNetworkLineId]);
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance) return;
@@ -272,7 +296,7 @@ export default function App() {
           <section className="bus-tools" aria-labelledby="bus-tools-title" hidden={activePanel !== "bus"}>
             <h2 id="bus-tools-title"><span>02</span> Réseau de bus</h2>
             <p className="caption">Réseau SIBRA · lignes, estimation et simulation</p>
-            <section className="created-bus-category" aria-labelledby="created-lines-heading">
+            <section className="created-bus-category" aria-labelledby="created-lines-heading" hidden>
               <h3 id="created-lines-heading"><label className="created-bus-heading"><input type="checkbox" checked={createdVisible} onChange={(event) => setCreatedVisible(event.target.checked)} /> Créées ({createdLines.length})</label></h3>
               <button type="button" className="bus-tool-button" disabled={!ready} onClick={() => { setNewLineToken((value) => value + 1); setSelectedLineId(null); setCreatorOpen(true); }}>Créer une ligne</button>
               {createdLines.length ? <ul>{createdLines.map((line) => <li key={line.id}>
@@ -285,22 +309,26 @@ export default function App() {
                 }}>Supprimer</button>
               </li>)}</ul> : <p className="caption">Les lignes que tu crées apparaîtront ici.</p>}
             </section>
-            <label className="layer">
-              <span>Afficher les lignes SIBRA</span>
-              <input type="checkbox" checked={networkVisible} onChange={(event) => setNetworkVisible(event.target.checked)} />
-            </label>
+            <label className="layer"><span>Afficher les arrêts des lignes cochées</span><input type="checkbox" checked={showBusStops} onChange={(event) => setShowBusStops(event.target.checked)} /></label>
             {busError && <p className="caption" role="alert">{busError}</p>}
             {!busData && !busError && <p className="caption" role="status">Chargement du réseau SIBRA…</p>}
+            {busData && <div className="sibra-line-tree"><details open><summary><label><input type="checkbox" checked={selectedNetworkIds.length === busData.lines.length && createdVisible} onChange={(event) => { setHiddenBusLineIds(event.target.checked ? [] : busData.lines.map((line) => line.id)); setCreatedVisible(event.target.checked); }} /> Tout le réseau ({busData.lines.length + createdLines.length})</label></summary>
+              {Array.from(new Set(BUS_GROUPS.map((group) => group.category))).map((category) => { const groups = BUS_GROUPS.filter((group) => group.category === category); const categoryIds = [...new Set(groups.flatMap((group) => group.ids.map((id) => busData.lines.find((line) => line.id === id)?.id).filter((id): id is string => !!id)))]; return <details key={category} open><summary><label><input type="checkbox" checked={categoryIds.length > 0 && categoryIds.every((id) => selectedNetworkIds.includes(id))} onChange={(event) => setHiddenBusLineIds((hidden) => event.target.checked ? hidden.filter((id) => !categoryIds.includes(id)) : [...new Set([...hidden, ...categoryIds])])} /> {category}</label></summary>{groups.map((group) => { const ids = group.ids.filter((id) => busData.lines.some((line) => line.id === id)); return <details key={group.sub} open><summary><label><input type="checkbox" checked={ids.length > 0 && ids.every((id) => selectedNetworkIds.includes(id))} onChange={(event) => setHiddenBusLineIds((hidden) => event.target.checked ? hidden.filter((id) => !ids.includes(id)) : [...new Set([...hidden, ...ids])])} /> {group.sub}</label></summary><ul>{busData.lines.filter((line) => ids.includes(line.id)).map((line) => <li key={line.id}><label><input type="checkbox" checked={selectedNetworkIds.includes(line.id)} onChange={(event) => setHiddenBusLineIds((hidden) => event.target.checked ? hidden.filter((id) => id !== line.id) : [...new Set([...hidden, line.id])])} /><button type="button" className={selectedNetworkLineId === line.id ? "is-selected" : ""} onClick={() => setSelectedNetworkLineId((selected) => selected === line.id ? null : line.id)}><span className="bus-line-chip" style={{ backgroundColor: line.color }}>{line.shortName}</span> {line.longName}</button></label></li>)}</ul></details>; })}</details>; })}
+              <details className="created-bus-category" open><summary><label><input type="checkbox" checked={createdVisible} onChange={(event) => setCreatedVisible(event.target.checked)} /> Créées ({createdLines.length})</label></summary>
+                <button type="button" className="bus-tool-button" disabled={!ready} onClick={() => { setNewLineToken((value) => value + 1); setSelectedLineId(null); setCreatorOpen(true); }}>Créer une ligne</button>
+                {createdLines.map((line) => <div className="created-bus-row" key={line.id}><button type="button" onClick={() => { setSelectedLineId(line.id); setCreatorOpen(true); }}>{line.name}</button><button type="button" onClick={() => { if (!window.confirm(`Supprimer la ligne « ${line.name} » ?`)) return; const next = createdLines.filter((item) => item.id !== line.id); window.localStorage.setItem(BUS_CREATED_LINES_KEY, JSON.stringify(next)); setCreatedLines(next); window.dispatchEvent(new Event("yft:bus-lines-updated")); }}>Supprimer</button></div>)}
+              </details>
+            </details></div>}
             {busData && <>
               <button className="bus-tool-button secondary" type="button" onClick={() => setSimulationOpen((value) => !value)} aria-expanded={simulationOpen}>
                 {simulationOpen ? "Masquer la simulation micro" : "Simulation micro des bus"}
               </button>
-              {simulationOpen && <BusSimulation map={map.current} mapReady={ready} data={busData} busVisible={networkVisible} selectedStopId={null} onModeChange={() => undefined} onClockChange={() => undefined} />}
+              {simulationOpen && <BusSimulation map={map.current} mapReady={ready} data={busData} busVisible selectedStopId={null} onModeChange={() => undefined} onClockChange={() => undefined} />}
             </>}
           </section>
           <section className="bilan-tools" hidden={activePanel !== "bilan"}>
             <h2>Bilan énergie et environnement</h2>
-            {busData ? <><BusImpact lineId="1" lineName="Ligne 1 · profil extrapolé au réseau" scenarioName={null} scenarioId={null} hasReference /><BusImpactNetwork data={busData} /></> : <p className="caption">Chargement des données SIBRA…</p>}
+            {busData ? <><BusImpact lineId="1" lineName="Ligne 1 · profil extrapolé au réseau" scenarioName={null} scenarioId={null} hasReference /><BusImpactNetwork data={visibleBusData ?? busData} /></> : <p className="caption">Chargement des données SIBRA…</p>}
           </section>
           <div className="sidebar-footer">
             <span className="dot" />
@@ -319,7 +347,6 @@ export default function App() {
             {mapMenuOpen && <div className="map-menu" role="menu" aria-label="Actions mobilité">
               <strong>Mobilité</strong>
               <button type="button" role="menuitem" disabled={!ready} onClick={() => { setNewLineToken((value) => value + 1); setSelectedLineId(null); setCreatorOpen(true); setMapMenuOpen(false); }}>Créer une ligne de bus</button>
-              <label><input type="checkbox" checked={networkVisible} onChange={(event) => setNetworkVisible(event.target.checked)} /> Réseau SIBRA</label>
               {createdLines.length > 0 && <small>{createdLines.length} ligne{createdLines.length > 1 ? "s" : ""} créée{createdLines.length > 1 ? "s" : ""}</small>}
             </div>}
           </div>

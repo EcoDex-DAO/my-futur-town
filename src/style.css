@@ -1083,6 +1083,15 @@ section h2 span {
 .created-bus-category li { display:flex; align-items:center; gap:6px; padding:5px 0; border-top:1px solid #e0e8de; }
 .created-bus-line { flex:1; border:0; background:transparent; color:#24493f; text-align:left; cursor:pointer; }
 .created-bus-delete { border:1px solid #caa9a4; border-radius:4px; padding:4px 7px; background:#fff; color:#8d302e; cursor:pointer; }
+.sibra-line-tree { max-height:38vh; overflow:auto; padding:8px 4px; border:1px solid #cad8ce; border-radius:6px; }
+.sibra-line-tree details { margin:3px 0; }
+.sibra-line-tree > details > details { margin-left:12px; padding-left:10px; border-left:1px solid #cad8ce; }
+.sibra-line-tree > details > details > details { margin-left:10px; padding-left:8px; border-left:1px solid #e0e8de; }
+.sibra-line-tree summary { cursor:pointer; font-weight:700; }
+.sibra-line-tree label { display:flex; align-items:center; gap:7px; }
+.sibra-line-tree input { accent-color:#31594a; }
+.sibra-line-tree button { border:0; padding:4px; background:transparent; color:#24493f; text-align:left; cursor:pointer; }
+.created-bus-row { display:flex; gap:7px; padding:5px; }
 @media (max-width: 760px) { .bus-creator-panel { top: 68px; right: 10px; width: min(370px, calc(100% - 20px)); max-height: calc(100% - 78px); padding: 14px; } .map-actions { top: 10px; left: 10px; } }
 .app { height:100dvh; overflow:hidden; }
 .app > header { height:64px; position:relative; z-index:20; }
