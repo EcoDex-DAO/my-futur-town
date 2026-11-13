@@ -77,6 +77,17 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
       setError("Les lignes enregistrées ne sont pas accessibles dans ce navigateur.");
     }
   }, []);
+  useEffect(() => {
+    const refresh = () => {
+      try {
+        const loaded = readBusCreatedLines(window.localStorage.getItem(BUS_CREATED_LINES_KEY));
+        setLines(loaded);
+        lineChangeRef.current(loaded);
+      } catch { setError("Les lignes enregistrées ne sont pas accessibles dans ce navigateur."); }
+    };
+    window.addEventListener("yft:bus-lines-updated", refresh);
+    return () => window.removeEventListener("yft:bus-lines-updated", refresh);
+  }, []);
 
   useEffect(() => {
     if (newLineToken === 0) return;
@@ -338,6 +349,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
 
   const deleteSelectedLine = () => {
     if (!activeLine || draft) return;
+    if (!window.confirm(`Supprimer la ligne « ${activeLine.name} » ? Cette action est définitive.`)) return;
     persistLines(lines.filter((line) => line.id !== activeLine.id));
     onSelectLine(null);
     setStep(0);

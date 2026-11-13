@@ -292,6 +292,22 @@ export default function App() {
               </>}
               {simulationOpen && <BusSimulation map={map.current} mapReady={ready} data={busData} busVisible={networkVisible} selectedStopId={null} onModeChange={() => undefined} onClockChange={() => undefined} />}
             </>}
+            <details className="created-bus-category" open>
+              <summary>Créées ({createdLines.length})</summary>
+              {createdLines.length ? <ul>{createdLines.map((line) => <li key={line.id}>
+                <button type="button" className="created-bus-line" onClick={() => { setSelectedLineId(line.id); setCreatorOpen(true); }}>{line.name}</button>
+                <button type="button" className="created-bus-delete" aria-label={`Supprimer ${line.name}`} onClick={() => {
+                  if (!window.confirm(`Supprimer la ligne « ${line.name} » ? Cette action est définitive.`)) return;
+                  const next = createdLines.filter((item) => item.id !== line.id);
+                  try {
+                    window.localStorage.setItem("yft.bus-created-lines.v1", JSON.stringify(next));
+                    setCreatedLines(next);
+                    window.dispatchEvent(new Event("yft:bus-lines-updated"));
+                    if (selectedLineId === line.id) { setSelectedLineId(null); setCreatorOpen(false); }
+                  } catch { setCreationMessage("Suppression impossible : le stockage local est inaccessible."); }
+                }}>Supprimer</button>
+              </li>)}</ul> : <p className="caption">Aucune ligne créée pour le moment.</p>}
+            </details>
           </section>
           <div className="sidebar-footer">
             <span className="dot" />
