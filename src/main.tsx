@@ -44,7 +44,7 @@ export default function App() {
   const [busData, setBusData] = useState<SibraData | null>(null);
   const [busError, setBusError] = useState("");
   const [hiddenBusLineIds, setHiddenBusLineIds] = useState<string[]>([]);
-  const [busStopsMode, setBusStopsMode] = useState<"all" | "selected" | "none">("none");
+  const [busStopsMode, setBusStopsMode] = useState<"all" | "selected" | "none">("all");
   const [simulationOpen, setSimulationOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [manageCreatedOpen, setManageCreatedOpen] = useState(false);
