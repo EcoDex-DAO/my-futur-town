@@ -162,6 +162,11 @@ export function BusSimulation({ map, mapReady, data, busVisible, selectedStopId,
   useEffect(() => { dataRef.current = data; }, [data]);
   useEffect(() => { onModeChange(active); }, [active, onModeChange]);
 
+  useEffect(() => () => {
+    if (!map || !mapReady) return;
+    for (const id of simulationLayerIds) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", "none");
+  }, [map, mapReady]);
+
   useEffect(() => {
     if (!mapReady || !map) return;
     if (!map.getSource("sibra-sim-routes")) {

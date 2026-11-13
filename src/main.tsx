@@ -9,6 +9,7 @@ import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 import { BusLineCreator } from "./features/bus/creator/BusLineCreator";
 import { BusImpact, BusImpactNetwork } from "./features/bus/macro/BusImpact";
 import { BusSimulation } from "./features/bus/micro/BusSimulation";
+import { BusTrafficSimulation } from "./features/bus/macro/BusTrafficSimulation";
 import { BusStopTimetable } from "./features/bus/shared/BusStopTimetable";
 import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
 import { BUS_CREATED_LINES_KEY, busCreatedMarkerFeatures, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
@@ -47,6 +48,7 @@ export default function App() {
   const [hiddenBusLineIds, setHiddenBusLineIds] = useState<string[]>([]);
   const [busStopsMode, setBusStopsMode] = useState<"all" | "selected" | "none">("all");
   const [simulationOpen, setSimulationOpen] = useState(false);
+  const [trafficOpen, setTrafficOpen] = useState(false);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [manageCreatedOpen, setManageCreatedOpen] = useState(false);
   const [busSelection, setBusSelection] = useState<{ kind: "line" | "created"; id: string } | { kind: "stop" | "created-stop"; id: string; name: string; lineId?: string } | null>(null);
@@ -388,12 +390,14 @@ export default function App() {
             <label className="bus-stops-mode">Arrêts de bus<select value={busStopsMode} onChange={(event) => setBusStopsMode(event.target.value as "all" | "selected" | "none")}><option value="all">Tous les arrêts</option><option value="selected">Des lignes cochées</option><option value="none">Aucun arrêt</option></select></label>
             {busError && <p className="caption" role="alert">{busError}</p>}
             {!busData && !busError && <p className="caption" role="status">Chargement du réseau SIBRA…</p>}
+            {busData && <><button className="bus-tool-button" type="button" onClick={() => { setTrafficOpen((value) => !value); setSimulationOpen(false); }} aria-expanded={trafficOpen}>{trafficOpen ? "Masquer la simulation du trafic" : "Simulation du trafic"}</button>
+              {trafficOpen && visibleBusData && <BusTrafficSimulation map={map.current} mapReady={ready} data={visibleBusData} visibleCreatedCount={createdVisible ? createdLines.filter((line) => !hiddenCreatedLineIds.includes(line.id)).length : 0} />}</>}
             {busData && <div className="sibra-line-tree"><details open><summary><label><input type="checkbox" checked={selectedNetworkIds.length === busData.lines.length && createdVisible} onChange={(event) => { setHiddenBusLineIds(event.target.checked ? [] : busData.lines.map((line) => line.id)); setCreatedVisible(event.target.checked); }} /> Tout le réseau ({busData.lines.length + createdLines.length})</label></summary>
               {Array.from(new Set(BUS_GROUPS.map((group) => group.category))).map((category) => { const groups = BUS_GROUPS.filter((group) => group.category === category); const categoryIds = [...new Set(groups.flatMap((group) => group.ids.map((id) => busData.lines.find((line) => line.id === id)?.id).filter((id): id is string => !!id)))]; return <details key={category} open><summary><label><input type="checkbox" checked={categoryIds.length > 0 && categoryIds.every((id) => selectedNetworkIds.includes(id))} onChange={(event) => setHiddenBusLineIds((hidden) => event.target.checked ? hidden.filter((id) => !categoryIds.includes(id)) : [...new Set([...hidden, ...categoryIds])])} /> {category}</label></summary>{groups.map((group) => { const ids = group.ids.filter((id) => busData.lines.some((line) => line.id === id)); return <details key={group.sub} open><summary><label><input type="checkbox" checked={ids.length > 0 && ids.every((id) => selectedNetworkIds.includes(id))} onChange={(event) => setHiddenBusLineIds((hidden) => event.target.checked ? hidden.filter((id) => !ids.includes(id)) : [...new Set([...hidden, ...ids])])} /> {group.sub}</label></summary><ul>{busData.lines.filter((line) => ids.includes(line.id)).map((line) => <li key={line.id}><label><input type="checkbox" checked={selectedNetworkIds.includes(line.id)} onChange={(event) => setHiddenBusLineIds((hidden) => event.target.checked ? hidden.filter((id) => id !== line.id) : [...new Set([...hidden, line.id])])} /><span><span className="bus-line-chip" style={{ backgroundColor: line.color }}>{line.shortName}</span> {line.longName}</span></label></li>)}</ul></details>; })}</details>; })}
               <details className="created-bus-category" open><summary><label><input type="checkbox" checked={createdVisible && hiddenCreatedLineIds.length === 0} onChange={(event) => { setCreatedVisible(event.target.checked); setHiddenCreatedLineIds(event.target.checked ? [] : createdLines.map((line) => line.id)); }} /> Créées ({createdLines.length})</label></summary>{createdLines.map((line) => <label key={line.id}><input type="checkbox" checked={createdVisible && !hiddenCreatedLineIds.includes(line.id)} onChange={(event) => setHiddenCreatedLineIds((hidden) => event.target.checked ? hidden.filter((id) => id !== line.id) : [...new Set([...hidden, line.id])])} /><span>{line.name}</span></label>)}</details>
             </details></div>}
             {busData && <>
-              <button className="bus-tool-button secondary" type="button" onClick={() => setSimulationOpen((value) => !value)} aria-expanded={simulationOpen}>
+              <button className="bus-tool-button secondary" type="button" onClick={() => { setSimulationOpen((value) => !value); setTrafficOpen(false); }} aria-expanded={simulationOpen}>
                 {simulationOpen ? "Masquer la simulation micro" : "Simulation micro des bus"}
               </button>
               {simulationOpen && <BusSimulation map={map.current} mapReady={ready} data={busData} busVisible selectedStopId={null} onModeChange={() => undefined} onClockChange={() => undefined} />}
