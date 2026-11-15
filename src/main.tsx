@@ -7,7 +7,7 @@ import type { MapGeoJSONFeature } from "maplibre-gl";
 import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 
 import { BusLineCreator } from "./features/bus/creator/BusLineCreator";
-import { BusImpact, BusImpactNetwork } from "./features/bus/macro/BusImpact";
+import { BusReport } from "./features/bus/macro/BusReport";
 import { BusSimulation } from "./features/bus/micro/BusSimulation";
 import { BusTrafficSimulation } from "./features/bus/macro/BusTrafficSimulation";
 import { BusStopTimetable } from "./features/bus/shared/BusStopTimetable";
@@ -405,7 +405,7 @@ export default function App() {
           </section>
           <section className="bilan-tools" hidden={activePanel !== "bilan"}>
             <h2>Bilan énergie et environnement</h2>
-            {busData ? <><BusImpact lineId="1" lineName="Ligne 1 · profil extrapolé au réseau" scenarioName={null} scenarioId={null} hasReference /><BusImpactNetwork data={visibleBusData ?? busData} /></> : <p className="caption">Chargement des données SIBRA…</p>}
+            {busData ? <BusReport data={busData} groups={BUS_GROUPS} selectedIds={selectedNetworkIds} /> : <p className="caption">Chargement des données SIBRA…</p>}
           </section>
           <div className="sidebar-footer">
             <span className="dot" />

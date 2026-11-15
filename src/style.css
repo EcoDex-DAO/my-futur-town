@@ -1137,3 +1137,21 @@ main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
 [hidden] { display:none !important; }
 .map-heading { display:none; }
 @media(max-width:760px) { .app > header { height:68px; } main { height:calc(100dvh - 68px); } .tool-nav { gap:4px; } .tool-nav button { width:42px; height:42px; min-height:42px; justify-content:center; padding:8px; } .tool-nav button span { display:none; } .sidebar.panel-bus,.sidebar.panel-layers,.sidebar.panel-bilan { top:76px; right:8px; bottom:8px; width:min(370px,calc(100vw - 16px)); } }
+
+.bilan-report h3 { margin: 22px 0 10px; }
+.bilan-report h4 { margin: 18px 0 8px; }
+.bilan-report p, .bilan-report li { line-height: 1.45; }
+.bilan-note { padding: 12px; background: #f1f5ef; border-radius: 6px; }
+.bilan-scenario, .bilan-input { display: grid; gap: 5px; }
+.bilan-scenario select, .bilan-input input, .bilan-line select { width: 100%; }
+.bilan-totals { margin: 0; }
+.bilan-totals div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e2e7e1; }
+.bilan-totals dd { margin: 0; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.bilan-line, .bilan-assumptions { padding: 12px 0; border-bottom: 1px solid #e2e7e1; }
+.bilan-line summary, .bilan-assumptions summary { cursor: pointer; font-weight: 700; }
+.bilan-line ul { padding-left: 20px; }
+.bilan-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.bilan-input span { font-size: .8em; }
+.bilan-report a { text-decoration: underline; text-underline-offset: 2px; }
+
+.bilan-subgroup { margin-left: 16px; }
