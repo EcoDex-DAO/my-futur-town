@@ -1,0 +1,41 @@
+.sidebar.panel-multimodal:not(.panel-bus):not(.panel-layers):not(.panel-bilan) {
+  display: block !important;
+  position: fixed;
+  z-index: 15;
+  top: 76px;
+  right: 14px;
+  bottom: 14px;
+  width: min(440px, calc(100vw - 28px));
+  padding: 24px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #dbe2d9;
+  border-radius: 10px;
+  box-shadow: 0 12px 36px #193e3a24;
+}
+.sidebar.panel-multimodal .multimodal-tools { display: block !important; }
+.multimodal-panel { color: #203c34; font-size: 14px; line-height: 1.5; }
+.multimodal-panel h3 { margin: 24px 0 8px; font-size: 17px; }
+.multimodal-panel p { margin: 9px 0; }
+.multimodal-note, .multimodal-hint { color: #435b50; font-size: 12px; }
+.multimodal-error { color: #8b261e; }
+.multimodal-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.multimodal-actions button { min-height: 38px; padding: 7px 10px; border: 1px solid #769185; border-radius: 6px; background: #fff; color: #234a3b; cursor: pointer; }
+.multimodal-actions button:hover:not(:disabled) { background: #e8f0eb; }
+.multimodal-actions button:disabled { cursor: not-allowed; opacity: .5; }
+.multimodal-field { display: grid; gap: 4px; margin: 10px 0; font-weight: 600; }
+.multimodal-field span { color: #435b50; font-size: 12px; font-weight: 400; }
+.multimodal-field input, .multimodal-field select { width: 100%; min-width: 0; min-height: 38px; padding: 7px 9px; border: 1px solid #9daf9f; border-radius: 5px; background: white; color: #203c34; font: inherit; font-weight: 400; }
+.multimodal-panel :focus-visible { outline: 3px solid #297c5c; outline-offset: 2px; }
+.multimodal-assumption { padding: 8px 0; border-bottom: 1px solid #dbe2d9; }
+.multimodal-assumption details { margin: 4px 0; }
+.multimodal-assumption summary { color: #31594a; cursor: pointer; }
+.multimodal-results { margin: 10px 0; }
+.multimodal-results div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #dbe2d9; }
+.multimodal-results dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.multimodal-comparison { overflow-x: auto; }
+.multimodal-comparison table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+.multimodal-comparison th, .multimodal-comparison td { padding: 7px; border-bottom: 1px solid #dbe2d9; text-align: left; }
+@media (max-width: 760px) {
+  .sidebar.panel-multimodal:not(.panel-bus):not(.panel-layers):not(.panel-bilan) { top: 76px; right: 8px; bottom: 8px; width: min(370px, calc(100vw - 16px)); }
+}

@@ -26,7 +26,7 @@ Objectif : comparer la situation actuelle aux scénarios d'aménagement du parki
 
 ## 4. Flux et besoins de bus
 
-- [ ] Intégrer le premier calcul isolé de demande horaire, départs supplémentaires et véhicules nécessaires : prototype et tests présents localement, pas encore publiés.
+- [x] Intégrer le premier calcul isolé de demande horaire, départs supplémentaires et véhicules nécessaires ([PR 18](https://github.com/EcoDex-DAO/my-futur-town/pull/18), publiée sur `main` au commit `2e0639c`). Les hypothèses et limites sont décrites dans [calcul-multimodal-bus.md](calcul-multimodal-bus.md).
 - [ ] Raccorder le calcul à l'interface et aux scénarios ; afficher toutes les hypothèses et leurs sources.
 - [ ] Estimer les arrivées horaires : occupation, rotation, personnes par voiture et destinations.
 - [ ] Répartir les voyageurs entre bus, vélo et marche ; distinguer report modal et déplacements induits.

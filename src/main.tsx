@@ -11,6 +11,7 @@ import { BusReport } from "./features/bus/macro/BusReport";
 import { BusSimulation } from "./features/bus/micro/BusSimulation";
 import { BusTrafficSimulation } from "./features/bus/macro/BusTrafficSimulation";
 import { BusStopTimetable } from "./features/bus/shared/BusStopTimetable";
+import { MultimodalPanel } from "./features/multimodal/MultimodalPanel";
 import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
 import { BUS_CREATED_LINES_KEY, busCreatedMarkerFeatures, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
 
@@ -53,7 +54,7 @@ export default function App() {
   const [manageCreatedOpen, setManageCreatedOpen] = useState(false);
   const [busSelection, setBusSelection] = useState<{ kind: "line" | "created"; id: string } | { kind: "stop" | "created-stop"; id: string; name: string; lineId?: string } | null>(null);
   const [busInfoPosition, setBusInfoPosition] = useState<{ side: "left" | "right"; vertical: "top" | "bottom" }>({ side: "right", vertical: "top" });
-  const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | null>(null);
+  const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | "multimodal" | null>(null);
   const [newLineToken, setNewLineToken] = useState(0);
   const [createdLines, setCreatedLines] = useState<BusCreatedLine[]>([]);
   const [createdVisible, setCreatedVisible] = useState(true);
@@ -338,6 +339,7 @@ export default function App() {
           <button type="button" aria-label="Menu Bus" aria-expanded={activePanel === "bus"} className={activePanel === "bus" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "bus" ? null : "bus")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5V16M5 12h14M8 16v3m8-3v3M7 19h10" /></svg><span>Bus</span></button>
           <button type="button" aria-label="Menu Couches de référence" aria-expanded={activePanel === "layers"} className={activePanel === "layers" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "layers" ? null : "layers")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" /></svg><span>Couches</span></button>
           <button type="button" aria-label="Menu Bilan" aria-expanded={activePanel === "bilan"} className={activePanel === "bilan" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "bilan" ? null : "bilan")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 1 9-9M12 7v5l3 2m2 5 2 2 4-5" /></svg><span>Bilan</span></button>
+          <button type="button" aria-label="Menu Scénarios multimodaux" aria-expanded={activePanel === "multimodal"} className={activePanel === "multimodal" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "multimodal" ? null : "multimodal")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6m-6 0v6" /></svg><span>Scénarios</span></button>
         </nav>
       </header>
       <main>
@@ -406,6 +408,9 @@ export default function App() {
           <section className="bilan-tools" hidden={activePanel !== "bilan"}>
             <h2>Bilan énergie et environnement</h2>
             {busData ? <BusReport data={busData} groups={BUS_GROUPS} selectedIds={selectedNetworkIds} /> : <p className="caption">Chargement des données SIBRA…</p>}
+          </section>
+          <section className="multimodal-tools" hidden={activePanel !== "multimodal"} aria-label="Scénarios multimodaux">
+            <MultimodalPanel />
           </section>
           <div className="sidebar-footer">
             <span className="dot" />
