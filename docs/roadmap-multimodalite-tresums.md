@@ -4,12 +4,14 @@ Objectif : comparer la situation actuelle aux scénarios d'aménagement du parki
 
 ## 1. Données et référence
 
+Voir la [référence locale documentée](reference-locale-tresums.md), sa [carte routière indicative](../data/reference/tresums/README.md) et l'[extrait cadastral](../data/reference/tresums-cadastre/README.md). Les extraits figés sont des fichiers de référence : leur intégration comme couches interactives reste à réaliser.
+
 - [ ] Délimiter l'emprise, les accès et la capacité actuelle du parking ; vérifier les contraintes du site.
-- [ ] Importer routes, bâtiments et parcelles avec provenance, date et licence ; signaler les valeurs manquantes.
+- [x] Importer routes, bâtiments et parcelles avec provenance, date et licence ; signaler les valeurs manquantes. Extraits figés documentés pour la fenêtre d'étude, sans emprise foncière validée ni hauteurs mesurées.
 - [ ] Examiner les [comptages routiers](https://www.data.gouv.fr/datasets/trafic-routier-en-haute-savoie), les [parkings d'Annecy](https://www.data.gouv.fr/datasets/frequentation-quotidienne-des-parkings-couverts-payants-ville-dannecy) et vérifier leur couverture des Trésums.
 - [ ] Exploiter les [horaires SIBRA et archives](https://transport.data.gouv.fr/datasets/offre-de-transports-sibra-a-annecy-gtfs/), les [flux INSEE](https://www.insee.fr/fr/statistiques/8582949) et l'[enquête locale](https://www.grandannecy.fr/fileadmin/mediatheque/Documents_reglementaires/Conseil/2024/04_25/DEL-2024-64_ZFE-M__Projet_arrete_et_lancement_consultation_reglementaire.pdf).
-- [ ] Rechercher des études de pôles comparables ; documenter leurs différences et la transférabilité des hypothèses.
-- [ ] Produire une carte de référence et un tableau des données connues, inconnues et estimées.
+- [x] Rechercher des études de pôles comparables ; documenter leurs différences et la transférabilité des hypothèses.
+- [x] Produire une carte de référence et un tableau des données connues, inconnues et estimées.
 
 ## 2. Scénarios
 
