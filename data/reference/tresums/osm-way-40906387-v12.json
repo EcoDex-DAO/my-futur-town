@@ -1,0 +1,249 @@
+{
+  "version": "0.6",
+  "generator": "openstreetmap-cgimap 2.1.1 (789748 spike-06.openstreetmap.org)",
+  "elements": [
+    {
+      "type": "node",
+      "id": 498054472,
+      "lat": 45.8957931,
+      "lon": 6.130177,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 3,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498054475,
+      "lat": 45.8960084,
+      "lon": 6.129928,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 4,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498054484,
+      "lat": 45.8964577,
+      "lon": 6.1306148,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 4,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498054491,
+      "lat": 45.8967343,
+      "lon": 6.1302933,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 4,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498054496,
+      "lat": 45.8971421,
+      "lon": 6.1311035,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 4,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498054499,
+      "lat": 45.8970433,
+      "lon": 6.1312138,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 4,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498054502,
+      "lat": 45.8968608,
+      "lon": 6.131403,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 5,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498054510,
+      "lat": 45.8967942,
+      "lon": 6.1314372,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 5,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498054513,
+      "lat": 45.8967332,
+      "lon": 6.13144,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 5,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498054516,
+      "lat": 45.8966802,
+      "lon": 6.1314203,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 5,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498058180,
+      "lat": 45.8969983,
+      "lon": 6.130847,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 3,
+      "tags": {
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre ; mise à jour : 2008"
+      }
+    },
+    {
+      "type": "node",
+      "id": 498058183,
+      "lat": 45.8965909,
+      "lon": 6.1313035,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 5
+    },
+    {
+      "type": "node",
+      "id": 4078671859,
+      "lat": 45.8968458,
+      "lon": 6.1304842,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 4
+    },
+    {
+      "type": "node",
+      "id": 4078671860,
+      "lat": 45.8969251,
+      "lon": 6.1306196,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 5
+    },
+    {
+      "type": "node",
+      "id": 4078671861,
+      "lat": 45.8966943,
+      "lon": 6.1303373,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 4
+    },
+    {
+      "type": "node",
+      "id": 6022743858,
+      "lat": 45.8960072,
+      "lon": 6.1304516,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 3
+    },
+    {
+      "type": "node",
+      "id": 6022743859,
+      "lat": 45.8961985,
+      "lon": 6.1307171,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 3
+    },
+    {
+      "type": "node",
+      "id": 6485260683,
+      "lat": 45.896509,
+      "lon": 6.130549,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 4
+    },
+    {
+      "type": "node",
+      "id": 10297178348,
+      "lat": 45.8966697,
+      "lon": 6.1303644,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 3
+    },
+    {
+      "type": "node",
+      "id": 10297178352,
+      "lat": 45.8966119,
+      "lon": 6.1304307,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 3
+    },
+    {
+      "type": "node",
+      "id": 10297178353,
+      "lat": 45.8965684,
+      "lon": 6.1304807,
+      "timestamp": "2026-07-02T08:32:17Z",
+      "version": 3
+    },
+    {
+      "type": "way",
+      "id": 40906387,
+      "timestamp": "2026-07-02T08:27:14Z",
+      "version": 12,
+      "nodes": [
+        498054472,
+        498054475,
+        498054484,
+        6485260683,
+        10297178353,
+        10297178352,
+        10297178348,
+        4078671861,
+        498054491,
+        4078671859,
+        4078671860,
+        498058180,
+        498054496,
+        498054499,
+        498054502,
+        498054510,
+        498054513,
+        498054516,
+        498058183,
+        6022743859,
+        6022743858,
+        498054472
+      ],
+      "tags": {
+        "access": "yes",
+        "amenity": "parking",
+        "capacity": "178",
+        "capacity:disabled": "7",
+        "fee": "yes",
+        "name": "Parking des Trésums",
+        "parking": "surface",
+        "source": "cadastre-dgi-fr source : Direction Générale des Impôts - Cadastre;mise à jour : 2008",
+        "source2": "Grand-Annecy",
+        "website": "https://www.annecy.fr/quotidien/deplacement-et-stationnement/stationnement"
+      }
+    }
+  ]
+}
