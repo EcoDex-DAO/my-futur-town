@@ -22,6 +22,7 @@ Voir la [référence locale documentée](reference-locale-tresums.md), sa [carte
 
 ## 3. Parking et photovoltaïque
 
+- Travail partiel : [capacité et volume indicatifs](parking-scenarios.md) paramétrables par scénario sur l'emprise OSM ; accès, rampes, équipements, niveaux souterrains, stationnement vélo et détails restent à développer et vérifier.
 - [ ] Sélectionner l'emprise et paramétrer niveaux, hauteur, rampes, équipements et stationnement automobile et cyclable.
 - [ ] Estimer la capacité et afficher un volume 3D simple à l'échelle de la ville, détaillé au zoom.
 - [ ] Paramétrer les ombrières et estimer leur production avec [PVGIS](https://photovoltaic-geographic-information-system.ec.europa.eu/en/about-pvgis-6).

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { MultimodalInputs } from "./estimate";
-import { createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios, saveScenarios, SCENARIOS_STORAGE_KEY, type Assumption, type MultimodalScenario } from "./scenarios";
+import { calculateParking, PARKING_KEYS, PARKING_MAXIMUMS, type ParkingAssumptions } from "./parking";
+import { createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios, saveScenarios, SCENARIOS_STORAGE_KEY, type Assumption, type AssumptionProvenance, type MultimodalScenario } from "./scenarios";
 import "./multimodal.css";
 
 const fields: Record<keyof MultimodalInputs, { label: string; unit: string; description?: string }> = {
@@ -19,6 +20,12 @@ const fields: Record<keyof MultimodalInputs, { label: string; unit: string; desc
 };
 
 const format = (value: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(value);
+const parkingFields: Record<keyof ParkingAssumptions, { label: string; unit: string }> = {
+  levels: { label: "Niveaux hors sol", unit: "niveaux" },
+  levelHeightMeters: { label: "Hauteur par niveau", unit: "m" },
+  areaPerLevelSqMeters: { label: "Surface de stationnement par niveau", unit: "m²/niveau" },
+  squareMetersPerSpace: { label: "Surface par place avec circulation", unit: "m²/place" },
+};
 let idSequence = 0;
 
 // IDs distinguish scenarios in this browser; they are not authentication tokens.
@@ -42,13 +49,18 @@ function result(scenario: MultimodalScenario) {
   catch { return { value: null, error: "Vérifiez les valeurs : elles doivent être positives, les parts entre 0 et 1, les places et départs entiers, et la capacité et le cycle strictement positifs." }; }
 }
 
-export function MultimodalPanel() {
+export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: {
+  onParkingPreview: (height: number | null) => void;
+  onFocusParking: () => void;
+  mapReady: boolean;
+}) {
   const [scenarios, setScenarios] = useState<MultimodalScenario[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [storageReady, setStorageReady] = useState(false);
   const [storageError, setStorageError] = useState("");
   const [status, setStatus] = useState("");
   const [dirty, setDirty] = useState(false);
+  const [previewEnabled, setPreviewEnabled] = useState(false);
   const loadedSnapshot = useRef<string | null>(null);
 
   useEffect(() => {
@@ -72,6 +84,11 @@ export function MultimodalPanel() {
 
   const current = scenarios.find((scenario) => scenario.id === selectedId);
   const currentResult = current ? result(current) : null;
+  const parkingEstimate = current ? calculateParking(current.parking) : null;
+  const previewHeight = parkingEstimate?.heightMeters ?? null;
+  useEffect(() => {
+    onParkingPreview(previewEnabled ? previewHeight : null);
+  }, [previewEnabled, previewHeight, onParkingPreview]);
   const update = (change: (scenario: MultimodalScenario) => MultimodalScenario) => {
     setScenarios((previous) => previous.map((scenario) => scenario.id === selectedId ? change(scenario) : scenario));
     setStatus("Modifications non enregistrées.");
@@ -79,6 +96,12 @@ export function MultimodalPanel() {
   };
   const updateAssumption = (key: keyof MultimodalInputs, change: Partial<Assumption>) => update((scenario) => ({
     ...scenario, assumptions: { ...scenario.assumptions, [key]: { ...scenario.assumptions[key], ...change } },
+  }));
+  const updateParking = (key: keyof ParkingAssumptions, value: number | null) => update((scenario) => ({
+    ...scenario, parking: { ...scenario.parking, [key]: value },
+  }));
+  const updateParkingProvenance = (key: keyof ParkingAssumptions, change: Partial<AssumptionProvenance>) => update((scenario) => ({
+    ...scenario, parkingProvenance: { ...scenario.parkingProvenance, [key]: { ...scenario.parkingProvenance[key], ...change } },
   }));
   const add = (duplicate = false) => {
     try {
@@ -125,6 +148,35 @@ export function MultimodalPanel() {
     {current && <>
       <label className="multimodal-field">Scénario actif<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{scenarios.map((scenario) => <option value={scenario.id} key={scenario.id}>{scenario.name || "Nom à renseigner"}</option>)}</select></label>
       <label className="multimodal-field">Nom du scénario<input value={current.name} onChange={(event) => update((scenario) => ({ ...scenario, name: event.target.value }))} /></label>
+      <h3>Parking à niveaux</h3>
+      <p>Le contour OSM est indicatif. La capacité et le volume sont des estimations ; accès, rampes, structure et faisabilité restent à vérifier.</p>
+      <p className="multimodal-hint">Le volume extrude le contour OSM complet à la hauteur calculée. La surface saisie sert uniquement au calcul de capacité.</p>
+      <p className="multimodal-hint">© contributeurs OpenStreetMap, ODbL. Surface par niveau : inclure la circulation comprise dans le ratio, et retirer les surfaces qui ne lui correspondent pas.</p>
+      {PARKING_KEYS.map((key) => {
+        const field = parkingFields[key];
+        const provenance = current.parkingProvenance[key];
+        return <div className="multimodal-assumption" key={key}>
+          <label className="multimodal-field">{field.label} <span>({field.unit})</span><input type="number" min="0" max={PARKING_MAXIMUMS[key]} step={key === "levels" ? "1" : "any"} value={current.parking[key] ?? ""} onChange={(event) => updateParking(key, event.target.value === "" ? null : event.target.valueAsNumber)} /></label>
+          {parkingEstimate?.errors[key] && <p className="multimodal-error" role="alert">{parkingEstimate.errors[key]}</p>}
+          <details><summary>Source — {field.label}</summary>
+            <label className="multimodal-field">Nature — {field.label}<select value={provenance.nature} onChange={(event) => updateParkingProvenance(key, { nature: event.target.value as AssumptionProvenance["nature"] })}><option value="unknown">Inconnue</option><option value="local">Mesure locale</option><option value="transferred">Hypothèse d’un autre projet</option><option value="assumed">Valeur supposée</option></select></label>
+            <label className="multimodal-field">Source — {field.label}<input value={provenance.source} onChange={(event) => updateParkingProvenance(key, { source: event.target.value })} /></label>
+            <label className="multimodal-field">Date — {field.label}<input type="date" value={provenance.date} onChange={(event) => updateParkingProvenance(key, { date: event.target.value })} /></label>
+            <label className="multimodal-field">Périmètre — {field.label}<input value={provenance.scope} onChange={(event) => updateParkingProvenance(key, { scope: event.target.value })} /></label>
+          </details>
+        </div>;
+      })}
+      <p className="multimodal-hint">Un guide du Certu (2008), diffusé par le Cerema, donne un exemple de 25 m² par place en garage collectif, dégagements compris : valeur transférée, non mesurée aux Trésums. <a href="https://doc.cerema.fr/digitalCollection/DigitalCollectionAttachmentDownloadHandler.ashx?documentId=584694&amp;parentDocumentId=14411&amp;skipCopyright=true&amp;skipWatermark=true" target="_blank" rel="noreferrer">Consulter la source</a>.</p>
+      <p>Capacité théorique : <strong>{parkingEstimate?.capacity === null ? "à renseigner" : `${format(parkingEstimate!.capacity!)} places`}</strong>. Hauteur indicative : <strong>{previewHeight === null ? "à renseigner" : `${format(previewHeight)} m`}</strong>.</p>
+      <div className="multimodal-actions">
+        <button type="button" disabled={previewHeight === null || !mapReady} onClick={() => { setPreviewEnabled(true); onParkingPreview(previewHeight); onFocusParking(); }}>Afficher le volume sur la carte</button>
+        <button type="button" disabled={!previewEnabled} onClick={() => setPreviewEnabled(false)}>Masquer le volume</button>
+        <button type="button" disabled={parkingEstimate?.capacity === null} onClick={() => {
+          if (parkingEstimate?.capacity === null || parkingEstimate?.capacity === undefined) return;
+          updateAssumption("parkingPlaces", { value: parkingEstimate.capacity, nature: "assumed", source: "Estimation du parking du scénario", date: "", scope: "Capacité théorique, à vérifier" });
+        }}>Utiliser la capacité pour le calcul bus</button>
+      </div>
+      <p className="multimodal-hint">Le transfert vers le calcul bus copie la capacité actuelle. Si les paramètres du parking changent, effectuer à nouveau le transfert pour actualiser le calcul bus.</p>
       <h3>Hypothèses et sources</h3>
       <p>Renseignez la valeur et son origine. Les mesures locales, les hypothèses transférées et les valeurs supposées doivent rester distinctes.</p>
       {INPUT_KEYS.map((key) => {
@@ -150,6 +202,6 @@ export function MultimodalPanel() {
       </dl> : <p>Renseignez toutes les valeurs pour calculer une estimation.</p>}
       <p className="multimodal-hint">Le calcul inclut la surcharge préexistante et ne distingue pas report modal et déplacements induits. Les véhicules sont une estimation, pas un planning d’exploitation.</p>
     </>}
-    {scenarios.length > 1 && <><h3>Comparer les scénarios</h3><p>Les résultats ne sont comparables que pour une même heure et un même périmètre.</p><div className="multimodal-comparison" role="region" aria-label="Comparaison des scénarios" tabIndex={0}><table><thead><tr><th>Scénario</th><th>Voitures/h</th><th>Voyageurs bus/h</th><th>Départs en plus/h</th><th>Véhicules en plus</th></tr></thead><tbody>{scenarios.map((scenario) => { const estimate = result(scenario); return <tr key={scenario.id}><th scope="row">{scenario.name || "Nom à renseigner"}</th>{estimate.value ? <><td>{format(estimate.value.arrivalsPerHour)}</td><td>{format(estimate.value.additionalBusPassengers)}</td><td>{format(estimate.value.additionalDepartures)}</td><td>{format(estimate.value.additionalVehicles)}</td></> : <td colSpan={4}>{estimate.error ? "Valeurs à corriger" : "À renseigner"}</td>}</tr>; })}</tbody></table></div></>}
+    {scenarios.length > 1 && <><h3>Comparer les scénarios</h3><p>Les résultats ne sont comparables que pour une même heure et un même périmètre.</p><div className="multimodal-comparison" role="region" aria-label="Comparaison des scénarios" tabIndex={0}><table><thead><tr><th>Scénario</th><th>Places estimées</th><th>Hauteur estimée</th><th>Voitures/h</th><th>Voyageurs bus/h</th><th>Départs en plus/h</th><th>Véhicules en plus</th></tr></thead><tbody>{scenarios.map((scenario) => { const estimate = result(scenario); const parking = calculateParking(scenario.parking); return <tr key={scenario.id}><th scope="row">{scenario.name || "Nom à renseigner"}</th><td>{parking.capacity === null ? "À renseigner" : format(parking.capacity)}</td><td>{parking.heightMeters === null ? "À renseigner" : `${format(parking.heightMeters)} m`}</td>{estimate.value ? <><td>{format(estimate.value.arrivalsPerHour)}</td><td>{format(estimate.value.additionalBusPassengers)}</td><td>{format(estimate.value.additionalDepartures)}</td><td>{format(estimate.value.additionalVehicles)}</td></> : <td colSpan={4}>{estimate.error ? "Valeurs à corriger" : "À renseigner"}</td>}</tr>; })}</tbody></table></div></>}
   </div>;
 }
