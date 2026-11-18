@@ -23,7 +23,11 @@ Le volume utilise le polygone OpenStreetMap `way/40906387` version 12, issu de l
 [référence locale](../data/reference/tresums/README.md) : © contributeurs OpenStreetMap,
 ODbL 1.0. C'est un contour contributif indicatif, non un périmètre foncier ou une emprise
 de projet validée. Les accès et surfaces ne sont pas calculés depuis ce polygone. Un contour
-est ajouté au zoom rapproché ; les rampes et les étages intérieurs ne sont pas modélisés.
+et des bandes représentant schématiquement chaque niveau sont ajoutés au zoom rapproché.
+Les bandes utilisent le nombre de niveaux et leur hauteur renseignés dans le scénario ;
+elles ne représentent ni la disposition réelle des étages ni un plan architectural.
+Le volume simple reste affiché à l'échelle de la ville. Les rampes et les étages
+intérieurs ne sont pas modélisés.
 Le volume extrude tout le contour OSM à la hauteur calculée, indépendamment de la surface
 saisie, qui ne sert qu'à l'estimation de capacité.
 
