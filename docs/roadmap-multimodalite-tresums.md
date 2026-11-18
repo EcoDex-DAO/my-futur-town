@@ -42,7 +42,7 @@ Voir la [référence locale documentée](reference-locale-tresums.md), sa [carte
 
 ## 5. Voirie
 
-- Travail partiel : l'éditeur et son calque sont accessibles dans l'interface. La voirie reste stockée séparément dans Supabase ; l'association ne crée pas de copie figée. Le parcours authentifié et les profils de voies bus restent à vérifier ou développer.
+- Travail partiel : l'éditeur et son calque sont accessibles dans l'interface. La voirie reste stockée séparément dans Supabase ; l'association ne crée pas de copie figée. Après interruption de session, un brouillon non enregistré peut être récupéré par son propriétaire tant que l'onglet reste ouvert. Le parcours authentifié sur le service hébergé et les profils de voies bus restent à vérifier ou développer.
 - [ ] Sélectionner les tronçons et modifier nombre, largeur et affectation des voies voiture, bus, vélo et piéton.
 - [ ] Afficher les changements et signaler les largeurs inconnues ou insuffisantes.
 - [ ] Sauvegarder les modifications par scénario ; création et déplacement de routes hors V1.

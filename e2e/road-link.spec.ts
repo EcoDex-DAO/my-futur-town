@@ -205,3 +205,57 @@ test("une voirie supprimée ou inaccessible ne peut pas être annoncée ouverte"
   await expect(page.getByRole("button", { name: "Associer la voirie sélectionnée" })).toBeDisabled();
   await expect(page.getByText("La voirie liée n’est pas ouverte ; elle peut être indisponible.")).toBeVisible();
 });
+
+test("un brouillon survit à une déconnexion extérieure et revient au seul propriétaire", async ({ page }) => {
+  test.skip(process.env.MFT_SUPABASE_MOCK !== "1", "Nécessite le service Supabase simulé.");
+  const owner = "00000000-0000-4000-8000-000000000001";
+  const roadId = "00000000-0000-4000-8000-000000000002";
+  const layerId = "00000000-0000-4000-8000-000000000003";
+  const user = { id: owner, aud: "authenticated", role: "authenticated", email: "test@example.invalid", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" };
+  const token = `${Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ sub: owner, role: "authenticated", exp: 4102444800 })).toString("base64url")}.signature`;
+  const session = { access_token: token, refresh_token: "mock-refresh", token_type: "bearer", expires_at: 4102444800, expires_in: 3600, user };
+  let failNextGraph = false;
+  await page.addInitScript((value) => localStorage.setItem("sb-mock-supabase-auth-token", JSON.stringify(value)), session);
+  await page.route("https://mock-supabase.invalid/**", async (route) => {
+    const headers = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET,POST,OPTIONS" };
+    if (route.request().method() === "OPTIONS") { await route.fulfill({ status: 204, headers }); return; }
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/yft_road_graph") && failNextGraph) {
+      failNextGraph = false;
+      await route.fulfill({ status: 500, headers, contentType: "application/json", body: JSON.stringify({ message: "Panne temporaire" }) });
+      return;
+    }
+    let data: unknown;
+    if (path.endsWith("/geo_layers")) data = [{ id: layerId, name: "Routes de test", slug: "annecy-roads-test", metadata: { version: "v-test", segments: 1 } }];
+    else if (path.endsWith("/scenarios")) data = [{ id: roadId, name: "Voirie de test", reference_layer_id: layerId, reference_version: "v-test", updated_at: "2026-01-01T00:00:00Z" }];
+    else if (path.endsWith("/yft_road_features")) data = { type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "LineString", coordinates: [[6.12, 45.89], [6.121, 45.891]] }, properties: { id: "road-test", name: "Rue de test", source_key: "osm/test", length_m: 100, from_node: "from-node", to_node: "to-node", road_profile: {} } }] };
+    else if (path.endsWith("/scenario_changes") || path.endsWith("/yft_road_graph")) data = [];
+    else if (path.endsWith("/user")) data = user;
+    else throw new Error(`Requête Supabase simulée inattendue : ${path}`);
+    await route.fulfill({ status: 200, headers, contentType: "application/json", body: JSON.stringify(data) });
+  });
+  await page.route("**/health", (route) => route.abort());
+  await page.route("https://tiles.openfreemap.org/**", (route) => route.abort());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menu Scénarios multimodaux" }).click();
+  await page.getByText("Éditeur de voirie", { exact: true }).first().click();
+  await expect(page.getByLabel("Scénario enregistré").locator("option")).toHaveCount(2);
+  await page.getByLabel("Scénario enregistré").selectOption(roadId);
+  await page.getByLabel("Sélectionner un tronçon").selectOption("road-test");
+  const width = page.getByLabel("Largeur totale (m)", { exact: true });
+  await expect(width).toBeEnabled({ timeout: 20_000 });
+  await width.fill("12");
+  await page.evaluate(() => { const c = new BroadcastChannel("sb-mock-supabase-auth-token"); c.postMessage({ event: "SIGNED_OUT", session: null }); c.close(); });
+  await expect(page.getByText(/Session interrompue : un brouillon/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Récupérer le brouillon" })).toHaveCount(0);
+  await page.evaluate((value) => { const c = new BroadcastChannel("sb-mock-supabase-auth-token"); c.postMessage({ event: "SIGNED_IN", session: value }); c.close(); }, { ...session, user: { ...user, id: "00000000-0000-4000-8000-000000000099" } });
+  await expect(page.getByText(/Session interrompue : un brouillon/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Récupérer le brouillon" })).toHaveCount(0);
+  await page.evaluate((value) => { const c = new BroadcastChannel("sb-mock-supabase-auth-token"); c.postMessage({ event: "SIGNED_IN", session: value }); c.close(); }, session);
+  failNextGraph = true;
+  await page.getByRole("button", { name: "Récupérer le brouillon" }).click({ timeout: 20_000 });
+  await expect(page.getByText(/Impossible de récupérer le brouillon pour le moment/)).toBeVisible({ timeout: 20_000 });
+  await page.getByRole("button", { name: "Récupérer le brouillon" }).click();
+  await expect(width).toHaveValue("12", { timeout: 20_000 });
+  await expect(page.getByRole("button", { name: "Enregistrer le tronçon" })).toBeEnabled();
+});

@@ -66,12 +66,17 @@ export function RoadEditor({
   const changesLoading = !!scenario && !changesLoaded;
   const [profile, setProfile] = useState<RoadProfile | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [interruptedDraft, setInterruptedDraft] = useState<{
+    ownerId: string; scenarioId: string; layerId: string; referenceVersion: string;
+    roadId: string; profile: RoadProfile;
+  } | null>(null);
+  const [restorePending, setRestorePending] = useState(false);
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !interruptedDraft) return;
     const preventLoss = (event: BeforeUnloadEvent) => { event.preventDefault(); };
     window.addEventListener("beforeunload", preventLoss);
     return () => window.removeEventListener("beforeunload", preventLoss);
-  }, [dirty]);
+  }, [dirty, interruptedDraft]);
   const [compare, setCompare] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -130,6 +135,12 @@ export function RoadEditor({
     };
   }, []);
   useEffect(() => {
+    if (dirty && scenario && scenarioOwnerId && selected && profile && session?.user.id !== scenarioOwnerId) {
+      setInterruptedDraft({ ownerId: scenarioOwnerId, scenarioId: scenario.id, layerId: scenario.reference_layer_id,
+        referenceVersion: scenario.reference_version, roadId: selected.properties.id, profile: { ...profile } });
+      setDirty(false);
+      setRestorePending(false);
+    }
     setScenarios([]);
     setScenarioListLoaded(false);
     setScenario(null);
@@ -301,6 +312,30 @@ export function RoadEditor({
     setDirty(false);
   }, [selected?.properties.id, changes]);
   useEffect(() => {
+    if (!restorePending || (!changesLoadError && !roadLoadError)) return;
+    setRestorePending(false);
+    setMessage("Impossible de récupérer le brouillon pour le moment ; il reste conservé sur cette page. Réessayez.");
+  }, [restorePending, changesLoadError, roadLoadError]);
+  useEffect(() => {
+    if (!restorePending || !interruptedDraft || !session || session.user.id !== interruptedDraft.ownerId ||
+        !scenario || scenario.id !== interruptedDraft.scenarioId || scenario.reference_layer_id !== interruptedDraft.layerId ||
+        scenario.reference_version !== interruptedDraft.referenceVersion || !changesLoaded || !roadsLoaded) return;
+    if (!roads.features.some((road) => road.properties.id === interruptedDraft.roadId)) {
+      setRestorePending(false);
+      setMessage("Le tronçon du brouillon n’est plus disponible dans cette référence.");
+      return;
+    }
+    if (selected?.properties.id !== interruptedDraft.roadId) {
+      onSelectRoad(interruptedDraft.roadId);
+      return;
+    }
+    setProfile({ ...interruptedDraft.profile });
+    setDirty(true);
+    setInterruptedDraft(null);
+    setRestorePending(false);
+    setMessage("Brouillon restauré, non enregistré. Vérifiez-le avant de l’enregistrer.");
+  }, [restorePending, interruptedDraft, session?.user.id, scenario, changesLoaded, roadsLoaded, roads, selected?.properties.id, onSelectRoad]);
+  useEffect(() => {
     onDraft(
       !compare && changesLoaded && roadsLoaded && dirty && scenario && selected && profile
         ? { id: selected.properties.id, profile }
@@ -395,6 +430,23 @@ export function RoadEditor({
       <h2>
         <span>02</span> Voirie · scénarios
       </h2>
+      {interruptedDraft && <div role="alert">
+        <p>Session interrompue : un brouillon non enregistré est conservé uniquement tant que cette page reste ouverte. Reconnectez-vous au compte propriétaire pour le récupérer.</p>
+        {session?.user.id === interruptedDraft.ownerId && <button type="button" disabled={!scenarioListLoaded || restorePending} onClick={() => {
+          const saved = scenarios.find((item) => item.id === interruptedDraft.scenarioId && item.reference_layer_id === interruptedDraft.layerId && item.reference_version === interruptedDraft.referenceVersion);
+          const reference = layers.find((item) => item.id === interruptedDraft.layerId && item.metadata.version === interruptedDraft.referenceVersion);
+          if (!saved || !reference) { setMessage("Le scénario ou sa référence n’est plus accessible ; le brouillon reste conservé sur cette page."); return; }
+          setChangesLoadError(false);
+          setRoadLoadError(false);
+          setRestorePending(true);
+          setLayer(reference);
+          setScenarioOwnerId(session.user.id);
+          setScenario(saved);
+          setCompare(false);
+          setReloadRoad((previous) => previous + 1);
+        }}>Récupérer le brouillon</button>}
+        <button type="button" onClick={() => { if (window.confirm("Abandonner définitivement le brouillon non enregistré ?")) { setInterruptedDraft(null); setRestorePending(false); } }}>Abandonner le brouillon</button>
+      </div>}
       {!supabase ? (
         <p className="caption">
           Connexion Supabase à configurer : NEXT_PUBLIC_SUPABASE_URL et
@@ -631,7 +683,7 @@ export function RoadEditor({
                 profile && (
                   <>
                     {changesLoading && <p role="status">{changesLoadError ? "Impossible de charger les modifications : la voirie du scénario n’est pas affichée. Réessayez en rouvrant le scénario." : "Chargement des modifications enregistrées…"}</p>}
-                    <fieldset disabled={changesLoading || !roadsLoaded || busy}>
+                    <fieldset disabled={changesLoading || !roadsLoaded || busy || !!interruptedDraft}>
                     <p className="hypothesis">
                       Les valeurs proposées lorsque la source est inconnue sont
                       des hypothèses ajustables. Largeurs en mètres ; aucune
