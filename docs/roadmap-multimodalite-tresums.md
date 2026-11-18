@@ -16,6 +16,7 @@ Voir la [référence locale documentée](reference-locale-tresums.md), sa [carte
 
 ## 2. Scénarios
 
+- Travail partiel : trois trames nommées peuvent être ajoutées sans valeurs inventées. Les scénarios multimodaux locaux peuvent référencer une voirie Supabase : les deux enregistrements restent distincts et une voirie liée peut être partagée. Le parcours connecté, les droits et les changements simultanés restent à vérifier avant validation.
 - [ ] Créer, nommer, dupliquer, enregistrer et rouvrir un scénario sans modifier les références.
 - [ ] Préparer trois références : situation actuelle, pôle multimodal sans hausse majeure des places, parking à étages avec pôle multimodal.
 - [ ] Associer hypothèses modifiables, sources et dates à chaque scénario ; conserver les données inconnues comme telles.
@@ -32,7 +33,7 @@ Voir la [référence locale documentée](reference-locale-tresums.md), sa [carte
 ## 4. Flux et besoins de bus
 
 - [x] Intégrer le premier calcul isolé de demande horaire, départs supplémentaires et véhicules nécessaires ([PR 18](https://github.com/EcoDex-DAO/my-futur-town/pull/18), publiée sur `main` au commit `2e0639c`). Les hypothèses et limites sont décrites dans [calcul-multimodal-bus.md](calcul-multimodal-bus.md).
-- [x] Raccorder le calcul à l'interface et aux scénarios ; afficher toutes les hypothèses et leurs sources. Les scénarios bus sont conservés localement dans le navigateur ; ils ne sont pas encore reliés aux scénarios de voirie.
+- [x] Raccorder le calcul à l'interface et aux scénarios ; afficher toutes les hypothèses et leurs sources. Les scénarios bus sont conservés localement dans le navigateur ; une association à une voirie Supabase est proposée mais son parcours connecté reste à vérifier.
 - [ ] Estimer les arrivées horaires : occupation, rotation, personnes par voiture et destinations.
 - [ ] Répartir les voyageurs entre bus, vélo et marche ; distinguer report modal et déplacements induits.
 - [ ] Relier une ligne existante ou créée et calculer l'offre par heure et sens à partir du GTFS.
@@ -41,6 +42,7 @@ Voir la [référence locale documentée](reference-locale-tresums.md), sa [carte
 
 ## 5. Voirie
 
+- Travail partiel : l'éditeur et son calque sont accessibles dans l'interface. La voirie reste stockée séparément dans Supabase ; l'association ne crée pas de copie figée. Le parcours authentifié et les profils de voies bus restent à vérifier ou développer.
 - [ ] Sélectionner les tronçons et modifier nombre, largeur et affectation des voies voiture, bus, vélo et piéton.
 - [ ] Afficher les changements et signaler les largeurs inconnues ou insuffisantes.
 - [ ] Sauvegarder les modifications par scénario ; création et déplacement de routes hors V1.

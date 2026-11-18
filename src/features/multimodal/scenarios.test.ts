@@ -34,6 +34,7 @@ describe("multimodal scenarios", () => {
     expect(b.parking).toEqual(createParkingAssumptions());
     expect(a.parkingProvenance.levels).toEqual({ nature: "unknown", source: "", date: "", scope: "" });
     expect(a.solar).toEqual(createSolarAssumptions());
+    expect(a.roadScenario).toBeNull();
     for (const key of SOLAR_KEYS) {
       expect(a.solarProvenance[key]).toEqual({ nature: "unknown", source: "", date: "", scope: "" });
     }
@@ -50,7 +51,11 @@ describe("multimodal scenarios", () => {
     original.parkingProvenance.levels = { nature: "assumed", source: "Variante", date: "", scope: "" };
     original.solar.pvgisYieldKwhPerKwpYear = 1_200;
     original.solarProvenance.pvgisYieldKwhPerKwpYear.source = "PVGIS";
+    original.roadScenario = { id: "road-a", ownerId: "user-a", name: "Voirie A", referenceLayerId: "layer-a", referenceVersion: "2026" };
     const copy = duplicateScenario(original, "b", "Projet");
+    expect(copy.roadScenario).toEqual(original.roadScenario);
+    copy.roadScenario!.name = "Voirie renommée";
+    expect(original.roadScenario.name).toBe("Voirie A");
     copy.parking.levels = 3;
     copy.parkingProvenance.levels.source = "Autre variante";
     expect(original.parking.levels).toBe(2);
@@ -98,8 +103,9 @@ describe("multimodal scenarios", () => {
     scenario.solarProvenance.pvgisYieldKwhPerKwpYear = {
       nature: "local", source: "PVGIS", date: "2026", scope: "Trésums",
     };
+    scenario.roadScenario = { id: "road-a", ownerId: "user-a", name: "Voirie A", referenceLayerId: "layer-a", referenceVersion: "2026" };
     saveScenarios(storage, [scenario]);
-    expect(JSON.parse(storage.getItem(SCENARIOS_STORAGE_KEY)!)).toEqual({ version: 3, scenarios: [scenario] });
+    expect(JSON.parse(storage.getItem(SCENARIOS_STORAGE_KEY)!)).toEqual({ version: 4, scenarios: [scenario] });
     const restored = loadScenarios(storage);
     expect(restored).toEqual([scenario]);
     restored[0].assumptions.occupiedFraction.source = "changé";
@@ -126,7 +132,7 @@ describe("multimodal scenarios", () => {
     expect(loaded[1].parking.levels).toBeNull();
     saveScenarios(storage, loaded);
     expect(loadScenarios(storage)).toEqual(loaded);
-    expect(JSON.parse(storage.getItem(SCENARIOS_STORAGE_KEY)!).version).toBe(3);
+    expect(JSON.parse(storage.getItem(SCENARIOS_STORAGE_KEY)!).version).toBe(4);
   });
 
   it("reads v2 scenarios with unknown solar assumptions and preserves the saved document until save", () => {
@@ -142,13 +148,26 @@ describe("multimodal scenarios", () => {
     expect(loaded).toEqual([scenario]);
     expect(storage.getItem(SCENARIOS_STORAGE_KEY)).toBe(raw);
     saveScenarios(storage, loaded);
-    expect(JSON.parse(storage.getItem(SCENARIOS_STORAGE_KEY)!)).toEqual({ version: 3, scenarios: [scenario] });
+    expect(JSON.parse(storage.getItem(SCENARIOS_STORAGE_KEY)!)).toEqual({ version: 4, scenarios: [scenario] });
+  });
+
+  it("reads v3 without adding a road link or rewriting until explicit save", () => {
+    const storage = memoryStorage();
+    const scenario = createScenario("a", "Base");
+    scenario.solar.canopyAreaSqMeters = 50;
+    const { roadScenario: _roadScenario, ...v3Scenario } = scenario;
+    const raw = JSON.stringify({ version: 3, scenarios: [v3Scenario] });
+    storage.setItem(SCENARIOS_STORAGE_KEY, raw);
+    expect(loadScenarios(storage)).toEqual([scenario]);
+    expect(storage.getItem(SCENARIOS_STORAGE_KEY)).toBe(raw);
+    saveScenarios(storage, loadScenarios(storage));
+    expect(JSON.parse(storage.getItem(SCENARIOS_STORAGE_KEY)!)).toEqual({ version: 4, scenarios: [scenario] });
   });
 
   it("distinguishes empty storage from invalid, incomplete or incompatible documents", () => {
     const storage = memoryStorage();
     expect(loadScenarios(storage)).toEqual([]);
-    for (const text of ["{", "null", JSON.stringify({ version: 4, scenarios: [] }), JSON.stringify({ version: 1, scenarios: [{ id: "a", name: "Nom", assumptions: {} }] })]) {
+    for (const text of ["{", "null", JSON.stringify({ version: 5, scenarios: [] }), JSON.stringify({ version: 1, scenarios: [{ id: "a", name: "Nom", assumptions: {} }] })]) {
       storage.setItem(SCENARIOS_STORAGE_KEY, text);
       expect(() => loadScenarios(storage)).toThrow();
       expect(storage.getItem(SCENARIOS_STORAGE_KEY)).toBe(text);
@@ -181,7 +200,19 @@ describe("multimodal scenarios", () => {
     const invalidSolar = { ...scenario, solar: { ...scenario.solar, pvgisSlopeDeg: 91 } };
     const invalidSolarProvenance = { ...scenario, solarProvenance: {} };
     for (const scenarios of [[invalidNature], [invalidParking], [invalidParkingProvenance], [invalidSolar], [invalidSolarProvenance], [scenario, scenario]]) {
-      const raw = JSON.stringify({ version: 3, scenarios });
+      const raw = JSON.stringify({ version: 4, scenarios });
+      storage.setItem(SCENARIOS_STORAGE_KEY, raw);
+      expect(() => loadScenarios(storage)).toThrow();
+      expect(storage.getItem(SCENARIOS_STORAGE_KEY)).toBe(raw);
+    }
+  });
+
+  it("rejects malformed road links without replacing saved data", () => {
+    const storage = memoryStorage();
+    const scenario = createScenario("a", "Base");
+    const valid = { id: "road-a", ownerId: "user-a", name: "Voirie A", referenceLayerId: "layer-a", referenceVersion: "2026" };
+    for (const roadScenario of [{ ...valid, ownerId: " " }, { ...valid, id: 3 }, { ...valid, extra: true }, { id: "road-a" }]) {
+      const raw = JSON.stringify({ version: 4, scenarios: [{ ...scenario, roadScenario }] });
       storage.setItem(SCENARIOS_STORAGE_KEY, raw);
       expect(() => loadScenarios(storage)).toThrow();
       expect(storage.getItem(SCENARIOS_STORAGE_KEY)).toBe(raw);

@@ -5,7 +5,7 @@ import type { MultimodalInputs } from "./estimate";
 import { calculateParking, PARKING_KEYS, PARKING_MAXIMUMS, type ParkingAssumptions } from "./parking";
 import { calculateSolar, type SolarAssumptions } from "./solar";
 import { SolarPanel } from "./SolarPanel";
-import { createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios, saveScenarios, SCENARIOS_STORAGE_KEY, type Assumption, type AssumptionProvenance, type MultimodalScenario } from "./scenarios";
+import { createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios, saveScenarios, SCENARIOS_STORAGE_KEY, type Assumption, type AssumptionProvenance, type MultimodalScenario, type RoadScenarioLink } from "./scenarios";
 import "./multimodal.css";
 
 const fields: Record<keyof MultimodalInputs, { label: string; unit: string; description?: string }> = {
@@ -51,10 +51,12 @@ function result(scenario: MultimodalScenario) {
   catch { return { value: null, error: "Vérifiez les valeurs : elles doivent être positives, les parts entre 0 et 1, les places et départs entiers, et la capacité et le cycle strictement positifs." }; }
 }
 
-export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: {
+export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady, roadScenarioSelection, onRequestRoadScenario }: {
   onParkingPreview: (height: number | null) => void;
   onFocusParking: () => void;
   mapReady: boolean;
+  roadScenarioSelection: RoadScenarioLink | null;
+  onRequestRoadScenario: (scenario: RoadScenarioLink) => void;
 }) {
   const [scenarios, setScenarios] = useState<MultimodalScenario[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -129,6 +131,20 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
       setStorageError("Impossible de créer un scénario. Réessayez ; vos modifications existantes sont conservées.");
     }
   };
+  const addReferenceTemplates = () => {
+    try {
+      const next = [...scenarios];
+      for (const name of ["Situation actuelle — à documenter", "Pôle multimodal sans hausse majeure des places", "Parking à étages et pôle multimodal"]) {
+        next.push(createScenario(createId(next), name));
+      }
+      setScenarios(next);
+      setSelectedId(next[next.length - 3].id);
+      setStatus("Trois trames ajoutées. Renseignez leurs hypothèses, puis enregistrez-les.");
+      setDirty(true);
+    } catch {
+      setStorageError("Impossible de créer les trames. Vos scénarios existants sont conservés.");
+    }
+  };
   const save = () => {
     try {
       if (window.localStorage.getItem(SCENARIOS_STORAGE_KEY) !== loadedSnapshot.current) {
@@ -152,6 +168,7 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
     {status && <p role="status">{status}</p>}
     <div className="multimodal-actions">
       <button type="button" onClick={() => add()} disabled={!storageReady}>Nouveau scénario</button>
+      <button type="button" onClick={addReferenceTemplates} disabled={!storageReady}>Ajouter les trois trames de référence</button>
       <button type="button" onClick={() => add(true)} disabled={!current || !storageReady}>Dupliquer</button>
       <button type="button" onClick={save} disabled={!storageReady || scenarios.length === 0}>Enregistrer les scénarios</button>
     </div>
@@ -159,6 +176,21 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
     {current && <>
       <label className="multimodal-field">Scénario actif<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{scenarios.map((scenario) => <option value={scenario.id} key={scenario.id}>{scenario.name || "Nom à renseigner"}</option>)}</select></label>
       <label className="multimodal-field">Nom du scénario<input value={current.name} onChange={(event) => update((scenario) => ({ ...scenario, name: event.target.value }))} /></label>
+      <h3>Voirie associée</h3>
+      <p>Les trois trames sont des intentions à documenter : aucune valeur locale n’est supposée. La voirie est enregistrée séparément dans Supabase et accessible selon les droits du compte connecté.</p>
+      <p>{current.roadScenario ? `Voirie liée : ${current.roadScenario.name} · référence ${current.roadScenario.referenceVersion}` : "Aucune voirie associée à ce scénario."}</p>
+      <p role="status">{current.roadScenario && roadScenarioSelection?.id === current.roadScenario.id && roadScenarioSelection.ownerId === current.roadScenario.ownerId
+        ? "La voirie liée est ouverte dans l’éditeur."
+        : roadScenarioSelection
+          ? `Attention : la voirie affichée « ${roadScenarioSelection.name} » est différente de celle liée à ce scénario.`
+          : current.roadScenario ? "La voirie liée n’est pas ouverte ; elle peut être indisponible." : "Aucune voirie de scénario n’est ouverte."}</p>
+      {current.roadScenario && <p className="multimodal-hint">Cette liaison pointe vers la voirie courante, pas une copie figée. Une modification de la voirie affecte tous les scénarios qui lui sont liés. Si la session ou la voirie n’est plus accessible, elle ne pourra pas être affichée.</p>}
+      <div className="multimodal-actions">
+        <button type="button" disabled={!roadScenarioSelection} onClick={() => update((scenario) => ({ ...scenario, roadScenario: roadScenarioSelection ? { ...roadScenarioSelection } : null }))}>Associer la voirie sélectionnée</button>
+        <button type="button" disabled={!current.roadScenario} onClick={() => { if (current.roadScenario) onRequestRoadScenario({ ...current.roadScenario }); }}>Ouvrir la voirie liée</button>
+        <button type="button" disabled={!current.roadScenario} onClick={() => update((scenario) => ({ ...scenario, roadScenario: null }))}>Dissocier la voirie</button>
+      </div>
+      <p className="multimodal-hint">{roadScenarioSelection ? `Voirie sélectionnée dans l’éditeur : ${roadScenarioSelection.name}.` : "Sélectionnez une voirie dans l’éditeur pour l’associer."} Enregistrez ensuite les scénarios multimodaux dans ce navigateur.</p>
       <h3>Parking à niveaux</h3>
       <p>Le contour OSM est indicatif. La capacité et le volume sont des estimations ; accès, rampes, structure et faisabilité restent à vérifier.</p>
       <p className="multimodal-hint">Le volume extrude le contour OSM complet à la hauteur calculée. La surface saisie sert uniquement au calcul de capacité.</p>
@@ -214,6 +246,6 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
       </dl> : <p>Renseignez toutes les valeurs pour calculer une estimation.</p>}
       <p className="multimodal-hint">Le calcul inclut la surcharge préexistante et ne distingue pas report modal et déplacements induits. Les véhicules sont une estimation, pas un planning d’exploitation.</p>
     </>}
-    {scenarios.length > 1 && <><h3>Comparer les scénarios</h3><p>Les résultats ne sont comparables que pour une même heure et un même périmètre.</p><div className="multimodal-comparison" role="region" aria-label="Comparaison des scénarios" tabIndex={0}><table><thead><tr><th>Scénario</th><th>Places estimées</th><th>Hauteur estimée</th><th>Puissance solaire</th><th>Production solaire/an</th><th>Consommation sur place/an</th><th>Voitures/h</th><th>Voyageurs bus/h</th><th>Départs en plus/h</th><th>Véhicules en plus</th></tr></thead><tbody>{scenarios.map((scenario) => { const estimate = result(scenario); const parking = calculateParking(scenario.parking); const solar = calculateSolar(scenario.solar); return <tr key={scenario.id}><th scope="row">{scenario.name || "Nom à renseigner"}</th><td>{parking.capacity === null ? "À renseigner" : format(parking.capacity)}</td><td>{parking.heightMeters === null ? "À renseigner" : `${format(parking.heightMeters)} m`}</td><td>{solar.peakCapacityKwp === null ? "À renseigner" : `${format(solar.peakCapacityKwp)} kWc`}</td><td>{solar.annualProductionKwh === null ? "À renseigner" : `${format(solar.annualProductionKwh)} kWh`}</td><td>{solar.onsiteAnnualConsumptionKwh === null ? "À renseigner" : `${format(solar.onsiteAnnualConsumptionKwh)} kWh`}</td>{estimate.value ? <><td>{format(estimate.value.arrivalsPerHour)}</td><td>{format(estimate.value.additionalBusPassengers)}</td><td>{format(estimate.value.additionalDepartures)}</td><td>{format(estimate.value.additionalVehicles)}</td></> : <td colSpan={4}>{estimate.error ? "Valeurs à corriger" : "À renseigner"}</td>}</tr>; })}</tbody></table></div></>}
+    {scenarios.length > 1 && <><h3>Comparer les scénarios</h3><p>Les résultats ne sont comparables que pour une même heure et un même périmètre.</p><div className="multimodal-comparison" role="region" aria-label="Comparaison des scénarios" tabIndex={0}><table><thead><tr><th>Scénario</th><th>Voirie liée</th><th>Places estimées</th><th>Hauteur estimée</th><th>Puissance solaire</th><th>Production solaire/an</th><th>Consommation sur place/an</th><th>Voitures/h</th><th>Voyageurs bus/h</th><th>Départs en plus/h</th><th>Véhicules en plus</th></tr></thead><tbody>{scenarios.map((scenario) => { const estimate = result(scenario); const parking = calculateParking(scenario.parking); const solar = calculateSolar(scenario.solar); return <tr key={scenario.id}><th scope="row">{scenario.name || "Nom à renseigner"}</th><td>{scenario.roadScenario?.name ?? "Non associée"}</td><td>{parking.capacity === null ? "À renseigner" : format(parking.capacity)}</td><td>{parking.heightMeters === null ? "À renseigner" : `${format(parking.heightMeters)} m`}</td><td>{solar.peakCapacityKwp === null ? "À renseigner" : `${format(solar.peakCapacityKwp)} kWc`}</td><td>{solar.annualProductionKwh === null ? "À renseigner" : `${format(solar.annualProductionKwh)} kWh`}</td><td>{solar.onsiteAnnualConsumptionKwh === null ? "À renseigner" : `${format(solar.onsiteAnnualConsumptionKwh)} kWh`}</td>{estimate.value ? <><td>{format(estimate.value.arrivalsPerHour)}</td><td>{format(estimate.value.additionalBusPassengers)}</td><td>{format(estimate.value.additionalDepartures)}</td><td>{format(estimate.value.additionalVehicles)}</td></> : <td colSpan={4}>{estimate.error ? "Valeurs à corriger" : "À renseigner"}</td>}</tr>; })}</tbody></table></div></>}
   </div>;
 }

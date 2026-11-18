@@ -32,7 +32,7 @@ test("real Annecy map works without an API, including building selection and mob
     ]) {
       await page.mouse.click(x, y);
       const properties = page.locator(".info .caption").first();
-      if ((await properties.textContent())?.includes("Couche : building")) {
+      if ((await properties.allTextContents()).some((text) => text.includes("Couche : building"))) {
         found = true;
         break;
       }
@@ -43,6 +43,7 @@ test("real Annecy map works without an API, including building selection and mob
     page.locator(".info dt").filter({ hasText: /^render_height$/ }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Fermer les informations" }).click();
+  await page.getByRole("button", { name: "Menu Couches de référence" }).click();
   await extrusion.uncheck();
   await expect(page.locator(".map-badge")).toContainText("2D");
   await extrusion.check();

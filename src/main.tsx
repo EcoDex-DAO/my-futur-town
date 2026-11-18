@@ -12,6 +12,9 @@ import { BusSimulation } from "./features/bus/micro/BusSimulation";
 import { BusTrafficSimulation } from "./features/bus/macro/BusTrafficSimulation";
 import { BusStopTimetable } from "./features/bus/shared/BusStopTimetable";
 import { MultimodalPanel } from "./features/multimodal/MultimodalPanel";
+import type { RoadScenarioLink } from "./features/multimodal/scenarios";
+import { RoadEditor } from "./RoadEditor";
+import { applyProfiles, EMPTY_ROADS, type Road, type RoadChange, type RoadProfile, type Roads } from "./roads";
 import { PARKING_BOUNDS, syncParkingMap } from "./features/multimodal/parking-map";
 import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
 import { BUS_CREATED_LINES_KEY, busCreatedMarkerFeatures, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
@@ -57,6 +60,26 @@ export default function App() {
   const [busInfoPosition, setBusInfoPosition] = useState<{ side: "left" | "right"; vertical: "top" | "bottom" }>({ side: "right", vertical: "top" });
   const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | "multimodal" | null>(null);
   const [parkingPreviewHeight, setParkingPreviewHeight] = useState<number | null>(null);
+  const [roads, setRoads] = useState<Roads>(EMPTY_ROADS);
+  const [roadChanges, setRoadChanges] = useState<RoadChange[]>([]);
+  const [roadDraft, setRoadDraft] = useState<{ id: string; profile: RoadProfile }>();
+  const [selectedRoadId, setSelectedRoadId] = useState("");
+  const [roadSelectionRequest, setRoadSelectionRequest] = useState<{ id: string; token: number } | null>(null);
+  const [roadScenarioSelection, setRoadScenarioSelection] = useState<RoadScenarioLink | null>(null);
+  const [requestedRoadScenario, setRequestedRoadScenario] = useState<RoadScenarioLink | null>(null);
+  const [roadEditorOpen, setRoadEditorOpen] = useState(false);
+  const requestRoadScenario = useCallback((scenario: RoadScenarioLink) => {
+    setRoadEditorOpen(true);
+    setRequestedRoadScenario({ ...scenario });
+  }, []);
+  const selectedRoad: Road | null = roads.features.find((road) => road.properties.id === selectedRoadId) ?? null;
+  const displayedRoads = useMemo(() => applyProfiles(roads, roadChanges, roadDraft), [roads, roadChanges, roadDraft]);
+  const roadPanelActive = useRef(false);
+  roadPanelActive.current = activePanel === "multimodal";
+  const focusRoads = useCallback(() => {
+    const instance = map.current;
+    if (instance) instance.fitBounds(PARKING_BOUNDS, { padding: 80, maxZoom: 16, duration: 800 });
+  }, []);
   const focusParking = useCallback(() => {
     const instance = map.current;
     if (!instance) return;
@@ -232,6 +255,15 @@ export default function App() {
         setSelected(null);
         return;
       }
+      if (roadPanelActive.current && instance.getLayer("yft-road-profiles")) {
+        const road = instance.queryRenderedFeatures([[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]], { layers: ["yft-road-profiles"] })[0];
+        if (road?.properties?.id) {
+          setRoadSelectionRequest((previous) => ({ id: String(road.properties.id), token: (previous?.token ?? 0) + 1 }));
+          setSelected(null);
+          setBusSelection(null);
+          return;
+        }
+      }
       setBusSelection(null);
       lastBusHit.current = null;
       const features = instance.queryRenderedFeatures(e.point);
@@ -259,6 +291,34 @@ export default function App() {
       instance.off("style.load", renderParking);
     };
   }, [ready, parkingPreviewHeight]);
+  useEffect(() => {
+    const instance = map.current;
+    if (!ready || !instance) return;
+    const renderRoads = () => {
+      if (!instance.isStyleLoaded()) {
+        instance.once("idle", renderRoads);
+        return;
+      }
+      if (!instance.getSource("yft-road-profiles")) {
+        instance.addSource("yft-road-profiles", { type: "geojson", data: displayedRoads });
+        instance.addLayer({
+          id: "yft-road-profiles", type: "line", source: "yft-road-profiles",
+          paint: {
+            "line-color": ["case", ["==", ["get", "id"], selectedRoadId], "#c06a27", ["==", ["get", "changed"], true], "#186d83", "#657a70"],
+            "line-width": ["interpolate", ["linear"], ["zoom"], 11, 1.5, 17, 6],
+            "line-opacity": 0.85,
+          },
+        });
+      } else {
+        (instance.getSource("yft-road-profiles") as maplibregl.GeoJSONSource).setData(displayedRoads);
+        instance.setPaintProperty("yft-road-profiles", "line-color", ["case", ["==", ["get", "id"], selectedRoadId], "#c06a27", ["==", ["get", "changed"], true], "#186d83", "#657a70"]);
+      }
+      instance.setLayoutProperty("yft-road-profiles", "visibility", activePanel === "multimodal" ? "visible" : "none");
+    };
+    instance.on("style.load", renderRoads);
+    renderRoads();
+    return () => { instance.off("style.load", renderRoads); instance.off("idle", renderRoads); };
+  }, [ready, displayedRoads, selectedRoadId, activePanel]);
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance || !busData) return;
@@ -428,7 +488,11 @@ export default function App() {
             {busData ? <BusReport data={busData} groups={BUS_GROUPS} selectedIds={selectedNetworkIds} /> : <p className="caption">Chargement des données SIBRA…</p>}
           </section>
           <section className="multimodal-tools" hidden={activePanel !== "multimodal"} aria-label="Scénarios multimodaux">
-            <MultimodalPanel onParkingPreview={setParkingPreviewHeight} onFocusParking={focusParking} mapReady={ready} />
+            <details open={roadEditorOpen} onToggle={(event) => setRoadEditorOpen(event.currentTarget.open)}>
+              <summary>Éditeur de voirie</summary>
+              <RoadEditor roads={roads} onSelectRoad={setSelectedRoadId} selected={selectedRoad} onRoads={setRoads} onChanges={setRoadChanges} onDraft={setRoadDraft} onFocus={focusRoads} onScenarioChange={setRoadScenarioSelection} requestedRoadScenario={requestedRoadScenario} roadSelectionRequest={roadSelectionRequest} />
+            </details>
+            <MultimodalPanel onParkingPreview={setParkingPreviewHeight} onFocusParking={focusParking} mapReady={ready} roadScenarioSelection={roadScenarioSelection} onRequestRoadScenario={requestRoadScenario} />
           </section>
           <div className="sidebar-footer">
             <span className="dot" />

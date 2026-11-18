@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import type { RoadScenarioLink } from "./features/multimodal/scenarios";
 import {
   allocatedWidth,
   profileError,
@@ -21,6 +22,9 @@ interface Props {
   onChanges: (c: RoadChange[]) => void;
   onDraft: (d: { id: string; profile: RoadProfile } | undefined) => void;
   onFocus: () => void;
+  onScenarioChange: (scenario: RoadScenarioLink | null) => void;
+  requestedRoadScenario: RoadScenarioLink | null;
+  roadSelectionRequest: { id: string; token: number } | null;
 }
 export function RoadEditor({
   roads,
@@ -30,19 +34,34 @@ export function RoadEditor({
   onChanges,
   onDraft,
   onFocus,
+  onScenarioChange,
+  requestedRoadScenario,
+  roadSelectionRequest,
 }: Props) {
   const [session, setSession] = useState<Session | null>(null);
+  const sessionRef = useRef<Session | null>(null);
+  sessionRef.current = session;
+  const handledRequest = useRef<RoadScenarioLink | null>(null);
   const [roadSearch, setRoadSearch] = useState("");
   const [email, setEmail] = useState(""),
     [password, setPassword] = useState("");
   const [layers, setLayers] = useState<RoadLayer[]>([]),
     [layer, setLayer] = useState<RoadLayer | null>(null);
+  const [scenarioListLoaded, setScenarioListLoaded] = useState(false);
+  const [scenarioOwnerId, setScenarioOwnerId] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]),
     [scenario, setScenario] = useState<Scenario | null>(null);
   const [name, setName] = useState("Sens unique et piste cyclable");
   const [changes, setChanges] = useState<RoadChange[]>([]);
+  const [changesLoading, setChangesLoading] = useState(true);
   const [profile, setProfile] = useState<RoadProfile | null>(null);
   const [dirty, setDirty] = useState(false);
+  useEffect(() => {
+    if (!dirty) return;
+    const preventLoss = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", preventLoss);
+    return () => window.removeEventListener("beforeunload", preventLoss);
+  }, [dirty]);
   const [compare, setCompare] = useState(false),
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState("");
@@ -59,14 +78,17 @@ export function RoadEditor({
     );
   }
   async function listScenarios() {
-    if (!supabase) return;
+    if (!supabase || !sessionRef.current) return;
+    const ownerId = sessionRef.current.user.id;
     const { data, error } = await supabase
       .from("scenarios")
       .select("id,name,reference_layer_id,reference_version,updated_at")
       .not("reference_layer_id", "is", null)
       .order("updated_at", { ascending: false });
+    if (sessionRef.current?.user.id !== ownerId) return;
     if (error) throw error;
     setScenarios(data as Scenario[]);
+    setScenarioListLoaded(true);
   }
   useEffect(() => {
     if (!supabase) return;
@@ -98,14 +120,76 @@ export function RoadEditor({
     };
   }, []);
   useEffect(() => {
-    if (!session) {
-      setScenarios([]);
-      setScenario(null);
-      setChanges([]);
-      return;
-    }
+    setScenarios([]);
+    setScenarioListLoaded(false);
+    setScenario(null);
+    setScenarioOwnerId(null);
+    setChanges([]);
+    if (!session) return;
     listScenarios().catch(fail);
   }, [session?.user.id]);
+  useEffect(() => {
+    onScenarioChange(session && scenario && scenarioOwnerId === session.user.id ? {
+      id: scenario.id,
+      ownerId: session.user.id,
+      name: scenario.name,
+      referenceLayerId: scenario.reference_layer_id,
+      referenceVersion: scenario.reference_version,
+    } : null);
+  }, [session?.user.id, scenario, scenarioOwnerId, onScenarioChange]);
+  const handledRoadSelection = useRef<number | null>(null);
+  function allowDiscard() {
+    return !dirty || window.confirm("Ce tronçon contient des modifications non enregistrées. Les abandonner ?");
+  }
+  function selectRoad(id: string) {
+    if (id === (selected?.properties.id ?? "") || !allowDiscard()) return;
+    onSelectRoad(id);
+  }
+  useEffect(() => {
+    if (!roadSelectionRequest || handledRoadSelection.current === roadSelectionRequest.token) return;
+    handledRoadSelection.current = roadSelectionRequest.token;
+    selectRoad(roadSelectionRequest.id);
+  }, [roadSelectionRequest]);
+  useEffect(() => {
+    if (!requestedRoadScenario || handledRequest.current === requestedRoadScenario) return;
+    if (!supabase) {
+      setMessage("Voirie liée indisponible : configurez Supabase.");
+      return;
+    }
+    if (!session) {
+      setMessage("Voirie liée indisponible : connectez-vous au compte propriétaire.");
+      return;
+    }
+    if (session.user.id !== requestedRoadScenario.ownerId) {
+      setMessage("Voirie liée indisponible pour le compte connecté.");
+      return;
+    }
+    if (!scenarioListLoaded) return;
+    const match = scenarios.find((item) => item.id === requestedRoadScenario.id &&
+      item.reference_layer_id === requestedRoadScenario.referenceLayerId &&
+      item.reference_version === requestedRoadScenario.referenceVersion);
+    if (!match) {
+      setMessage("Voirie liée introuvable ou inaccessible avec ce compte.");
+      return;
+    }
+    const reference = layers.find((item) => item.id === match.reference_layer_id);
+    if (!reference) {
+      setMessage("L’instantané de référence lié à cette voirie est indisponible.");
+      return;
+    }
+    handledRequest.current = requestedRoadScenario;
+    if (scenario?.id === match.id) {
+      setMessage("Cette voirie est déjà ouverte.");
+      return;
+    }
+    if (!allowDiscard()) return;
+    setChangesLoading(true);
+    setLayer(reference);
+    setScenarioOwnerId(session.user.id);
+    setScenario(match);
+    setCompare(false);
+    setMessage("Voirie liée ouverte ; ses changements restent partagés entre scénarios associés.");
+  }, [requestedRoadScenario, session?.user.id, scenarioListLoaded, scenarios, layers]);
   useEffect(() => {
     if (!supabase || !layer) {
       onRoads(EMPTY_ROADS);
@@ -134,12 +218,13 @@ export function RoadEditor({
     };
   }, [layer?.id, onRoads]);
   useEffect(() => {
-    if (!scenario || !session || !supabase) {
+    if (!scenario || !session || !supabase || scenarioOwnerId !== session.user.id) {
       setChanges([]);
       setGraph(null);
       return;
     }
     let active = true;
+    setChangesLoading(true);
     setChanges([]);
     setGraph(null);
     supabase
@@ -150,7 +235,10 @@ export function RoadEditor({
       .then(({ data, error }) => {
         if (!active) return;
         if (error) fail(error);
-        else setChanges(data as RoadChange[]);
+        else {
+          setChanges(data as RoadChange[]);
+          setChangesLoading(false);
+        }
       });
     supabase
       .rpc("yft_road_graph", { p_scenario_id: scenario.id })
@@ -173,7 +261,7 @@ export function RoadEditor({
     return () => {
       active = false;
     };
-  }, [scenario?.id, scenario?.updated_at, session?.user.id]);
+  }, [scenario?.id, scenario?.updated_at, session?.user.id, scenarioOwnerId]);
   useEffect(() => {
     onChanges(compare ? [] : changes);
   }, [changes, compare, onChanges]);
@@ -236,6 +324,7 @@ export function RoadEditor({
       .select()
       .single();
     if (error) throw error;
+    setScenarioOwnerId(session?.user.id ?? null);
     setScenario(data as Scenario);
     setCompare(false);
     await listScenarios();
@@ -333,7 +422,7 @@ export function RoadEditor({
                 <select
                   aria-label="Sélectionner un tronçon"
                   value={selected?.properties.id ?? ""}
-                  onChange={(e) => onSelectRoad(e.target.value)}
+                  onChange={(e) => selectRoad(e.target.value)}
                 >
                   <option value="">Choisir une route réelle</option>
                   {roads.features
@@ -401,7 +490,7 @@ export function RoadEditor({
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
-                  act(async () => {
+                  allowDiscard() && act(async () => {
                     const { error } = await supabase!.auth.signOut();
                     if (error) throw error;
                   })
@@ -418,6 +507,10 @@ export function RoadEditor({
                   onChange={(e) => {
                     const s =
                       scenarios.find((s) => s.id === e.target.value) ?? null;
+                    if (s?.id === scenario?.id) return;
+                    if (!allowDiscard()) return;
+                    setChangesLoading(true);
+                    setScenarioOwnerId(s ? session.user.id : null);
                     setScenario(s);
                     if (s)
                       setLayer(
@@ -470,7 +563,7 @@ export function RoadEditor({
                     className="secondary"
                     disabled={busy}
                     onClick={() =>
-                      act(async () => {
+                      allowDiscard() && window.confirm("Supprimer définitivement ce scénario de voirie et ses modifications ? Les scénarios multimodaux liés ne pourront plus l’ouvrir.") && act(async () => {
                         const { error } = await supabase!
                           .from("scenarios")
                           .delete()
@@ -511,6 +604,8 @@ export function RoadEditor({
               ) : (
                 profile && (
                   <>
+                    {changesLoading && <p role="status">Chargement des modifications enregistrées…</p>}
+                    <fieldset disabled={changesLoading || busy}>
                     <p className="hypothesis">
                       Les valeurs proposées lorsque la source est inconnue sont
                       des hypothèses ajustables. Largeurs en mètres ; aucune
@@ -607,10 +702,11 @@ export function RoadEditor({
                     <button
                       className="secondary"
                       disabled={busy || compare}
-                      onClick={() => act(restore)}
+                      onClick={() => { if (allowDiscard()) act(restore); }}
                     >
                       Restaurer ce tronçon
                     </button>
+                    </fieldset>
                   </>
                 )
               )}
