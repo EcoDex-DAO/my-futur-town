@@ -57,10 +57,11 @@ export function RoadEditor({
   const [name, setName] = useState("Sens unique et piste cyclable");
   const [changes, setChanges] = useState<RoadChange[]>([]);
   const [loadedChangesKey, setLoadedChangesKey] = useState<string | null>(null);
+  const [loadedGraphKey, setLoadedGraphKey] = useState<string | null>(null);
   const [changesLoadError, setChangesLoadError] = useState(false);
   const changesKey = session && scenario && scenarioOwnerId === session.user.id
     ? JSON.stringify([session.user.id, scenario.id, scenario.updated_at]) : null;
-  const changesLoaded = changesKey !== null && loadedChangesKey === changesKey;
+  const changesLoaded = changesKey !== null && loadedChangesKey === changesKey && loadedGraphKey === changesKey;
   const roadsLoaded = !!scenario && layer?.id === scenario.reference_layer_id && loadedRoadLayerId === layer.id;
   const changesLoading = !!scenario && !changesLoaded;
   const [profile, setProfile] = useState<RoadProfile | null>(null);
@@ -188,12 +189,10 @@ export function RoadEditor({
     }
     handledRequest.current = requestedRoadScenario;
     if (scenario?.id === match.id) {
+      if (!allowDiscard()) return;
       setCompare(false);
-      if (changesLoaded && roadsLoaded) setMessage("Cette voirie est déjà ouverte.");
-      else {
-        setMessage("Nouvelle tentative de chargement de la voirie liée…");
-        setReloadRoad((previous) => previous + 1);
-      }
+      setMessage("Actualisation de la voirie liée…");
+      setReloadRoad((previous) => previous + 1);
       return;
     }
     if (!allowDiscard()) return;
@@ -237,6 +236,7 @@ export function RoadEditor({
   }, [layer?.id, reloadRoad, onRoads, onSelectRoad]);
   useEffect(() => {
     setLoadedChangesKey(null);
+    setLoadedGraphKey(null);
     setChangesLoadError(false);
     if (!scenario || !session || !supabase || scenarioOwnerId !== session.user.id) {
       setChanges([]);
@@ -267,6 +267,7 @@ export function RoadEditor({
       .then(({ data, error }) => {
         if (!active) return;
         if (error) {
+          setChangesLoadError(true);
           fail(error);
           return;
         }
@@ -279,6 +280,7 @@ export function RoadEditor({
             (s: { reverse_allowed: boolean }) => s.reverse_allowed,
           ).length,
         });
+        setLoadedGraphKey(JSON.stringify([session.user.id, scenario.id, scenario.updated_at]));
       });
     return () => {
       active = false;

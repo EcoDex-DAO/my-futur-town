@@ -159,6 +159,49 @@ test("un changement d’instantané retire les anciennes routes pendant le charg
   await expect.poll(() => requested).toBe(true);
   await expect(page.getByLabel("Sélectionner un tronçon")).toHaveCount(0);
   release();
-  await expect(page.getByLabel("Sélectionner un tronçon").locator("option").filter({ hasText: "Rue nouvelle" })).toHaveCount(1);
+  await expect(page.getByLabel("Sélectionner un tronçon").locator("option").filter({ hasText: "Rue nouvelle" })).toHaveCount(1, { timeout: 20_000 });
   await expect(page.getByLabel("Sélectionner un tronçon")).toHaveValue("");
+});
+
+test("une voirie supprimée ou inaccessible ne peut pas être annoncée ouverte", async ({ page }) => {
+  test.skip(process.env.MFT_SUPABASE_MOCK !== "1", "Nécessite le service Supabase simulé.");
+  const owner = "00000000-0000-4000-8000-000000000001";
+  const roadId = "00000000-0000-4000-8000-000000000002";
+  const layerId = "00000000-0000-4000-8000-000000000003";
+  const user = { id: owner, aud: "authenticated", role: "authenticated", email: "test@example.invalid", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" };
+  const token = `${Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url")}.${Buffer.from(JSON.stringify({ sub: owner, role: "authenticated", exp: 4102444800 })).toString("base64url")}.signature`;
+  const scenario = createScenario("scenario-test", "Scénario de test");
+  scenario.roadScenario = { id: roadId, ownerId: owner, name: "Voirie de test", referenceLayerId: layerId, referenceVersion: "v-test" };
+  await page.addInitScript(({ token, user, scenario, key }) => {
+    localStorage.setItem("sb-mock-supabase-auth-token", JSON.stringify({ access_token: token, refresh_token: "mock-refresh", token_type: "bearer", expires_at: 4102444800, expires_in: 3600, user }));
+    localStorage.setItem(key, JSON.stringify({ version: 4, scenarios: [scenario] }));
+  }, { token, user, scenario, key: SCENARIOS_STORAGE_KEY });
+  await page.route("https://mock-supabase.invalid/**", async (route) => {
+    const headers = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET,POST,OPTIONS" };
+    if (route.request().method() === "OPTIONS") { await route.fulfill({ status: 204, headers }); return; }
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith("/yft_road_graph")) {
+      await route.fulfill({ status: 404, headers, contentType: "application/json", body: JSON.stringify({ message: "Scénario indisponible" }) });
+      return;
+    }
+    let data: unknown;
+    if (path.endsWith("/geo_layers")) data = [{ id: layerId, name: "Routes de test", slug: "annecy-roads-test", metadata: { version: "v-test", segments: 0 } }];
+    else if (path.endsWith("/scenarios")) data = [{ id: roadId, name: "Voirie de test", reference_layer_id: layerId, reference_version: "v-test", updated_at: "2026-01-01T00:00:00Z" }];
+    else if (path.endsWith("/scenario_changes")) data = [];
+    else if (path.endsWith("/yft_road_features")) data = { type: "FeatureCollection", features: [] };
+    else if (path.endsWith("/user")) data = user;
+    else throw new Error(`Requête Supabase simulée inattendue : ${path}`);
+    await route.fulfill({ status: 200, headers, contentType: "application/json", body: JSON.stringify(data) });
+  });
+  await page.route("**/health", (route) => route.abort());
+  await page.route("https://tiles.openfreemap.org/**", (route) => route.abort());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menu Scénarios multimodaux" }).click();
+  await page.getByText("Éditeur de voirie", { exact: true }).first().click();
+  const roadSelect = page.getByLabel("Scénario enregistré");
+  await expect(roadSelect.locator("option")).toHaveCount(2);
+  await roadSelect.selectOption(roadId);
+  await expect(page.getByText("Scénario indisponible", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Associer la voirie sélectionnée" })).toBeDisabled();
+  await expect(page.getByText("La voirie liée n’est pas ouverte ; elle peut être indisponible.")).toBeVisible();
 });

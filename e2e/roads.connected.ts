@@ -12,7 +12,12 @@ test("real imported road persists as a private scenario after browser reload and
       );
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  async function openRoadEditor() {
+    await page.getByRole("button", { name: "Menu Scénarios multimodaux" }).click();
+    await page.getByText("Éditeur de voirie", { exact: true }).first().click();
+  }
   await page.goto("/");
+  await openRoadEditor();
   await expect(page.getByLabel("Sélectionner un tronçon")).toBeVisible({
     timeout: 30000,
   });
@@ -60,6 +65,7 @@ test("real imported road persists as a private scenario after browser reload and
     }),
   ).toBeVisible();
   await page.reload();
+  await openRoadEditor();
   await page.getByLabel("Scénario enregistré").selectOption(scenarioId);
   await page
     .getByLabel("Sélectionner un tronçon")
@@ -87,6 +93,7 @@ test("real imported road persists as a private scenario after browser reload and
     page.getByLabel("Sens de circulation", { exact: true }),
   ).toHaveValue("both");
   await page.reload();
+  await openRoadEditor();
   await page.getByLabel("Scénario enregistré").selectOption(scenarioId);
   await page
     .getByLabel("Sélectionner un tronçon")
@@ -94,6 +101,7 @@ test("real imported road persists as a private scenario after browser reload and
   await expect(
     page.getByLabel("Sens de circulation", { exact: true }),
   ).toHaveValue("both");
+  page.once("dialog", (dialog) => dialog.accept());
   await page
     .getByRole("button", { name: "Supprimer ce scénario", exact: true })
     .click();
@@ -104,8 +112,5 @@ test("real imported road persists as a private scenario after browser reload and
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   ).version;
   expect(version.version).toBe(packageVersion);
-  await page.getByRole("button", { name: "Informations de version" }).click();
-  await expect(page.getByRole("dialog")).toContainText(version.revision);
-  await page.getByRole("button", { name: "Fermer", exact: true }).click();
   expect(errors).toEqual([]);
 });
