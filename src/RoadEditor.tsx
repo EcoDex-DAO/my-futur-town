@@ -188,6 +188,7 @@ export function RoadEditor({
     }
     handledRequest.current = requestedRoadScenario;
     if (scenario?.id === match.id) {
+      setCompare(false);
       if (changesLoaded && roadsLoaded) setMessage("Cette voirie est déjà ouverte.");
       else {
         setMessage("Nouvelle tentative de chargement de la voirie liée…");
@@ -205,8 +206,9 @@ export function RoadEditor({
   useEffect(() => {
     setLoadedRoadLayerId(null);
     setRoadLoadError(false);
+    onRoads(EMPTY_ROADS);
+    onSelectRoad("");
     if (!supabase || !layer) {
-      onRoads(EMPTY_ROADS);
       return;
     }
     let active = true;
@@ -232,7 +234,7 @@ export function RoadEditor({
     return () => {
       active = false;
     };
-  }, [layer?.id, reloadRoad, onRoads]);
+  }, [layer?.id, reloadRoad, onRoads, onSelectRoad]);
   useEffect(() => {
     setLoadedChangesKey(null);
     setChangesLoadError(false);

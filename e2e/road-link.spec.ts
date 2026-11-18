@@ -47,6 +47,12 @@ test("une voirie simulée est associée, rouverte et refuse un autre propriétai
   await page.getByRole("button", { name: "Ouvrir la voirie liée" }).click();
   await expect(page.getByText("La voirie liée est ouverte dans l’éditeur.")).toBeVisible({ timeout: 20_000 });
   await expect(roadSelect).toHaveValue(roadId);
+  const compare = page.getByRole("checkbox", { name: "Comparer : afficher la référence" });
+  await compare.check();
+  await expect(page.getByText("La voirie liée n’est pas ouverte ; elle peut être indisponible.")).toBeVisible();
+  await page.getByRole("button", { name: "Ouvrir la voirie liée" }).click();
+  await expect(compare).not.toBeChecked();
+  await expect(page.getByText("La voirie liée est ouverte dans l’éditeur.")).toBeVisible({ timeout: 20_000 });
   await page.evaluate(() => {
     const key = "yft:multimodal-bus-scenarios:v1";
     const doc = JSON.parse(localStorage.getItem(key)!);
@@ -115,4 +121,44 @@ test("une voirie en cours de chargement ou en erreur ne peut pas être associée
   await expect(page.getByText("Panne simulée du chargement")).toBeVisible();
   await expect(associate).toBeDisabled();
   await expect(page.getByText("La voirie liée n’est pas ouverte ; elle peut être indisponible.")).toBeVisible();
+});
+
+test("un changement d’instantané retire les anciennes routes pendant le chargement", async ({ page }) => {
+  test.skip(process.env.MFT_SUPABASE_MOCK !== "1", "Nécessite le service Supabase simulé.");
+  const layers = [
+    { id: "00000000-0000-4000-8000-000000000011", name: "Ancien instantané", slug: "annecy-roads-z", metadata: { version: "v1", segments: 1 } },
+    { id: "00000000-0000-4000-8000-000000000012", name: "Nouvel instantané", slug: "annecy-roads-a", metadata: { version: "v2", segments: 1 } },
+  ];
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => { release = resolve; });
+  let requested = false;
+  await page.route("https://mock-supabase.invalid/**", async (route) => {
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "GET,POST,OPTIONS" } });
+      return;
+    }
+    const path = new URL(route.request().url()).pathname;
+    let data: unknown;
+    if (path.endsWith("/geo_layers")) data = layers;
+    else if (path.endsWith("/yft_road_features")) {
+      const layerId = route.request().postDataJSON().p_layer_id;
+      if (layerId === layers[1].id) { requested = true; await pending; }
+      data = { type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "LineString", coordinates: [[6.12, 45.89], [6.121, 45.891]] }, properties: { id: layerId, name: layerId === layers[0].id ? "Rue ancienne" : "Rue nouvelle", source_key: "osm/test", length_m: 100, from_node: "from-node", to_node: "to-node", road_profile: {} } }] };
+    } else throw new Error(`Requête Supabase simulée inattendue : ${path}`);
+    await route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*" }, contentType: "application/json", body: JSON.stringify(data) });
+  });
+  await page.route("**/health", (route) => route.abort());
+  await page.route("https://tiles.openfreemap.org/**", (route) => route.abort());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menu Scénarios multimodaux" }).click();
+  await page.getByText("Éditeur de voirie", { exact: true }).first().click();
+  const roadSelect = page.getByLabel("Sélectionner un tronçon");
+  await expect(roadSelect.locator("option").filter({ hasText: "Rue ancienne" })).toHaveCount(1);
+  await roadSelect.selectOption(layers[0].id);
+  await page.getByLabel("Instantané de référence").selectOption(layers[1].id);
+  await expect.poll(() => requested).toBe(true);
+  await expect(page.getByLabel("Sélectionner un tronçon")).toHaveCount(0);
+  release();
+  await expect(page.getByLabel("Sélectionner un tronçon").locator("option").filter({ hasText: "Rue nouvelle" })).toHaveCount(1);
+  await expect(page.getByLabel("Sélectionner un tronçon")).toHaveValue("");
 });
