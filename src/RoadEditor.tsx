@@ -47,13 +47,22 @@ export function RoadEditor({
     [password, setPassword] = useState("");
   const [layers, setLayers] = useState<RoadLayer[]>([]),
     [layer, setLayer] = useState<RoadLayer | null>(null);
+  const [loadedRoadLayerId, setLoadedRoadLayerId] = useState<string | null>(null);
+  const [roadLoadError, setRoadLoadError] = useState(false);
+  const [reloadRoad, setReloadRoad] = useState(0);
   const [scenarioListLoaded, setScenarioListLoaded] = useState(false);
   const [scenarioOwnerId, setScenarioOwnerId] = useState<string | null>(null);
   const [scenarios, setScenarios] = useState<Scenario[]>([]),
     [scenario, setScenario] = useState<Scenario | null>(null);
   const [name, setName] = useState("Sens unique et piste cyclable");
   const [changes, setChanges] = useState<RoadChange[]>([]);
-  const [changesLoading, setChangesLoading] = useState(true);
+  const [loadedChangesKey, setLoadedChangesKey] = useState<string | null>(null);
+  const [changesLoadError, setChangesLoadError] = useState(false);
+  const changesKey = session && scenario && scenarioOwnerId === session.user.id
+    ? JSON.stringify([session.user.id, scenario.id, scenario.updated_at]) : null;
+  const changesLoaded = changesKey !== null && loadedChangesKey === changesKey;
+  const roadsLoaded = !!scenario && layer?.id === scenario.reference_layer_id && loadedRoadLayerId === layer.id;
+  const changesLoading = !!scenario && !changesLoaded;
   const [profile, setProfile] = useState<RoadProfile | null>(null);
   const [dirty, setDirty] = useState(false);
   useEffect(() => {
@@ -129,14 +138,14 @@ export function RoadEditor({
     listScenarios().catch(fail);
   }, [session?.user.id]);
   useEffect(() => {
-    onScenarioChange(session && scenario && scenarioOwnerId === session.user.id ? {
+    onScenarioChange(session && scenario && changesLoaded && roadsLoaded && !compare ? {
       id: scenario.id,
       ownerId: session.user.id,
       name: scenario.name,
       referenceLayerId: scenario.reference_layer_id,
       referenceVersion: scenario.reference_version,
     } : null);
-  }, [session?.user.id, scenario, scenarioOwnerId, onScenarioChange]);
+  }, [session?.user.id, scenario, changesLoaded, roadsLoaded, compare, onScenarioChange]);
   const handledRoadSelection = useRef<number | null>(null);
   function allowDiscard() {
     return !dirty || window.confirm("Ce tronçon contient des modifications non enregistrées. Les abandonner ?");
@@ -179,18 +188,23 @@ export function RoadEditor({
     }
     handledRequest.current = requestedRoadScenario;
     if (scenario?.id === match.id) {
-      setMessage("Cette voirie est déjà ouverte.");
+      if (changesLoaded && roadsLoaded) setMessage("Cette voirie est déjà ouverte.");
+      else {
+        setMessage("Nouvelle tentative de chargement de la voirie liée…");
+        setReloadRoad((previous) => previous + 1);
+      }
       return;
     }
     if (!allowDiscard()) return;
-    setChangesLoading(true);
     setLayer(reference);
     setScenarioOwnerId(session.user.id);
     setScenario(match);
     setCompare(false);
-    setMessage("Voirie liée ouverte ; ses changements restent partagés entre scénarios associés.");
+    setMessage("Chargement de la voirie liée ; ses changements restent partagés entre scénarios associés.");
   }, [requestedRoadScenario, session?.user.id, scenarioListLoaded, scenarios, layers]);
   useEffect(() => {
+    setLoadedRoadLayerId(null);
+    setRoadLoadError(false);
     if (!supabase || !layer) {
       onRoads(EMPTY_ROADS);
       return;
@@ -202,11 +216,13 @@ export function RoadEditor({
       .then(({ data, error }) => {
         if (!active) return;
         if (error) {
+          setRoadLoadError(true);
           fail(error);
           onRoads(EMPTY_ROADS);
           return;
         }
         onRoads(data as Roads);
+        setLoadedRoadLayerId(layer.id);
         setMessage(
           (data as Roads).features.length
             ? "Routes OSM structurées chargées."
@@ -216,15 +232,16 @@ export function RoadEditor({
     return () => {
       active = false;
     };
-  }, [layer?.id, onRoads]);
+  }, [layer?.id, reloadRoad, onRoads]);
   useEffect(() => {
+    setLoadedChangesKey(null);
+    setChangesLoadError(false);
     if (!scenario || !session || !supabase || scenarioOwnerId !== session.user.id) {
       setChanges([]);
       setGraph(null);
       return;
     }
     let active = true;
-    setChangesLoading(true);
     setChanges([]);
     setGraph(null);
     supabase
@@ -234,10 +251,13 @@ export function RoadEditor({
       .eq("operation", "update")
       .then(({ data, error }) => {
         if (!active) return;
-        if (error) fail(error);
+        if (error) {
+          setChangesLoadError(true);
+          fail(error);
+        }
         else {
           setChanges(data as RoadChange[]);
-          setChangesLoading(false);
+          setLoadedChangesKey(JSON.stringify([session.user.id, scenario.id, scenario.updated_at]));
         }
       });
     supabase
@@ -261,10 +281,10 @@ export function RoadEditor({
     return () => {
       active = false;
     };
-  }, [scenario?.id, scenario?.updated_at, session?.user.id, scenarioOwnerId]);
+  }, [scenario?.id, scenario?.updated_at, session?.user.id, scenarioOwnerId, reloadRoad]);
   useEffect(() => {
-    onChanges(compare ? [] : changes);
-  }, [changes, compare, onChanges]);
+    onChanges(compare || !changesLoaded || !roadsLoaded ? [] : changes);
+  }, [changes, compare, changesLoaded, roadsLoaded, onChanges]);
   useEffect(() => {
     if (!selected) {
       setProfile(null);
@@ -278,12 +298,12 @@ export function RoadEditor({
   }, [selected?.properties.id, changes]);
   useEffect(() => {
     onDraft(
-      !compare && dirty && scenario && selected && profile
+      !compare && changesLoaded && roadsLoaded && dirty && scenario && selected && profile
         ? { id: selected.properties.id, profile }
         : undefined,
     );
     return () => onDraft(undefined);
-  }, [selected?.properties.id, profile, scenario?.id, compare, dirty, onDraft]);
+  }, [selected?.properties.id, profile, scenario?.id, compare, changesLoaded, roadsLoaded, dirty, onDraft]);
   async function act(task: () => Promise<void>) {
     setBusy(true);
     setMessage("");
@@ -509,7 +529,6 @@ export function RoadEditor({
                       scenarios.find((s) => s.id === e.target.value) ?? null;
                     if (s?.id === scenario?.id) return;
                     if (!allowDiscard()) return;
-                    setChangesLoading(true);
                     setScenarioOwnerId(s ? session.user.id : null);
                     setScenario(s);
                     if (s)
@@ -547,6 +566,9 @@ export function RoadEditor({
               )}
               {scenario && (
                 <>
+                  {!changesLoadError && !roadLoadError && (!changesLoaded || !roadsLoaded) && <p role="status">Chargement de la voirie du scénario : la carte ne montre pas encore ses modifications.</p>}
+                  {(changesLoadError || roadLoadError) && <p role="alert">La voirie du scénario n’a pas pu être chargée ; la carte ne montre que la référence disponible.</p>}
+                  {(changesLoadError || roadLoadError) && <button type="button" className="secondary" onClick={() => setReloadRoad((previous) => previous + 1)}>Réessayer le chargement de la voirie</button>}
                   <label className="toggle">
                     <input
                       type="checkbox"
@@ -604,8 +626,8 @@ export function RoadEditor({
               ) : (
                 profile && (
                   <>
-                    {changesLoading && <p role="status">Chargement des modifications enregistrées…</p>}
-                    <fieldset disabled={changesLoading || busy}>
+                    {changesLoading && <p role="status">{changesLoadError ? "Impossible de charger les modifications : la voirie du scénario n’est pas affichée. Réessayez en rouvrant le scénario." : "Chargement des modifications enregistrées…"}</p>}
+                    <fieldset disabled={changesLoading || !roadsLoaded || busy}>
                     <p className="hypothesis">
                       Les valeurs proposées lorsque la source est inconnue sont
                       des hypothèses ajustables. Largeurs en mètres ; aucune

@@ -203,6 +203,16 @@ export default function App() {
     });
     instance.on("click", (e) => {
       if (busMapAction.current || e.defaultPrevented) return;
+      if (roadPanelActive.current && instance.getLayer("yft-road-profiles")) {
+        const road = instance.queryRenderedFeatures([[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]], { layers: ["yft-road-profiles"] })[0];
+        if (road?.properties?.id) {
+          setRoadSelectionRequest((previous) => ({ id: String(road.properties.id), token: (previous?.token ?? 0) + 1 }));
+          setSelected(null);
+          setBusSelection(null);
+          lastBusHit.current = null;
+          return;
+        }
+      }
       if (busSelectionRef.current && lastBusHit.current && Math.hypot(e.point.x - lastBusHit.current.x, e.point.y - lastBusHit.current.y) <= 10) {
         lastBusHit.current = null;
         setBusSelection(null);
@@ -254,15 +264,6 @@ export default function App() {
         setBusSelection((current) => current?.kind === "line" && current.id === id ? null : { kind: "line", id });
         setSelected(null);
         return;
-      }
-      if (roadPanelActive.current && instance.getLayer("yft-road-profiles")) {
-        const road = instance.queryRenderedFeatures([[e.point.x - 6, e.point.y - 6], [e.point.x + 6, e.point.y + 6]], { layers: ["yft-road-profiles"] })[0];
-        if (road?.properties?.id) {
-          setRoadSelectionRequest((previous) => ({ id: String(road.properties.id), token: (previous?.token ?? 0) + 1 }));
-          setSelected(null);
-          setBusSelection(null);
-          return;
-        }
       }
       setBusSelection(null);
       lastBusHit.current = null;
