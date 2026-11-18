@@ -15,7 +15,7 @@ import { MultimodalPanel } from "./features/multimodal/MultimodalPanel";
 import type { RoadScenarioLink } from "./features/multimodal/scenarios";
 import { RoadEditor } from "./RoadEditor";
 import { applyProfiles, EMPTY_ROADS, type Road, type RoadChange, type RoadProfile, type Roads } from "./roads";
-import { PARKING_BOUNDS, syncParkingMap } from "./features/multimodal/parking-map";
+import { PARKING_BOUNDS, syncParkingMap, type ParkingPreview } from "./features/multimodal/parking-map";
 import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
 import { BUS_CREATED_LINES_KEY, busCreatedMarkerFeatures, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
 
@@ -59,7 +59,7 @@ export default function App() {
   const [busSelection, setBusSelection] = useState<{ kind: "line" | "created"; id: string } | { kind: "stop" | "created-stop"; id: string; name: string; lineId?: string } | null>(null);
   const [busInfoPosition, setBusInfoPosition] = useState<{ side: "left" | "right"; vertical: "top" | "bottom" }>({ side: "right", vertical: "top" });
   const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | "multimodal" | null>(null);
-  const [parkingPreviewHeight, setParkingPreviewHeight] = useState<number | null>(null);
+  const [parkingPreview, setParkingPreview] = useState<ParkingPreview | null>(null);
   const [roads, setRoads] = useState<Roads>(EMPTY_ROADS);
   const [roadChanges, setRoadChanges] = useState<RoadChange[]>([]);
   const [roadDraft, setRoadDraft] = useState<{ id: string; profile: RoadProfile }>();
@@ -285,13 +285,13 @@ export default function App() {
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance) return;
-    const renderParking = () => syncParkingMap(instance, parkingPreviewHeight);
+    const renderParking = () => syncParkingMap(instance, parkingPreview);
     instance.on("style.load", renderParking);
     renderParking();
     return () => {
       instance.off("style.load", renderParking);
     };
-  }, [ready, parkingPreviewHeight]);
+  }, [ready, parkingPreview]);
   useEffect(() => {
     const instance = map.current;
     if (!ready || !instance) return;
@@ -493,7 +493,7 @@ export default function App() {
               <summary>Éditeur de voirie</summary>
               <RoadEditor roads={roads} onSelectRoad={setSelectedRoadId} selected={selectedRoad} onRoads={setRoads} onChanges={setRoadChanges} onDraft={setRoadDraft} onFocus={focusRoads} onScenarioChange={setRoadScenarioSelection} requestedRoadScenario={requestedRoadScenario} roadSelectionRequest={roadSelectionRequest} />
             </details>
-            <MultimodalPanel onParkingPreview={setParkingPreviewHeight} onFocusParking={focusParking} mapReady={ready} roadScenarioSelection={roadScenarioSelection} onRequestRoadScenario={requestRoadScenario} />
+            <MultimodalPanel onParkingPreview={setParkingPreview} onFocusParking={focusParking} mapReady={ready} roadScenarioSelection={roadScenarioSelection} onRequestRoadScenario={requestRoadScenario} />
           </section>
           <div className="sidebar-footer">
             <span className="dot" />
@@ -507,7 +507,7 @@ export default function App() {
             className="map"
             aria-label="Carte interactive d’Annecy"
           />
-          {parkingPreviewHeight !== null && <p className="parking-map-note">Volume indicatif sur le contour OSM, non une emprise validée. © contributeurs OpenStreetMap, ODbL.</p>}
+          {parkingPreview !== null && <p className="parking-map-note">Volume indicatif sur le contour OSM, non une emprise validée. Niveaux schématiques. © contributeurs OpenStreetMap, ODbL.</p>}
           <BusLineCreator
             map={map.current}
             ready={ready}
