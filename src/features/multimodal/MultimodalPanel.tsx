@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { MultimodalInputs } from "./estimate";
 import { calculateParking, PARKING_KEYS, PARKING_MAXIMUMS, type ParkingAssumptions } from "./parking";
+import { calculateSolar, type SolarAssumptions } from "./solar";
+import { SolarPanel } from "./SolarPanel";
 import { createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios, saveScenarios, SCENARIOS_STORAGE_KEY, type Assumption, type AssumptionProvenance, type MultimodalScenario } from "./scenarios";
 import "./multimodal.css";
 
@@ -103,6 +105,15 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
   const updateParkingProvenance = (key: keyof ParkingAssumptions, change: Partial<AssumptionProvenance>) => update((scenario) => ({
     ...scenario, parkingProvenance: { ...scenario.parkingProvenance, [key]: { ...scenario.parkingProvenance[key], ...change } },
   }));
+  const updateSolar = (values: Partial<SolarAssumptions>, provenance?: Partial<Record<keyof SolarAssumptions, Partial<AssumptionProvenance>>>) => update((scenario) => {
+    const solarProvenance = { ...scenario.solarProvenance };
+    if (provenance) {
+      for (const key of Object.keys(provenance) as (keyof SolarAssumptions)[]) {
+        solarProvenance[key] = { ...solarProvenance[key], ...provenance[key] };
+      }
+    }
+    return { ...scenario, solar: { ...scenario.solar, ...values }, solarProvenance };
+  });
   const add = (duplicate = false) => {
     try {
       const nextId = createId(scenarios);
@@ -130,7 +141,7 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
       setStatus("Scénarios enregistrés dans ce navigateur.");
       setDirty(false);
     } catch {
-      setStorageError("Enregistrement impossible. Vérifiez les noms des scénarios et l’accès au stockage de ce navigateur.");
+      setStorageError("Enregistrement impossible. Vérifiez les noms et valeurs de tous les scénarios, puis l’accès au stockage de ce navigateur.");
     }
   };
 
@@ -177,6 +188,7 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
         }}>Utiliser la capacité pour le calcul bus</button>
       </div>
       <p className="multimodal-hint">Le transfert vers le calcul bus copie la capacité actuelle. Si les paramètres du parking changent, effectuer à nouveau le transfert pour actualiser le calcul bus.</p>
+      <SolarPanel key={current.id} scenario={current} onChange={updateSolar} />
       <h3>Hypothèses et sources</h3>
       <p>Renseignez la valeur et son origine. Les mesures locales, les hypothèses transférées et les valeurs supposées doivent rester distinctes.</p>
       {INPUT_KEYS.map((key) => {
@@ -202,6 +214,6 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
       </dl> : <p>Renseignez toutes les valeurs pour calculer une estimation.</p>}
       <p className="multimodal-hint">Le calcul inclut la surcharge préexistante et ne distingue pas report modal et déplacements induits. Les véhicules sont une estimation, pas un planning d’exploitation.</p>
     </>}
-    {scenarios.length > 1 && <><h3>Comparer les scénarios</h3><p>Les résultats ne sont comparables que pour une même heure et un même périmètre.</p><div className="multimodal-comparison" role="region" aria-label="Comparaison des scénarios" tabIndex={0}><table><thead><tr><th>Scénario</th><th>Places estimées</th><th>Hauteur estimée</th><th>Voitures/h</th><th>Voyageurs bus/h</th><th>Départs en plus/h</th><th>Véhicules en plus</th></tr></thead><tbody>{scenarios.map((scenario) => { const estimate = result(scenario); const parking = calculateParking(scenario.parking); return <tr key={scenario.id}><th scope="row">{scenario.name || "Nom à renseigner"}</th><td>{parking.capacity === null ? "À renseigner" : format(parking.capacity)}</td><td>{parking.heightMeters === null ? "À renseigner" : `${format(parking.heightMeters)} m`}</td>{estimate.value ? <><td>{format(estimate.value.arrivalsPerHour)}</td><td>{format(estimate.value.additionalBusPassengers)}</td><td>{format(estimate.value.additionalDepartures)}</td><td>{format(estimate.value.additionalVehicles)}</td></> : <td colSpan={4}>{estimate.error ? "Valeurs à corriger" : "À renseigner"}</td>}</tr>; })}</tbody></table></div></>}
+    {scenarios.length > 1 && <><h3>Comparer les scénarios</h3><p>Les résultats ne sont comparables que pour une même heure et un même périmètre.</p><div className="multimodal-comparison" role="region" aria-label="Comparaison des scénarios" tabIndex={0}><table><thead><tr><th>Scénario</th><th>Places estimées</th><th>Hauteur estimée</th><th>Puissance solaire</th><th>Production solaire/an</th><th>Consommation sur place/an</th><th>Voitures/h</th><th>Voyageurs bus/h</th><th>Départs en plus/h</th><th>Véhicules en plus</th></tr></thead><tbody>{scenarios.map((scenario) => { const estimate = result(scenario); const parking = calculateParking(scenario.parking); const solar = calculateSolar(scenario.solar); return <tr key={scenario.id}><th scope="row">{scenario.name || "Nom à renseigner"}</th><td>{parking.capacity === null ? "À renseigner" : format(parking.capacity)}</td><td>{parking.heightMeters === null ? "À renseigner" : `${format(parking.heightMeters)} m`}</td><td>{solar.peakCapacityKwp === null ? "À renseigner" : `${format(solar.peakCapacityKwp)} kWc`}</td><td>{solar.annualProductionKwh === null ? "À renseigner" : `${format(solar.annualProductionKwh)} kWh`}</td><td>{solar.onsiteAnnualConsumptionKwh === null ? "À renseigner" : `${format(solar.onsiteAnnualConsumptionKwh)} kWh`}</td>{estimate.value ? <><td>{format(estimate.value.arrivalsPerHour)}</td><td>{format(estimate.value.additionalBusPassengers)}</td><td>{format(estimate.value.additionalDepartures)}</td><td>{format(estimate.value.additionalVehicles)}</td></> : <td colSpan={4}>{estimate.error ? "Valeurs à corriger" : "À renseigner"}</td>}</tr>; })}</tbody></table></div></>}
   </div>;
 }
