@@ -5,6 +5,7 @@ import type { MultimodalInputs } from "./estimate";
 import { calculateParking, PARKING_KEYS, PARKING_MAXIMUMS, type ParkingAssumptions } from "./parking";
 import { calculateSolar, type SolarAssumptions } from "./solar";
 import { SolarPanel } from "./SolarPanel";
+import type { ParkingPreview } from "./parking-map";
 import { createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios, saveScenarios, SCENARIOS_STORAGE_KEY, type Assumption, type AssumptionProvenance, type MultimodalScenario } from "./scenarios";
 import "./multimodal.css";
 
@@ -52,7 +53,7 @@ function result(scenario: MultimodalScenario) {
 }
 
 export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: {
-  onParkingPreview: (height: number | null) => void;
+  onParkingPreview: (preview: ParkingPreview | null) => void;
   onFocusParking: () => void;
   mapReady: boolean;
 }) {
@@ -88,9 +89,12 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
   const currentResult = current ? result(current) : null;
   const parkingEstimate = current ? calculateParking(current.parking) : null;
   const previewHeight = parkingEstimate?.heightMeters ?? null;
+  const previewLevels = previewHeight !== null ? current?.parking.levels ?? null : null;
+  const previewLevelHeight = previewHeight !== null ? current?.parking.levelHeightMeters ?? null : null;
   useEffect(() => {
-    onParkingPreview(previewEnabled ? previewHeight : null);
-  }, [previewEnabled, previewHeight, onParkingPreview]);
+    onParkingPreview(previewEnabled && previewLevels !== null && previewLevelHeight !== null
+      ? { levels: previewLevels, levelHeightMeters: previewLevelHeight } : null);
+  }, [previewEnabled, previewLevels, previewLevelHeight, onParkingPreview]);
   const update = (change: (scenario: MultimodalScenario) => MultimodalScenario) => {
     setScenarios((previous) => previous.map((scenario) => scenario.id === selectedId ? change(scenario) : scenario));
     setStatus("Modifications non enregistrées.");
@@ -162,6 +166,7 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
       <h3>Parking à niveaux</h3>
       <p>Le contour OSM est indicatif. La capacité et le volume sont des estimations ; accès, rampes, structure et faisabilité restent à vérifier.</p>
       <p className="multimodal-hint">Le volume extrude le contour OSM complet à la hauteur calculée. La surface saisie sert uniquement au calcul de capacité.</p>
+      <p className="multimodal-hint">Au zoom rapproché, les bandes représentent schématiquement les niveaux saisis ; elles ne constituent pas un plan architectural.</p>
       <p className="multimodal-hint">© contributeurs OpenStreetMap, ODbL. Surface par niveau : inclure la circulation comprise dans le ratio, et retirer les surfaces qui ne lui correspondent pas.</p>
       {PARKING_KEYS.map((key) => {
         const field = parkingFields[key];
@@ -180,7 +185,7 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
       <p className="multimodal-hint">Un guide du Certu (2008), diffusé par le Cerema, donne un exemple de 25 m² par place en garage collectif, dégagements compris : valeur transférée, non mesurée aux Trésums. <a href="https://doc.cerema.fr/digitalCollection/DigitalCollectionAttachmentDownloadHandler.ashx?documentId=584694&amp;parentDocumentId=14411&amp;skipCopyright=true&amp;skipWatermark=true" target="_blank" rel="noreferrer">Consulter la source</a>.</p>
       <p>Capacité théorique : <strong>{parkingEstimate?.capacity === null ? "à renseigner" : `${format(parkingEstimate!.capacity!)} places`}</strong>. Hauteur indicative : <strong>{previewHeight === null ? "à renseigner" : `${format(previewHeight)} m`}</strong>.</p>
       <div className="multimodal-actions">
-        <button type="button" disabled={previewHeight === null || !mapReady} onClick={() => { setPreviewEnabled(true); onParkingPreview(previewHeight); onFocusParking(); }}>Afficher le volume sur la carte</button>
+        <button type="button" disabled={previewHeight === null || !mapReady} onClick={() => { setPreviewEnabled(true); onFocusParking(); }}>Afficher le volume sur la carte</button>
         <button type="button" disabled={!previewEnabled} onClick={() => setPreviewEnabled(false)}>Masquer le volume</button>
         <button type="button" disabled={parkingEstimate?.capacity === null} onClick={() => {
           if (parkingEstimate?.capacity === null || parkingEstimate?.capacity === undefined) return;
