@@ -36,6 +36,7 @@
 .multimodal-comparison { overflow-x: auto; }
 .multimodal-comparison table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
 .multimodal-comparison th, .multimodal-comparison td { padding: 7px; border-bottom: 1px solid #dbe2d9; text-align: left; }
+.parking-map-note { position: absolute; z-index: 2; left: 16px; top: 16px; max-width: min(360px, calc(100% - 90px)); margin: 0; padding: 8px 10px; background: #fff; color: #203c34; border: 1px solid #dbe2d9; border-radius: 6px; font-size: 12px; pointer-events: none; }
 @media (max-width: 760px) {
   .sidebar.panel-multimodal:not(.panel-bus):not(.panel-layers):not(.panel-bilan) { top: 76px; right: 8px; bottom: 8px; width: min(370px, calc(100vw - 16px)); }
 }

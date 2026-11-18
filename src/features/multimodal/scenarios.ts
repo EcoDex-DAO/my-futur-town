@@ -1,4 +1,5 @@
 import { estimateMultimodal, type MultimodalInputs } from "./estimate";
+import { createParkingAssumptions, PARKING_KEYS, type ParkingAssumptions } from "./parking";
 
 export const INPUT_KEYS = [
   "parkingPlaces", "occupiedFraction", "dailyTurnover", "peakArrivalFraction",
@@ -7,21 +8,38 @@ export const INPUT_KEYS = [
 ] as const satisfies readonly (keyof MultimodalInputs)[];
 
 export type AssumptionNature = "local" | "transferred" | "assumed" | "unknown";
-export type Assumption = {
-  value: number | null;
+export type AssumptionProvenance = {
   nature: AssumptionNature;
   source: string;
   date: string;
   scope: string;
 };
-export type MultimodalScenario = {
+export type Assumption = AssumptionProvenance & { value: number | null };
+
+type LegacyScenario = {
   id: string;
   name: string;
   assumptions: Record<keyof MultimodalInputs, Assumption>;
 };
 
+export type MultimodalScenario = LegacyScenario & {
+  parking: ParkingAssumptions;
+  parkingProvenance: Record<keyof ParkingAssumptions, AssumptionProvenance>;
+};
+
 export const SCENARIOS_STORAGE_KEY = "yft:multimodal-bus-scenarios:v1";
 type StorageAccess = Pick<Storage, "getItem" | "setItem">;
+
+function unknownProvenance(): AssumptionProvenance {
+  return { nature: "unknown", source: "", date: "", scope: "" };
+}
+
+function withUnknownParking(scenario: LegacyScenario): MultimodalScenario {
+  const parkingProvenance = Object.fromEntries(PARKING_KEYS.map((key) => [
+    key, unknownProvenance(),
+  ])) as MultimodalScenario["parkingProvenance"];
+  return { ...scenario, parking: createParkingAssumptions(), parkingProvenance };
+}
 
 function requireText(value: string, field: string): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`${field} est requis`);
@@ -30,14 +48,23 @@ function requireText(value: string, field: string): string {
 
 export function createScenario(id: string, name: string): MultimodalScenario {
   const assumptions = Object.fromEntries(INPUT_KEYS.map((key) => [
-    key, { value: null, nature: "unknown", source: "", date: "", scope: "" },
+    key, { value: null, ...unknownProvenance() },
   ])) as MultimodalScenario["assumptions"];
-  return { id: requireText(id, "Identifiant"), name: requireText(name, "Nom"), assumptions };
+  return withUnknownParking({ id: requireText(id, "Identifiant"), name: requireText(name, "Nom"), assumptions });
 }
 
 export function duplicateScenario(scenario: MultimodalScenario, id: string, name: string): MultimodalScenario {
   const assumptions = Object.fromEntries(INPUT_KEYS.map((key) => [key, { ...scenario.assumptions[key] }])) as MultimodalScenario["assumptions"];
-  return { id: requireText(id, "Identifiant"), name: requireText(name, "Nom"), assumptions };
+  const parkingProvenance = Object.fromEntries(PARKING_KEYS.map((key) => [
+    key, { ...scenario.parkingProvenance[key] },
+  ])) as MultimodalScenario["parkingProvenance"];
+  return {
+    id: requireText(id, "Identifiant"),
+    name: requireText(name, "Nom"),
+    assumptions,
+    parking: { ...scenario.parking },
+    parkingProvenance,
+  };
 }
 
 export function renameScenario(scenario: MultimodalScenario, name: string): MultimodalScenario {
@@ -60,21 +87,50 @@ function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): 
   return actual.length === keys.length && keys.every((key) => Object.hasOwn(value, key));
 }
 
-function isScenario(value: unknown): value is MultimodalScenario {
-  if (!isRecord(value) || !hasExactKeys(value, ["id", "name", "assumptions"]) ||
-      typeof value.id !== "string" || !value.id.trim() || typeof value.name !== "string" || !value.name.trim() ||
+const PROVENANCE_KEYS = ["nature", "source", "date", "scope"];
+
+function isProvenance(value: Record<string, unknown>): boolean {
+  return typeof value.nature === "string" && ["local", "transferred", "assumed", "unknown"].includes(value.nature) &&
+    typeof value.source === "string" && typeof value.date === "string" && typeof value.scope === "string";
+}
+
+function isNullableFiniteNumber(value: unknown): boolean {
+  return value === null || (typeof value === "number" && Number.isFinite(value));
+}
+
+function hasScenarioFields(value: Record<string, unknown>): boolean {
+  if (typeof value.id !== "string" || !value.id.trim() || typeof value.name !== "string" || !value.name.trim() ||
       !isRecord(value.assumptions) || !hasExactKeys(value.assumptions, INPUT_KEYS)) return false;
   return INPUT_KEYS.every((key) => {
     const item = (value.assumptions as Record<string, unknown>)[key];
-    return isRecord(item) && hasExactKeys(item, ["value", "nature", "source", "date", "scope"]) &&
-      (item.value === null || (typeof item.value === "number" && Number.isFinite(item.value))) &&
-      typeof item.nature === "string" && ["local", "transferred", "assumed", "unknown"].includes(item.nature) &&
-      typeof item.source === "string" && typeof item.date === "string" && typeof item.scope === "string";
+    return isRecord(item) && hasExactKeys(item, ["value", ...PROVENANCE_KEYS]) &&
+      isNullableFiniteNumber(item.value) && isProvenance(item);
   });
 }
 
-function validateScenarios(value: unknown): asserts value is MultimodalScenario[] {
-  if (!Array.isArray(value) || !value.every(isScenario) ||
+function isLegacyScenario(value: unknown): value is LegacyScenario {
+  return isRecord(value) && hasExactKeys(value, ["id", "name", "assumptions"]) && hasScenarioFields(value);
+}
+
+function isScenario(value: unknown): value is MultimodalScenario {
+  if (!isRecord(value) || !hasExactKeys(value, ["id", "name", "assumptions", "parking", "parkingProvenance"]) ||
+      !hasScenarioFields(value)) return false;
+  const { parking, parkingProvenance } = value;
+  if (!isRecord(parking) || !hasExactKeys(parking, PARKING_KEYS) ||
+      !isRecord(parkingProvenance) || !hasExactKeys(parkingProvenance, PARKING_KEYS)) return false;
+
+  return PARKING_KEYS.every((key) => {
+    const provenance = parkingProvenance[key];
+    return isNullableFiniteNumber(parking[key]) && isRecord(provenance) &&
+      hasExactKeys(provenance, PROVENANCE_KEYS) && isProvenance(provenance);
+  });
+}
+
+function validateScenarios<T extends LegacyScenario>(
+  value: unknown,
+  isValidScenario: (item: unknown) => item is T,
+): asserts value is T[] {
+  if (!Array.isArray(value) || !value.every(isValidScenario) ||
       new Set(value.map((scenario) => scenario.id)).size !== value.length) {
     throw new Error("Données de scénarios multimodaux invalides ou incompatibles");
   }
@@ -86,15 +142,19 @@ export function loadScenarios(storage: StorageAccess): MultimodalScenario[] {
   if (raw === null) return [];
   let document: unknown;
   try { document = JSON.parse(raw); } catch { throw new Error("Données de scénarios multimodaux illisibles"); }
-  if (!isRecord(document) || !hasExactKeys(document, ["version", "scenarios"]) || document.version !== 1) {
+  if (!isRecord(document) || !hasExactKeys(document, ["version", "scenarios"]) || (document.version !== 1 && document.version !== 2)) {
     throw new Error("Version des scénarios multimodaux invalide ou incompatible");
   }
-  validateScenarios(document.scenarios);
+  if (document.version === 1) {
+    validateScenarios(document.scenarios, isLegacyScenario);
+    return document.scenarios.map(withUnknownParking);
+  }
+  validateScenarios(document.scenarios, isScenario);
   return document.scenarios;
 }
 
 /** Storage errors propagate so the caller can tell the user saving failed. */
 export function saveScenarios(storage: StorageAccess, scenarios: MultimodalScenario[]): void {
-  validateScenarios(scenarios);
-  storage.setItem(SCENARIOS_STORAGE_KEY, JSON.stringify({ version: 1, scenarios }));
+  validateScenarios(scenarios, isScenario);
+  storage.setItem(SCENARIOS_STORAGE_KEY, JSON.stringify({ version: 2, scenarios }));
 }

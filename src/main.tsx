@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 
 import type { MapGeoJSONFeature } from "maplibre-gl";
@@ -12,6 +12,7 @@ import { BusSimulation } from "./features/bus/micro/BusSimulation";
 import { BusTrafficSimulation } from "./features/bus/macro/BusTrafficSimulation";
 import { BusStopTimetable } from "./features/bus/shared/BusStopTimetable";
 import { MultimodalPanel } from "./features/multimodal/MultimodalPanel";
+import { PARKING_BOUNDS, syncParkingMap } from "./features/multimodal/parking-map";
 import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
 import { BUS_CREATED_LINES_KEY, busCreatedMarkerFeatures, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
 
@@ -55,6 +56,13 @@ export default function App() {
   const [busSelection, setBusSelection] = useState<{ kind: "line" | "created"; id: string } | { kind: "stop" | "created-stop"; id: string; name: string; lineId?: string } | null>(null);
   const [busInfoPosition, setBusInfoPosition] = useState<{ side: "left" | "right"; vertical: "top" | "bottom" }>({ side: "right", vertical: "top" });
   const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | "multimodal" | null>(null);
+  const [parkingPreviewHeight, setParkingPreviewHeight] = useState<number | null>(null);
+  const focusParking = useCallback(() => {
+    const instance = map.current;
+    if (!instance) return;
+    setActivePanel(null);
+    instance.fitBounds(PARKING_BOUNDS, { padding: 80, maxZoom: 17, pitch: 55, duration: 800 });
+  }, []);
   const [newLineToken, setNewLineToken] = useState(0);
   const [createdLines, setCreatedLines] = useState<BusCreatedLine[]>([]);
   const [createdVisible, setCreatedVisible] = useState(true);
@@ -243,6 +251,16 @@ export default function App() {
   }, []);
   useEffect(() => {
     const instance = map.current;
+    if (!ready || !instance) return;
+    const renderParking = () => syncParkingMap(instance, parkingPreviewHeight);
+    instance.on("style.load", renderParking);
+    renderParking();
+    return () => {
+      instance.off("style.load", renderParking);
+    };
+  }, [ready, parkingPreviewHeight]);
+  useEffect(() => {
+    const instance = map.current;
     if (!ready || !instance || !busData) return;
     const features = sibraFeatures(visibleBusData ?? busData, null, null, instance.getZoom());
     const allStops = busStopsMode === "all" ? sibraFeatures(busData, null, null, instance.getZoom()).stops : null;
@@ -410,7 +428,7 @@ export default function App() {
             {busData ? <BusReport data={busData} groups={BUS_GROUPS} selectedIds={selectedNetworkIds} /> : <p className="caption">Chargement des données SIBRA…</p>}
           </section>
           <section className="multimodal-tools" hidden={activePanel !== "multimodal"} aria-label="Scénarios multimodaux">
-            <MultimodalPanel />
+            <MultimodalPanel onParkingPreview={setParkingPreviewHeight} onFocusParking={focusParking} mapReady={ready} />
           </section>
           <div className="sidebar-footer">
             <span className="dot" />
@@ -424,6 +442,7 @@ export default function App() {
             className="map"
             aria-label="Carte interactive d’Annecy"
           />
+          {parkingPreviewHeight !== null && <p className="parking-map-note">Volume indicatif sur le contour OSM, non une emprise validée. © contributeurs OpenStreetMap, ODbL.</p>}
           <BusLineCreator
             map={map.current}
             ready={ready}
