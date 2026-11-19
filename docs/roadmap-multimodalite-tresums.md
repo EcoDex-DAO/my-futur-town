@@ -31,6 +31,7 @@ Voir la [référence locale documentée](reference-locale-tresums.md), sa [carte
 
 ## 4. Flux et besoins de bus
 
+- Travail partiel : les passages GTFS théoriques aux arrêts Trésum peuvent alimenter explicitement le calcul pour une ligne, un sens, un jour de service et une heure. Les parts vélo et marche peuvent être explorées temporairement ; le report modal, les lignes créées, la charge et le tronçon critique restent à traiter.
 - [x] Intégrer le premier calcul isolé de demande horaire, départs supplémentaires et véhicules nécessaires ([PR 18](https://github.com/EcoDex-DAO/my-futur-town/pull/18), publiée sur `main` au commit `2e0639c`). Les hypothèses et limites sont décrites dans [calcul-multimodal-bus.md](calcul-multimodal-bus.md).
 - [x] Raccorder le calcul à l'interface et aux scénarios ; afficher toutes les hypothèses et leurs sources. Les scénarios bus sont conservés localement dans le navigateur ; ils ne sont pas encore reliés aux scénarios de voirie.
 - [ ] Estimer les arrivées horaires : occupation, rotation, personnes par voiture et destinations.
