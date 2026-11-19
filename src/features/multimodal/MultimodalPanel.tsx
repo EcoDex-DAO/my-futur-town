@@ -5,6 +5,8 @@ import type { MultimodalInputs } from "./estimate";
 import { calculateParking, PARKING_KEYS, PARKING_MAXIMUMS, type ParkingAssumptions } from "./parking";
 import { calculateSolar, type SolarAssumptions } from "./solar";
 import { SolarPanel } from "./SolarPanel";
+import { ModeSplitPanel } from "./ModeSplitPanel";
+import { GtfsOfferPanel } from "./GtfsOfferPanel";
 import type { ParkingPreview } from "./parking-map";
 import { createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios, saveScenarios, SCENARIOS_STORAGE_KEY, type Assumption, type AssumptionProvenance, type MultimodalScenario } from "./scenarios";
 import "./multimodal.css";
@@ -64,6 +66,7 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
   const [status, setStatus] = useState("");
   const [dirty, setDirty] = useState(false);
   const [previewEnabled, setPreviewEnabled] = useState(false);
+  const [gtfsOpen, setGtfsOpen] = useState(false);
   const loadedSnapshot = useRef<string | null>(null);
 
   useEffect(() => {
@@ -150,7 +153,7 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
   };
 
   return <div className="multimodal-panel">
-    <p>Comparez des hypothèses de parking et de bus. Les résultats sont des estimations, pas des comptages. Les horaires GTFS ne sont pas chargés automatiquement.</p>
+    <p>Comparez des hypothèses de parking et de bus. Les résultats sont des estimations, pas des comptages. L’offre GTFS peut être consultée et transférée explicitement au calcul.</p>
     <p className="multimodal-note">Les scénarios sont conservés dans ce navigateur uniquement. Les champs vides restent inconnus. Utilisez la même heure, le même sens et le même tronçon pour comparer l’offre et la demande.</p>
     {storageError && <p className="multimodal-error" role="alert">{storageError}</p>}
     {status && <p role="status">{status}</p>}
@@ -194,6 +197,10 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
       </div>
       <p className="multimodal-hint">Le transfert vers le calcul bus copie la capacité actuelle. Si les paramètres du parking changent, effectuer à nouveau le transfert pour actualiser le calcul bus.</p>
       <SolarPanel key={current.id} scenario={current} onChange={updateSolar} />
+      <details open={gtfsOpen} onToggle={(event) => setGtfsOpen(event.currentTarget.open)}>
+        <summary>Consulter l’offre bus SIBRA</summary>
+        {gtfsOpen && <GtfsOfferPanel key={current.id} onApply={({ value, provenance }) => updateAssumption("existingDeparturesPerHour", { value, ...provenance })} />}
+      </details>
       <h3>Hypothèses et sources</h3>
       <p>Renseignez la valeur et son origine. Les mesures locales, les hypothèses transférées et les valeurs supposées doivent rester distinctes.</p>
       {INPUT_KEYS.map((key) => {
@@ -210,6 +217,7 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
           </details>
         </div>;
       })}
+      <ModeSplitPanel key={current.id} scenario={current} />
       <h3>Estimation pour une heure</h3>
       {currentResult?.error ? <p className="multimodal-error" role="alert">{currentResult.error}</p> : currentResult?.value ? <dl className="multimodal-results">
         <div><dt>Arrivées de voitures</dt><dd>{format(currentResult.value.arrivalsPerHour)}</dd></div>
@@ -217,7 +225,7 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
         <div><dt>Départs supplémentaires</dt><dd>{format(currentResult.value.additionalDepartures)}</dd></div>
         <div><dt>Véhicules supplémentaires</dt><dd>{format(currentResult.value.additionalVehicles)}</dd></div>
       </dl> : <p>Renseignez toutes les valeurs pour calculer une estimation.</p>}
-      <p className="multimodal-hint">Le calcul inclut la surcharge préexistante et ne distingue pas report modal et déplacements induits. Les véhicules sont une estimation, pas un planning d’exploitation.</p>
+      <p className="multimodal-hint">Le calcul inclut la surcharge préexistante et ne distingue pas report modal et déplacements induits. Si les voyageurs du parking sont déjà inclus dans la demande de référence, leur addition les compte deux fois. Les véhicules sont une estimation, pas un planning d’exploitation.</p>
     </>}
     {scenarios.length > 1 && <><h3>Comparer les scénarios</h3><p>Les résultats ne sont comparables que pour une même heure et un même périmètre.</p><div className="multimodal-comparison" role="region" aria-label="Comparaison des scénarios" tabIndex={0}><table><thead><tr><th>Scénario</th><th>Places estimées</th><th>Hauteur estimée</th><th>Puissance solaire</th><th>Production solaire/an</th><th>Consommation sur place/an</th><th>Voitures/h</th><th>Voyageurs bus/h</th><th>Départs en plus/h</th><th>Véhicules en plus</th></tr></thead><tbody>{scenarios.map((scenario) => { const estimate = result(scenario); const parking = calculateParking(scenario.parking); const solar = calculateSolar(scenario.solar); return <tr key={scenario.id}><th scope="row">{scenario.name || "Nom à renseigner"}</th><td>{parking.capacity === null ? "À renseigner" : format(parking.capacity)}</td><td>{parking.heightMeters === null ? "À renseigner" : `${format(parking.heightMeters)} m`}</td><td>{solar.peakCapacityKwp === null ? "À renseigner" : `${format(solar.peakCapacityKwp)} kWc`}</td><td>{solar.annualProductionKwh === null ? "À renseigner" : `${format(solar.annualProductionKwh)} kWh`}</td><td>{solar.onsiteAnnualConsumptionKwh === null ? "À renseigner" : `${format(solar.onsiteAnnualConsumptionKwh)} kWh`}</td>{estimate.value ? <><td>{format(estimate.value.arrivalsPerHour)}</td><td>{format(estimate.value.additionalBusPassengers)}</td><td>{format(estimate.value.additionalDepartures)}</td><td>{format(estimate.value.additionalVehicles)}</td></> : <td colSpan={4}>{estimate.error ? "Valeurs à corriger" : "À renseigner"}</td>}</tr>; })}</tbody></table></div></>}
   </div>;
