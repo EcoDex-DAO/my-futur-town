@@ -1,3 +1,6 @@
+import footprint from "./parking-footprint.json" with { type: "json" };
+import type { AssumptionProvenance } from "./scenarios";
+
 export type ParkingAssumptions = {
   levels: number | null;
   levelHeightMeters: number | null;
@@ -24,6 +27,72 @@ export function createParkingAssumptions(): ParkingAssumptions {
     levelHeightMeters: null,
     areaPerLevelSqMeters: null,
     squareMetersPerSpace: null,
+  };
+}
+
+function approximateRingArea(ring: number[][]): number {
+  const [originLongitude, originLatitude] = ring[0];
+  const radiansPerDegree = Math.PI / 180;
+  const metersPerDegree = 6_371_008.8 * radiansPerDegree;
+  const longitudeScale = metersPerDegree * Math.cos(originLatitude * radiansPerDegree);
+  // Local equirectangular projection for the small OSM contour, then the shoelace formula.
+  const coordinates = ring.map(([longitude, latitude]) => [
+    (longitude - originLongitude) * longitudeScale,
+    (latitude - originLatitude) * metersPerDegree,
+  ]);
+  const doubleArea = coordinates.slice(1).reduce((sum, [x, y], index) => {
+    const [previousX, previousY] = coordinates[index];
+    return sum + previousX * y - x * previousY;
+  }, 0);
+  return Math.abs(doubleArea) / 2;
+}
+
+const [outerRing, ...innerRings] = footprint.geometry.coordinates;
+export const PARKING_FOOTPRINT_AREA_SQ_METERS = approximateRingArea(outerRing) -
+  innerRings.reduce((total, ring) => total + approximateRingArea(ring), 0);
+
+export const AVERAGE_PARKING_AREA_SHARE = 0.8;
+
+type AverageParkingAssumptions = {
+  parking: Record<keyof ParkingAssumptions, number>;
+  parkingProvenance: Record<keyof ParkingAssumptions, AssumptionProvenance>;
+};
+
+/** Creates an editable study variant based on the indicative OSM outline and explicit assumptions. */
+export function createAverageParkingAssumptions(): AverageParkingAssumptions {
+  return {
+    parking: {
+      levels: 3,
+      levelHeightMeters: 3,
+      areaPerLevelSqMeters: Math.round(PARKING_FOOTPRINT_AREA_SQ_METERS * AVERAGE_PARKING_AREA_SHARE / 10) * 10,
+      squareMetersPerSpace: 25,
+    },
+    parkingProvenance: {
+      levels: {
+        nature: "assumed",
+        source: "Hypothèse de simulation",
+        date: "",
+        scope: "Trois niveaux hors sol pour tester une variante aux Trésums.",
+      },
+      levelHeightMeters: {
+        nature: "assumed",
+        source: "Hypothèse de simulation",
+        date: "",
+        scope: "Trois mètres par niveau pour représenter le volume indicatif.",
+      },
+      areaPerLevelSqMeters: {
+        nature: "assumed",
+        source: "OpenStreetMap way/40906387 v12 (ODbL), avec une part de surface supposée",
+        date: "2026-07-02",
+        scope: "80 % de la surface indicative du contour par niveau, arrondis à 10 m². Les 20 % d’exclusion supposée couvrent les espaces hors ratio. La circulation déjà comprise dans le ratio reste incluse.",
+      },
+      squareMetersPerSpace: {
+        nature: "transferred",
+        source: "Certu (2008), guide diffusé par le Cerema, p. 44",
+        date: "",
+        scope: "Exemple de garage collectif, dégagements compris, transféré aux Trésums.",
+      },
+    },
   };
 }
 

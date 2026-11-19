@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { MultimodalInputs } from "./estimate";
-import { calculateParking, PARKING_KEYS, PARKING_MAXIMUMS, type ParkingAssumptions } from "./parking";
+import { calculateParking, createAverageParkingAssumptions, PARKING_FOOTPRINT_AREA_SQ_METERS, AVERAGE_PARKING_AREA_SHARE, PARKING_KEYS, PARKING_MAXIMUMS, type ParkingAssumptions } from "./parking";
 import { calculateSolar, type SolarAssumptions } from "./solar";
 import { SolarPanel } from "./SolarPanel";
 import { ModeSplitPanel } from "./ModeSplitPanel";
@@ -108,6 +108,9 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
   }));
   const updateParking = (key: keyof ParkingAssumptions, value: number | null) => update((scenario) => ({
     ...scenario, parking: { ...scenario.parking, [key]: value },
+    parkingProvenance: scenario.parking[key] === value ? scenario.parkingProvenance : {
+      ...scenario.parkingProvenance, [key]: { nature: "unknown", source: "", date: "", scope: "" },
+    },
   }));
   const updateParkingProvenance = (key: keyof ParkingAssumptions, change: Partial<AssumptionProvenance>) => update((scenario) => ({
     ...scenario, parkingProvenance: { ...scenario.parkingProvenance, [key]: { ...scenario.parkingProvenance[key], ...change } },
@@ -167,10 +170,21 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
       <label className="multimodal-field">Scénario actif<select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{scenarios.map((scenario) => <option value={scenario.id} key={scenario.id}>{scenario.name || "Nom à renseigner"}</option>)}</select></label>
       <label className="multimodal-field">Nom du scénario<input value={current.name} onChange={(event) => update((scenario) => ({ ...scenario, name: event.target.value }))} /></label>
       <h3>Parking à niveaux</h3>
-      <p>Le contour OSM est indicatif. La capacité et le volume sont des estimations ; accès, rampes, structure et faisabilité restent à vérifier.</p>
-      <p className="multimodal-hint">Le volume extrude le contour OSM complet à la hauteur calculée. La surface saisie sert uniquement au calcul de capacité.</p>
-      <p className="multimodal-hint">Au zoom rapproché, les bandes représentent schématiquement les niveaux saisis ; elles ne constituent pas un plan architectural.</p>
-      <p className="multimodal-hint">© contributeurs OpenStreetMap, ODbL. Surface par niveau : inclure la circulation comprise dans le ratio, et retirer les surfaces qui ne lui correspondent pas.</p>
+      <div className="parking-average">
+        <p><strong>Commencer avec des valeurs moyennes</strong></p>
+        <p>Contour OpenStreetMap indicatif : environ {format(PARKING_FOOTPRINT_AREA_SQ_METERS)} m². Le modèle suppose trois niveaux hors sol, rez-de-chaussée compris, de 3 m chacun : une hauteur totale indicative de 9 m. Il utilise {format(AVERAGE_PARKING_AREA_SHARE * 100)} % de cette surface et applique 25 m² par place, circulation comprise.</p>
+        <p className="multimodal-hint">Le contour n’est pas une emprise validée ; les niveaux, la hauteur et la part de surface sont supposés. Le ratio de 25 m²/place est transféré d’un guide Cerema. Tout reste modifiable.</p>
+        <button type="button" onClick={() => {
+          if (PARKING_KEYS.some((key) => current.parking[key] !== null || current.parkingProvenance[key].nature !== "unknown" ||
+              current.parkingProvenance[key].source || current.parkingProvenance[key].date || current.parkingProvenance[key].scope) &&
+              !window.confirm("Remplacer les paramètres du parking de ce scénario par les valeurs moyennes ? Les autres hypothèses du scénario sont conservées.")) return;
+          update((scenario) => ({ ...scenario, ...createAverageParkingAssumptions() }));
+          setPreviewEnabled(true);
+          if (mapReady) onFocusParking();
+        }}>Utiliser les valeurs moyennes</button>
+        {!mapReady && <p className="multimodal-hint">La carte est en cours de chargement ; les valeurs restent modifiables.</p>}
+      </div>
+      <p className="multimodal-hint">Le volume utilise tout le contour OSM ; la surface saisie sert au calcul des places. Les bandes sont schématiques : accès, rampes et faisabilité restent à vérifier. © contributeurs OpenStreetMap, ODbL.</p>
       {PARKING_KEYS.map((key) => {
         const field = parkingFields[key];
         const provenance = current.parkingProvenance[key];
