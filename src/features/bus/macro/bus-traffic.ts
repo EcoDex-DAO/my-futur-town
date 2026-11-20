@@ -8,7 +8,7 @@ export function networkActiveVehicles(schedule: Schedule, data: SibraData, date:
   return data.lines.flatMap((line) => getActiveVehicles(schedule, data, date, second, line.id, options));
 }
 
-/** La simulation réseau utilise exclusivement des points, quel que soit le zoom. */
+/** Prépare les points colorés de la simulation à l'échelle du réseau. */
 export function networkVehiclePoints(vehicles: ActiveVehicle[], data: SibraData): FeatureCollection<Point, { lineId: string; color: string; atStop: boolean }> {
   const colors = new Map(data.lines.map((line) => [line.id, line.color.startsWith("#") ? line.color : `#${line.color}`]));
   return { type: "FeatureCollection", features: vehicles.map((vehicle) => ({

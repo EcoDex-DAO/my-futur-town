@@ -78,3 +78,7 @@ Aucun test automatisé n’a été lancé pour cette intégration. La commande l
 - Synchronisation des lignes entre utilisateurs, temps réel et effets sur le trafic.
 
 Mettre cette feuille à jour après chaque validation. Issues : [#7 feuille de route](https://github.com/EcoDex-DAO/my-futur-town/issues/7), [#9 créateur](https://github.com/EcoDex-DAO/my-futur-town/issues/9), [#13 estimation macro](https://github.com/EcoDex-DAO/my-futur-town/issues/13).
+
+## Actualisation — issue #28
+
+Le périmètre de l'issue #28 étend la simulation à toutes les lignes SIBRA cochées. Depuis le commit `44808a9`, la simulation réseau calcule les positions de leurs courses GTFS ; les véhicules sont affichés en points à l'échelle de la ville et en modèles schématiques au zoom proche. L'ancien panneau limité à la ligne 1 n'est plus proposé, mais son code est conservé. Les positions sont théoriques et les lignes créées sans horaires ne sont pas simulées. Les critères et validations de cette extension figurent dans `specs/028-transport-v1/` ; les limites de licence restent dans `sibra-data.md`.

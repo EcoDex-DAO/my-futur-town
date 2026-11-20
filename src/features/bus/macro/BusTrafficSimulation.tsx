@@ -5,10 +5,12 @@ import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { SibraData } from "../shared/sibra";
 import { DEFAULT_ESTIMATED_DWELL_SECONDS, parseSchedule, type Schedule } from "../shared/bus-simulation";
 import { networkActiveVehicles, networkVehiclePoints } from "./bus-traffic";
+import { busDisplayFeatures } from "../micro/bus-models";
 
 type Props = { map: MapLibreMap | null; mapReady: boolean; data: SibraData; visibleCreatedCount: number };
 const sourceId = "yft-traffic-vehicles";
 const layerId = "yft-traffic-points";
+const modelsLayerId = "yft-traffic-models";
 const speeds = [1, 5, 10, 60] as const;
 const maxSecond = 86_399;
 const formatTime = (value: number) => { const seconds = Math.max(0, Math.min(maxSecond, Math.floor(value))); return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; };
@@ -19,9 +21,13 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
   const [date, setDate] = useState("");
   const [second, setSecond] = useState(8 * 3600);
   const [speed, setSpeed] = useState<(typeof speeds)[number]>(1);
+  const [dwellSeconds, setDwellSeconds] = useState(DEFAULT_ESTIMATED_DWELL_SECONDS);
   const [active, setActive] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [viewVersion, setViewVersion] = useState(0);
   const clock = useRef(8 * 3600);
+  const markers = useRef<HTMLDivElement | null>(null);
+  const displayingModels = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -50,20 +56,60 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
     return () => window.clearInterval(timer);
   }, [playing, speed]);
 
-  const vehicles = useMemo(() => active && schedule && date ? networkActiveVehicles(schedule, data, date, second, { estimatedDwellSeconds: DEFAULT_ESTIMATED_DWELL_SECONDS }) : [], [active, schedule, data, date, second]);
+  const vehicles = useMemo(() => active && schedule && date ? networkActiveVehicles(schedule, data, date, second, { estimatedDwellSeconds: dwellSeconds }) : [], [active, schedule, data, date, second, dwellSeconds]);
   const points = useMemo(() => networkVehiclePoints(vehicles, data), [vehicles, data]);
+  const lineCounts = useMemo(() => data.lines.map((line) => ({ line, count: vehicles.filter((vehicle) => vehicle.lineId === line.id).length })), [data, vehicles]);
 
   useEffect(() => {
     if (!active || !map || !mapReady) return;
+    const markerContainer = document.createElement("div");
+    markerContainer.className = "bus-traffic-markers";
+    markerContainer.setAttribute("aria-hidden", "true");
+    markerContainer.style.cssText = "position:absolute;inset:0;pointer-events:none;overflow:hidden";
+    map.getCanvasContainer().appendChild(markerContainer);
+    markers.current = markerContainer;
     if (!map.getSource(sourceId)) map.addSource(sourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    if (!map.getLayer(layerId)) map.addLayer({ id: layerId, type: "circle", source: sourceId, paint: { "circle-radius": 5, "circle-color": ["get", "color"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } });
-    return () => { if (map.getLayer(layerId)) map.removeLayer(layerId); if (map.getSource(sourceId)) map.removeSource(sourceId); };
+    if (!map.getLayer(layerId)) map.addLayer({ id: layerId, type: "circle", source: sourceId, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 5, "circle-color": ["get", "color"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } });
+    if (!map.getLayer(modelsLayerId)) map.addLayer({ id: modelsLayerId, type: "fill-extrusion", source: sourceId, minzoom: 16, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"] } });
+    const refreshView = () => setViewVersion((value) => value + 1);
+    const refreshPoints = () => { if (!displayingModels.current) refreshView(); };
+    map.on("move", refreshPoints);
+    map.on("moveend", refreshView);
+    map.on("zoomend", refreshView);
+    return () => { map.off("move", refreshPoints); map.off("moveend", refreshView); map.off("zoomend", refreshView); markerContainer.remove(); markers.current = null; displayingModels.current = false; if (map.getLayer(modelsLayerId)) map.removeLayer(modelsLayerId); if (map.getLayer(layerId)) map.removeLayer(layerId); if (map.getSource(sourceId)) map.removeSource(sourceId); };
   }, [active, map, mapReady]);
 
   useEffect(() => {
     if (!active || !map || !mapReady) return;
-    (map.getSource(sourceId) as GeoJSONSource | undefined)?.setData(points);
-  }, [active, map, mapReady, points]);
+    const source = map.getSource(sourceId) as GeoJSONSource | undefined;
+    const container = markers.current;
+    if (!container) return;
+    if (map.getZoom() >= 16) {
+      container.replaceChildren();
+      displayingModels.current = true;
+      const visible = vehicles.filter((vehicle) => map.getBounds().contains(vehicle.position));
+      const features = busDisplayFeatures(visible, map.getZoom());
+      container.dataset.models = String(visible.length);
+      container.dataset.modelParts = String(features.length);
+      source?.setData({ type: "FeatureCollection", features });
+    } else {
+      delete container.dataset.models;
+      delete container.dataset.modelParts;
+      if (displayingModels.current) {
+        displayingModels.current = false;
+        source?.setData({ type: "FeatureCollection", features: [] });
+      }
+      const fragment = document.createDocumentFragment();
+      for (const point of points.features) {
+        const position = map.project(point.geometry.coordinates as [number, number]);
+        const marker = document.createElement("span");
+        marker.dataset.lineId = point.properties.lineId;
+        marker.style.cssText = `position:absolute;width:10px;height:10px;border:1.5px solid white;border-radius:50%;box-sizing:border-box;background:${point.properties.color};transform:translate(${position.x - 5}px,${position.y - 5}px)`;
+        fragment.appendChild(marker);
+      }
+      container.replaceChildren(fragment);
+    }
+  }, [active, map, mapReady, points, vehicles, viewVersion]);
 
   const inCoverage = !!schedule && date >= schedule.metadata.validFrom && date <= schedule.metadata.validTo;
   const today = schedule ? new Intl.DateTimeFormat("en-CA", { timeZone: schedule.metadata.timeZone }).format(new Date()) : "";
@@ -72,9 +118,10 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
   const stop = () => { setPlaying(false); setActive(false); };
 
   return <section className="bus-simulation bus-traffic" aria-labelledby="bus-traffic-title">
-    <h2 id="bus-traffic-title">Simulation du trafic</h2>
-    <p className="caption">{data.lines.length} ligne{data.lines.length === 1 ? "" : "s"} SIBRA cochée{data.lines.length === 1 ? "" : "s"} · points calculés à partir des horaires théoriques, sans temps réel.</p>
+    <h2 id="bus-traffic-title">Simulation des lignes cochées</h2>
+    <p className="caption">{data.lines.length} ligne{data.lines.length === 1 ? "" : "s"} SIBRA cochée{data.lines.length === 1 ? "" : "s"} · positions calculées à partir des horaires théoriques, sans temps réel.</p>
     {error ? <p className="bus-simulation-message" role="alert">{error}</p> : !schedule ? <p role="status">Chargement des horaires…</p> : <>
+      <p className="caption">Horaires valides du {schedule.metadata.validFrom} au {schedule.metadata.validTo} · {schedule.metadata.timeZone}</p>
       {todayOutsideCoverage && <p className="bus-simulation-message" role="status">Les horaires disponibles vont du {schedule.metadata.validFrom} au {schedule.metadata.validTo}. La date initiale choisie est dans cette période.</p>}
       <div className="bus-simulation-fields">
         <label htmlFor="traffic-date">Date<input id="traffic-date" type="date" min={schedule.metadata.validFrom} max={schedule.metadata.validTo} value={date} onChange={(event) => setDate(event.target.value)} /></label>
@@ -85,12 +132,19 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
         {active && <button type="button" className="bus-simulation-reset" onClick={stop}>Arrêter</button>}
       </div>
       <div className="bus-simulation-speeds" role="group" aria-label="Vitesse de simulation">{speeds.map((value) => <button type="button" key={value} aria-pressed={speed === value} onClick={() => setSpeed(value)}>×{value}</button>)}</div>
+      <label className="bus-simulation-dwell" htmlFor="traffic-dwell">Arrêt estimé
+        <select id="traffic-dwell" value={dwellSeconds} onChange={(event) => setDwellSeconds(Number(event.target.value))}>
+          <option value={0}>Désactivé</option><option value={5}>5 secondes</option><option value={12}>12 secondes (moyenne)</option><option value={20}>20 secondes</option>
+        </select>
+      </label>
       <p className="bus-simulation-clock"><strong>{formatTime(second)}</strong> · {vehicles.length} bus en circulation</p>
+      <button type="button" className="bus-simulation-focus" disabled={!vehicles.length || !map} onClick={() => { if (vehicles[0] && map) map.flyTo({ center: vehicles[0].position, zoom: 18, pitch: 50, essential: true }); }}>Voir un bus de près</button>
+      {active && lineCounts.length > 0 && <p className="caption" aria-label="Bus simulés par ligne">{lineCounts.map(({ line, count }) => `${line.shortName} : ${count}`).join(" · ")}</p>}
       {!data.lines.length && <p className="bus-simulation-message">Cochez au moins une ligne SIBRA pour lancer la simulation.</p>}
       {!inCoverage && <p className="bus-simulation-message">Choisissez une date entre le {schedule.metadata.validFrom} et le {schedule.metadata.validTo}.</p>}
       {inCoverage && active && !vehicles.length && <p className="bus-simulation-message">Aucun bus des lignes cochées à cette date et cette heure.</p>}
       {visibleCreatedCount > 0 && <p className="bus-simulation-message">Les lignes créées n’ont pas encore d’horaires et ne peuvent pas être simulées.</p>}
-      <p className="bus-simulation-disclaimer">Arrêt estimé : {DEFAULT_ESTIMATED_DWELL_SECONDS} secondes lorsque les horaires le permettent. Les points représentent des positions calculées, sans objets 3D.</p>
+      <p className="bus-simulation-disclaimer">Arrêt estimé : {dwellSeconds} secondes lorsque les horaires le permettent, réduit si nécessaire sans modifier les horaires publiés. Les positions sont calculées ; les véhicules 3D sont schématiques.</p>
     </>}
   </section>;
 }
