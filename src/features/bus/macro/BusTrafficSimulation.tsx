@@ -26,6 +26,8 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
   const [playing, setPlaying] = useState(false);
   const [viewVersion, setViewVersion] = useState(0);
   const clock = useRef(8 * 3600);
+  const markers = useRef<HTMLDivElement | null>(null);
+  const displayingModels = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -60,20 +62,48 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
 
   useEffect(() => {
     if (!active || !map || !mapReady) return;
+    const markerContainer = document.createElement("div");
+    markerContainer.className = "bus-traffic-markers";
+    markerContainer.setAttribute("aria-hidden", "true");
+    markerContainer.style.cssText = "position:absolute;inset:0;pointer-events:none;overflow:hidden";
+    map.getCanvasContainer().appendChild(markerContainer);
+    markers.current = markerContainer;
     if (!map.getSource(sourceId)) map.addSource(sourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     if (!map.getLayer(layerId)) map.addLayer({ id: layerId, type: "circle", source: sourceId, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 5, "circle-color": ["get", "color"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } });
-    if (!map.getLayer(modelsLayerId)) map.addLayer({ id: modelsLayerId, type: "fill-extrusion", source: sourceId, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"] } });
+    if (!map.getLayer(modelsLayerId)) map.addLayer({ id: modelsLayerId, type: "fill-extrusion", source: sourceId, minzoom: 16, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"] } });
     const refreshView = () => setViewVersion((value) => value + 1);
+    const refreshPoints = () => { if (!displayingModels.current) refreshView(); };
+    map.on("move", refreshPoints);
     map.on("moveend", refreshView);
     map.on("zoomend", refreshView);
-    return () => { map.off("moveend", refreshView); map.off("zoomend", refreshView); if (map.getLayer(modelsLayerId)) map.removeLayer(modelsLayerId); if (map.getLayer(layerId)) map.removeLayer(layerId); if (map.getSource(sourceId)) map.removeSource(sourceId); };
+    return () => { map.off("move", refreshPoints); map.off("moveend", refreshView); map.off("zoomend", refreshView); markerContainer.remove(); markers.current = null; displayingModels.current = false; if (map.getLayer(modelsLayerId)) map.removeLayer(modelsLayerId); if (map.getLayer(layerId)) map.removeLayer(layerId); if (map.getSource(sourceId)) map.removeSource(sourceId); };
   }, [active, map, mapReady]);
 
   useEffect(() => {
     if (!active || !map || !mapReady) return;
-    const visible = vehicles.filter((vehicle) => map.getBounds().contains(vehicle.position));
-    const display = map.getZoom() < 16 ? points : { type: "FeatureCollection" as const, features: busDisplayFeatures(visible, map.getZoom()) };
-    (map.getSource(sourceId) as GeoJSONSource | undefined)?.setData(display);
+    const source = map.getSource(sourceId) as GeoJSONSource | undefined;
+    const container = markers.current;
+    if (!container) return;
+    if (map.getZoom() >= 16) {
+      container.replaceChildren();
+      displayingModels.current = true;
+      const visible = vehicles.filter((vehicle) => map.getBounds().contains(vehicle.position));
+      source?.setData({ type: "FeatureCollection", features: busDisplayFeatures(visible, map.getZoom()) });
+    } else {
+      if (displayingModels.current) {
+        displayingModels.current = false;
+        source?.setData({ type: "FeatureCollection", features: [] });
+      }
+      const fragment = document.createDocumentFragment();
+      for (const point of points.features) {
+        const position = map.project(point.geometry.coordinates as [number, number]);
+        const marker = document.createElement("span");
+        marker.dataset.lineId = point.properties.lineId;
+        marker.style.cssText = `position:absolute;width:10px;height:10px;border:1.5px solid white;border-radius:50%;box-sizing:border-box;background:${point.properties.color};transform:translate(${position.x - 5}px,${position.y - 5}px)`;
+        fragment.appendChild(marker);
+      }
+      container.replaceChildren(fragment);
+    }
   }, [active, map, mapReady, points, vehicles, viewVersion]);
 
   const inCoverage = !!schedule && date >= schedule.metadata.validFrom && date <= schedule.metadata.validTo;
@@ -103,6 +133,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
         </select>
       </label>
       <p className="bus-simulation-clock"><strong>{formatTime(second)}</strong> · {vehicles.length} bus en circulation</p>
+      <button type="button" className="bus-simulation-focus" disabled={!vehicles.length || !map} onClick={() => { if (vehicles[0] && map) map.flyTo({ center: vehicles[0].position, zoom: 18, pitch: 50, essential: true }); }}>Voir un bus de près</button>
       {active && lineCounts.length > 0 && <p className="caption" aria-label="Bus simulés par ligne">{lineCounts.map(({ line, count }) => `${line.shortName} : ${count}`).join(" · ")}</p>}
       {!data.lines.length && <p className="bus-simulation-message">Cochez au moins une ligne SIBRA pour lancer la simulation.</p>}
       {!inCoverage && <p className="bus-simulation-message">Choisissez une date entre le {schedule.metadata.validFrom} et le {schedule.metadata.validTo}.</p>}

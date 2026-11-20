@@ -26,12 +26,20 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(panel).toContainText("2 lignes SIBRA cochées");
     await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/2 : [1-9]/);
     await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/3 : [1-9]/);
+    await expect(page.locator('.bus-traffic-markers [data-line-id="2"]').first()).toBeAttached();
+    await expect(page.locator('.bus-traffic-markers [data-line-id="3"]').first()).toBeAttached();
     await lines.getByLabel(/Ligne 2 -/).uncheck();
     await expect(panel.getByLabel("Bus simulés par ligne")).not.toContainText("2 :");
+    await expect(page.locator('.bus-traffic-markers [data-line-id="2"]')).toHaveCount(0);
     await lines.getByLabel(/Ligne 3 -/).uncheck();
     await lines.getByLabel("Principales", { exact: true }).check();
     await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/4 : [1-9]/);
     await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/5 : [1-9]/);
+    if (viewport.width === 1440) {
+      await panel.getByRole("button", { name: "Voir un bus de près" }).click();
+      await page.waitForTimeout(6000);
+      await page.screenshot({ path: "test-results/traffic-bus-3d.png" });
+    }
     await panel.getByLabel("Heure").fill("03:00:00");
     await expect(panel).toContainText("Aucun bus des lignes cochées");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
