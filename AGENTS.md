@@ -1,5 +1,15 @@
 # Repository Guidelines
 
+## Méthode de travail et suivi
+
+- Lire `docs/guide-travail.md` pour identifier les deux projets, les versions et le parcours de livraison.
+- Avant de travailler sur une issue GitHub, consulter son contenu et son projet. Pour chaque nouvelle issue, créer un espace de travail Orca distinct et une branche dédiée depuis `origin/main` à jour, puis y ouvrir une nouvelle session d'agent avec le contexte et le numéro de l'issue. Utiliser le skill `orca-cli` et lier l'issue à l'espace lorsque possible. Communiquer à l'utilisateur le lien ou l'identifiant de la session et de la branche.
+- Reprendre l'espace et la branche déjà associés à la même issue pour la suite de ce travail : ne pas créer récursivement une nouvelle session lorsque l'agent vient d'être lancé pour cette issue. Une demande qui ne consiste pas à travailler sur une issue ne déclenche pas automatiquement cette création.
+- Si Orca ou GitHub est indisponible, expliquer le blocage et ne pas prétendre avoir créé ou synchronisé la session ; proposer une solution de repli avant de travailler ailleurs.
+- Pour une fonctionnalité complexe, suivre les étapes Spec Kit : spécification, clarification si nécessaire, plan, tâches, analyse et implémentation. Une correction simple peut suivre un flux direct. Conserver les spécifications dans le dépôt et relier les changements à l'issue.
+- Utiliser les skills globaux disponibles quand ils apportent une aide réelle : `codebase-memory` et `graphify` pour comprendre la structure, `impeccable` ou `ui-ux-pro-max` pour l'interface, et `orca-cli` pour Orca. S'ils manquent, le signaler lorsque leur absence affecte le travail et utiliser une méthode adaptée disponible.
+- Adapter les explications à une personne débutante : décrire l'objectif, les choix et les limites en français simple ; montrer les changements visuels lorsque possible. Mettre à jour le suivi GitHub selon l'état réel, sans déclarer une fonctionnalité terminée avant sa vérification.
+
 ## Project Structure & Module Organization
 
 - `src/` contains the React/TypeScript interface, MapLibre helpers (`map.ts`), styles, and colocated tests. `src/app/` contains the Next.js App Router layout, page, and API route handlers for `GET /health` and `GET /api/layers`. The map must remain usable without the API.
