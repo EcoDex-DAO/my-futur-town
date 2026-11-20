@@ -6,8 +6,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.route("**/health", (route) => route.abort());
     await page.goto("/");
     await page.getByRole("button", { name: "Menu Bus" }).click();
-    await page.getByRole("button", { name: "Simulation du trafic", exact: true }).click();
-    const panel = page.getByRole("region", { name: "Simulation du trafic" });
+    await page.getByRole("button", { name: "Simuler les lignes cochées", exact: true }).click();
+    const panel = page.getByRole("region", { name: "Simulation des lignes cochées" });
     await expect(panel).toContainText("27 lignes SIBRA cochées");
     await expect(panel).toContainText("2026-11-04 au 2026-12-20", { timeout: 60000 });
     await expect(panel).toContainText("sans temps réel");
@@ -19,6 +19,15 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await panel.getByRole("button", { name: "Démarrer" }).click();
     await expect(panel.locator(".bus-simulation-clock")).not.toContainText("0 bus en circulation");
     await panel.getByRole("button", { name: "Pause" }).click();
+    const lines = page.locator(".sibra-line-tree");
+    await lines.getByLabel(/Tout le réseau/).uncheck();
+    await lines.getByLabel(/Ligne 2 -/).check();
+    await lines.getByLabel(/Ligne 3 -/).check();
+    await expect(panel).toContainText("2 lignes SIBRA cochées");
+    await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/2 : [1-9]/);
+    await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/3 : [1-9]/);
+    await lines.getByLabel(/Ligne 2 -/).uncheck();
+    await expect(panel.getByLabel("Bus simulés par ligne")).not.toContainText("2 :");
     await panel.getByLabel("Heure").fill("03:00:00");
     await expect(panel).toContainText("Aucun bus des lignes cochées");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

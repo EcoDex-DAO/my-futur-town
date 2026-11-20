@@ -53,6 +53,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
 
   const vehicles = useMemo(() => active && schedule && date ? networkActiveVehicles(schedule, data, date, second, { estimatedDwellSeconds: dwellSeconds }) : [], [active, schedule, data, date, second, dwellSeconds]);
   const points = useMemo(() => networkVehiclePoints(vehicles, data), [vehicles, data]);
+  const lineCounts = useMemo(() => data.lines.map((line) => ({ line, count: vehicles.filter((vehicle) => vehicle.lineId === line.id).length })), [data, vehicles]);
 
   useEffect(() => {
     if (!active || !map || !mapReady) return;
@@ -73,7 +74,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
   const stop = () => { setPlaying(false); setActive(false); };
 
   return <section className="bus-simulation bus-traffic" aria-labelledby="bus-traffic-title">
-    <h2 id="bus-traffic-title">Simulation du trafic</h2>
+    <h2 id="bus-traffic-title">Simulation des lignes cochées</h2>
     <p className="caption">{data.lines.length} ligne{data.lines.length === 1 ? "" : "s"} SIBRA cochée{data.lines.length === 1 ? "" : "s"} · points calculés à partir des horaires théoriques, sans temps réel.</p>
     {error ? <p className="bus-simulation-message" role="alert">{error}</p> : !schedule ? <p role="status">Chargement des horaires…</p> : <>
       <p className="caption">Horaires valides du {schedule.metadata.validFrom} au {schedule.metadata.validTo} · {schedule.metadata.timeZone}</p>
@@ -93,6 +94,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
         </select>
       </label>
       <p className="bus-simulation-clock"><strong>{formatTime(second)}</strong> · {vehicles.length} bus en circulation</p>
+      {active && lineCounts.length > 0 && <p className="caption" aria-label="Bus simulés par ligne">{lineCounts.map(({ line, count }) => `${line.shortName} : ${count}`).join(" · ")}</p>}
       {!data.lines.length && <p className="bus-simulation-message">Cochez au moins une ligne SIBRA pour lancer la simulation.</p>}
       {!inCoverage && <p className="bus-simulation-message">Choisissez une date entre le {schedule.metadata.validFrom} et le {schedule.metadata.validTo}.</p>}
       {inCoverage && active && !vehicles.length && <p className="bus-simulation-message">Aucun bus des lignes cochées à cette date et cette heure.</p>}
