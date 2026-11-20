@@ -11,7 +11,7 @@ pnpm install --frozen-lockfile
 pnpm run dev
 ```
 
-Ouvrir http://localhost:5173. Aucun compte, aucune clé et aucune base ne sont nécessaires. Internet et WebGL sont requis. Les tuiles proviennent directement d’OpenFreeMap. Le menu mobilité lance le créateur de ligne. Le réseau SIBRA peut être masqué pour mieux voir les tracés créés.
+Ouvrir http://localhost:3000. Aucun compte, aucune clé et aucune base ne sont nécessaires. Internet et WebGL sont requis. Les tuiles proviennent directement d’OpenFreeMap. Le menu mobilité lance le créateur de ligne. Le réseau SIBRA peut être masqué pour mieux voir les tracés créés.
 
 L’estimation macro utilise les hypothèses modifiables de la ligne 1 puis les recopie sur les 27 lignes. Le total réseau est une extrapolation homogène, pas une mesure. La simulation micro représente les bus de la ligne 1 à partir des horaires statiques et propose un arrêt moyen réglable, initialement de 12 secondes. Les positions ne sont pas du temps réel. Les nouvelles lignes sont enregistrées dans le stockage local du navigateur.
 
@@ -21,7 +21,7 @@ pnpm run build
 pnpm run start
 ```
 
-Le serveur de production écoute également sur le port 5173. `GET /health` et `GET /api/layers` sont servis sur la même origine que l’application.
+Le serveur de production écoute également sur le port 3000. Pour choisir un autre port, utiliser par exemple `PORT=3001 pnpm run dev` ou `PORT=3001 pnpm run start`. `GET /health` et `GET /api/layers` sont servis sur la même origine que l’application.
 
 ## Organisation du projet
 
@@ -43,7 +43,7 @@ python3 scripts/smoke.py
 docker compose down
 ```
 
-L’application de production écoute sur le port 5173 (interface loopback uniquement). Compose ne démarre ni ne modifie de base distante. Aucun mot de passe de base n’est requis.
+L’application de production écoute sur le port 3000 (interface loopback uniquement). Si le port 3000 est occupé, utiliser par exemple `MFT_HOST_PORT=3001 docker compose up --build -d --wait` puis `MFT_HOST_PORT=3001 python3 scripts/smoke.py`. Compose ne démarre ni ne modifie de base distante. Aucun mot de passe de base n’est requis.
 
 Pour valider séparément les migrations et les politiques d’accès dans une base PostGIS jetable, exécuter `sh scripts/test-database.sh` depuis la racine. Ce test nécessite également Docker.
 
@@ -56,13 +56,13 @@ Dans un cloud à proxy TLS, fournir la CA de confiance au build via le secret Bu
 - `NEXT_PUBLIC_MAP_STYLE_URL` : style MapLibre compatible OpenMapTiles, par défaut OpenFreeMap Liberty.
 - `NEXT_PUBLIC_API_URL` : origine d’une API alternative, optionnelle. Vide = routes Next.js sur la même origine. Ne pas définir `localhost` sur Vercel.
 - `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` : configuration publique facultative pour la voirie de référence et les scénarios privés. Sans elles, la carte reste disponible. Utiliser uniquement une clé publishable ou anon, jamais une clé secrète.
-- `CORS_ORIGINS` : liste séparée par des virgules des origines autorisées pour les requêtes API entre origines ; valeur par défaut `http://localhost:5173`. Cette variable serveur est lue à l’exécution et ne concerne pas les requêtes sur la même origine.
+- `CORS_ORIGINS` : liste séparée par des virgules des origines autorisées pour les requêtes API entre origines ; valeur par défaut `http://localhost:3000`. Cette variable serveur est lue à l’exécution et ne concerne pas les requêtes sur la même origine.
 
 **Toutes les variables `NEXT_PUBLIC_*` sont publiques et incorporées au bundle lors du build.** Toute modification nécessite une reconstruction, y compris avec Compose. Ne jamais y placer `service_role`, mot de passe, URL PostgreSQL privée ou autre secret.
 
 ## Vercel
 
-Importer `EcoDex-DAO/my-futur-town`, sélectionner le framework Next.js et la racine du dépôt comme Root Directory. `vercel.json` indique le framework ; le Root Directory se règle dans Vercel. Le build et les routes serveur sont pris en charge par Next.js. Aucune migration automatique ou publication n’est effectuée par ce dépôt.
+Importer `EcoDex-DAO/my-futur-town`, sélectionner le framework Next.js et la racine du dépôt comme Root Directory. `vercel.json` indique le framework ; le Root Directory se règle dans Vercel. Le build et les routes serveur sont pris en charge par Next.js ; le port local ne détermine pas le port du déploiement Vercel. Aucune migration automatique ou publication n’est effectuée par ce dépôt.
 
 ## Données et architecture
 

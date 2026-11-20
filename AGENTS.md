@@ -24,10 +24,10 @@ Use Node.js >=22.12, the pnpm version specified in `package.json`, Python 3.12, 
 From the repository root:
 
 - `pnpm install --frozen-lockfile`: install dependencies from `pnpm-lock.yaml`.
-- `pnpm run dev`: start Next.js on port 5173.
+- `pnpm run dev`: start Next.js on port 3000.
 - `pnpm test`: run Vitest once, including API route tests.
 - `pnpm run build`: check TypeScript and build production assets.
-- `pnpm run start`: serve the production build on port 5173.
+- `pnpm run start`: serve the production build on port 3000.
 
 From the repository root:
 
