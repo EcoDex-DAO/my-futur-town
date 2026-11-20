@@ -1,6 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const key = "yft.bus-created-lines.v1";
+
+// Keep map interactions real while removing external tiles and the large reference network.
+test.beforeEach(async ({ page }) => {
+  await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
+  await page.route("**/data/sibra.json", (route) => route.fulfill({ json: { metadata: { sourceUrl: "fixture", attribution: "fixture", license: "fixture", validFrom: "2026-01-01", validTo: "2026-12-31", generatedAt: "2026-01-01" }, lines: [] } }));
+});
 async function openBus(page: Page) {
   await page.getByRole("button", { name: "Menu Bus" }).click();
 }
@@ -42,6 +48,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.getByLabel("Nom de la variante").fill("Variante test");
     await page.getByLabel("Nom de l’arrêt 1").fill("Arrêt variante");
     await page.reload();
+    await expect(page.locator(".map canvas")).toBeVisible({ timeout: 90_000 });
     await openBus(page);
     await page.getByRole("button", { name: /Administrer les lignes créées/ }).click();
     await page.getByRole("button", { name: "Modifier", exact: true }).click();
