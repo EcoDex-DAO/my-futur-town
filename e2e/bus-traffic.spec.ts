@@ -28,6 +28,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/3 : [1-9]/);
     await lines.getByLabel(/Ligne 2 -/).uncheck();
     await expect(panel.getByLabel("Bus simulés par ligne")).not.toContainText("2 :");
+    await lines.getByLabel(/Ligne 3 -/).uncheck();
+    await lines.getByLabel("Principales", { exact: true }).check();
+    await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/4 : [1-9]/);
+    await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/5 : [1-9]/);
     await panel.getByLabel("Heure").fill("03:00:00");
     await expect(panel).toContainText("Aucun bus des lignes cochées");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

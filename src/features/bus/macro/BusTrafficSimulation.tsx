@@ -5,10 +5,12 @@ import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { SibraData } from "../shared/sibra";
 import { DEFAULT_ESTIMATED_DWELL_SECONDS, parseSchedule, type Schedule } from "../shared/bus-simulation";
 import { networkActiveVehicles, networkVehiclePoints } from "./bus-traffic";
+import { busDisplayFeatures } from "../micro/bus-models";
 
 type Props = { map: MapLibreMap | null; mapReady: boolean; data: SibraData; visibleCreatedCount: number };
 const sourceId = "yft-traffic-vehicles";
 const layerId = "yft-traffic-points";
+const modelsLayerId = "yft-traffic-models";
 const speeds = [1, 5, 10, 60] as const;
 const maxSecond = 86_399;
 const formatTime = (value: number) => { const seconds = Math.max(0, Math.min(maxSecond, Math.floor(value))); return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; };
@@ -22,6 +24,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
   const [dwellSeconds, setDwellSeconds] = useState(DEFAULT_ESTIMATED_DWELL_SECONDS);
   const [active, setActive] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [viewVersion, setViewVersion] = useState(0);
   const clock = useRef(8 * 3600);
 
   useEffect(() => {
@@ -58,14 +61,20 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
   useEffect(() => {
     if (!active || !map || !mapReady) return;
     if (!map.getSource(sourceId)) map.addSource(sourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-    if (!map.getLayer(layerId)) map.addLayer({ id: layerId, type: "circle", source: sourceId, paint: { "circle-radius": 5, "circle-color": ["get", "color"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } });
-    return () => { if (map.getLayer(layerId)) map.removeLayer(layerId); if (map.getSource(sourceId)) map.removeSource(sourceId); };
+    if (!map.getLayer(layerId)) map.addLayer({ id: layerId, type: "circle", source: sourceId, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 5, "circle-color": ["get", "color"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } });
+    if (!map.getLayer(modelsLayerId)) map.addLayer({ id: modelsLayerId, type: "fill-extrusion", source: sourceId, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-extrusion-color": ["get", "color"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "height"] } });
+    const refreshView = () => setViewVersion((value) => value + 1);
+    map.on("moveend", refreshView);
+    map.on("zoomend", refreshView);
+    return () => { map.off("moveend", refreshView); map.off("zoomend", refreshView); if (map.getLayer(modelsLayerId)) map.removeLayer(modelsLayerId); if (map.getLayer(layerId)) map.removeLayer(layerId); if (map.getSource(sourceId)) map.removeSource(sourceId); };
   }, [active, map, mapReady]);
 
   useEffect(() => {
     if (!active || !map || !mapReady) return;
-    (map.getSource(sourceId) as GeoJSONSource | undefined)?.setData(points);
-  }, [active, map, mapReady, points]);
+    const visible = vehicles.filter((vehicle) => map.getBounds().contains(vehicle.position));
+    const display = map.getZoom() < 16 ? points : { type: "FeatureCollection" as const, features: busDisplayFeatures(visible, map.getZoom()) };
+    (map.getSource(sourceId) as GeoJSONSource | undefined)?.setData(display);
+  }, [active, map, mapReady, points, vehicles, viewVersion]);
 
   const inCoverage = !!schedule && date >= schedule.metadata.validFrom && date <= schedule.metadata.validTo;
   const today = schedule ? new Intl.DateTimeFormat("en-CA", { timeZone: schedule.metadata.timeZone }).format(new Date()) : "";
@@ -75,7 +84,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
 
   return <section className="bus-simulation bus-traffic" aria-labelledby="bus-traffic-title">
     <h2 id="bus-traffic-title">Simulation des lignes cochées</h2>
-    <p className="caption">{data.lines.length} ligne{data.lines.length === 1 ? "" : "s"} SIBRA cochée{data.lines.length === 1 ? "" : "s"} · points calculés à partir des horaires théoriques, sans temps réel.</p>
+    <p className="caption">{data.lines.length} ligne{data.lines.length === 1 ? "" : "s"} SIBRA cochée{data.lines.length === 1 ? "" : "s"} · positions calculées à partir des horaires théoriques, sans temps réel.</p>
     {error ? <p className="bus-simulation-message" role="alert">{error}</p> : !schedule ? <p role="status">Chargement des horaires…</p> : <>
       <p className="caption">Horaires valides du {schedule.metadata.validFrom} au {schedule.metadata.validTo} · {schedule.metadata.timeZone}</p>
       {todayOutsideCoverage && <p className="bus-simulation-message" role="status">Les horaires disponibles vont du {schedule.metadata.validFrom} au {schedule.metadata.validTo}. La date initiale choisie est dans cette période.</p>}
@@ -99,7 +108,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
       {!inCoverage && <p className="bus-simulation-message">Choisissez une date entre le {schedule.metadata.validFrom} et le {schedule.metadata.validTo}.</p>}
       {inCoverage && active && !vehicles.length && <p className="bus-simulation-message">Aucun bus des lignes cochées à cette date et cette heure.</p>}
       {visibleCreatedCount > 0 && <p className="bus-simulation-message">Les lignes créées n’ont pas encore d’horaires et ne peuvent pas être simulées.</p>}
-      <p className="bus-simulation-disclaimer">Arrêt estimé : {dwellSeconds} secondes lorsque les horaires le permettent, réduit si nécessaire sans modifier les horaires publiés. Les points représentent des positions calculées, sans objets 3D.</p>
+      <p className="bus-simulation-disclaimer">Arrêt estimé : {dwellSeconds} secondes lorsque les horaires le permettent, réduit si nécessaire sans modifier les horaires publiés. Les positions sont calculées ; les véhicules 3D sont schématiques.</p>
     </>}
   </section>;
 }
