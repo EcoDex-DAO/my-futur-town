@@ -1,4 +1,28 @@
 import { expect, test } from "@playwright/test";
+import { createScenario, SCENARIOS_STORAGE_KEY } from "../src/features/multimodal/scenarios";
+
+test("récupère les scénarios aux identifiants répétés sans écriture implicite", async ({ page }) => {
+  const first = createScenario("doublon", "Premier");
+  const second = createScenario("doublon", "Second");
+  second.assumptions.parkingPlaces.value = 42;
+  const raw = JSON.stringify({ version: 3, scenarios: [first, second] });
+  const errors: string[] = [];
+  page.on("console", (message) => { if (message.type() === "error") errors.push(message.text()); });
+  await page.addInitScript(({ key, value }) => localStorage.setItem(key, value), { key: SCENARIOS_STORAGE_KEY, value: raw });
+  await page.route("**/api/**", (route) => route.abort());
+  await page.route("https://tiles.openfreemap.org/**", (route) => route.abort());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menu Scénarios multimodaux" }).click();
+  await expect(page.getByText(/identifiants en double ont été corrigés/)).toBeVisible();
+  await expect(page.getByLabel("Scénario actif").locator("option")).toHaveCount(2);
+  expect(await page.evaluate((key) => localStorage.getItem(key), SCENARIOS_STORAGE_KEY)).toBe(raw);
+  await page.getByLabel("Scénario actif").selectOption({ label: "Second" });
+  await expect(page.getByRole("spinbutton", { name: "Places de stationnement" })).toHaveValue("42");
+  await page.getByRole("button", { name: "Enregistrer les scénarios" }).click();
+  const saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), SCENARIOS_STORAGE_KEY);
+  expect(saved.scenarios.map((scenario: { id: string }) => scenario.id)).toEqual(["doublon", "doublon-recovered-1"]);
+  expect(errors.filter((message) => /same key|same.*key|unique.*key/i.test(message))).toEqual([]);
+});
 
 test("les scénarios multimodaux restent utilisables sans API et survivent au rechargement", async ({ page }) => {
   await page.route("**/health", (route) => route.abort());

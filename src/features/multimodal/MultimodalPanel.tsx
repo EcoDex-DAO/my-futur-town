@@ -8,7 +8,7 @@ import { SolarPanel } from "./SolarPanel";
 import { ModeSplitPanel } from "./ModeSplitPanel";
 import { GtfsOfferPanel } from "./GtfsOfferPanel";
 import type { ParkingPreview } from "./parking-map";
-import { createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios, saveScenarios, SCENARIOS_STORAGE_KEY, type Assumption, type AssumptionProvenance, type MultimodalScenario } from "./scenarios";
+import { createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenariosWithRecovery, saveScenarios, SCENARIOS_STORAGE_KEY, type Assumption, type AssumptionProvenance, type MultimodalScenario } from "./scenarios";
 import "./multimodal.css";
 
 const fields: Record<keyof MultimodalInputs, { label: string; unit: string; description?: string }> = {
@@ -68,13 +68,19 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
   const [previewEnabled, setPreviewEnabled] = useState(false);
   const [gtfsOpen, setGtfsOpen] = useState(false);
   const loadedSnapshot = useRef<string | null>(null);
+  const reservedIds = useRef<MultimodalScenario[]>([]);
 
   useEffect(() => {
     try {
-      const loaded = loadScenarios(window.localStorage);
+      const { scenarios: loaded, repaired } = loadScenariosWithRecovery(window.localStorage);
       loadedSnapshot.current = window.localStorage.getItem(SCENARIOS_STORAGE_KEY);
+      reservedIds.current = loaded;
       setScenarios(loaded);
       setSelectedId(loaded[0]?.id ?? "");
+      if (repaired) {
+        setDirty(true);
+        setStatus("Des identifiants en double ont été corrigés en mémoire. Tous les scénarios sont conservés ; enregistrez pour garder cette correction.");
+      }
       setStorageReady(true);
     } catch {
       setStorageError("Impossible de lire les scénarios enregistrés. Vérifiez l’accès au stockage de ce navigateur ; aucune donnée existante ne sera écrasée.");
@@ -126,10 +132,11 @@ export function MultimodalPanel({ onParkingPreview, onFocusParking, mapReady }: 
   });
   const add = (duplicate = false) => {
     try {
-      const nextId = createId(scenarios);
+      const nextId = createId(reservedIds.current);
       const next = duplicate && current
         ? duplicateScenario(current, nextId, `${current.name.trim() || "Scénario"} (copie)`)
         : createScenario(nextId, `Scénario ${scenarios.length + 1}`);
+      reservedIds.current = [...reservedIds.current, next];
       setScenarios((previous) => [...previous, next]);
       setSelectedId(next.id);
       setStorageError("");

@@ -166,35 +166,58 @@ function isScenario(value: unknown): value is MultimodalScenario {
 function validateScenarios<T extends LegacyScenario>(
   value: unknown,
   isValidScenario: (item: unknown) => item is T,
+  allowDuplicates = false,
 ): asserts value is T[] {
   if (!Array.isArray(value) || !value.every(isValidScenario) ||
-      new Set(value.map((scenario) => scenario.id)).size !== value.length) {
+      (!allowDuplicates && new Set(value.map((scenario) => scenario.id)).size !== value.length)) {
     throw new Error("Données de scénarios multimodaux invalides ou incompatibles");
   }
 }
 
 /** Empty storage is distinct from an unreadable or incompatible saved document. */
 export function loadScenarios(storage: StorageAccess): MultimodalScenario[] {
+  return loadScenariosWithRecovery(storage).scenarios;
+}
+
+export function loadScenariosWithRecovery(storage: StorageAccess): { scenarios: MultimodalScenario[]; repaired: boolean } {
   const raw = storage.getItem(SCENARIOS_STORAGE_KEY);
-  if (raw === null) return [];
+  if (raw === null) return { scenarios: [], repaired: false };
   let document: unknown;
   try { document = JSON.parse(raw); } catch { throw new Error("Données de scénarios multimodaux illisibles"); }
   if (!isRecord(document) || !hasExactKeys(document, ["version", "scenarios"])) {
     throw new Error("Version des scénarios multimodaux invalide ou incompatible");
   }
+  let scenarios: MultimodalScenario[];
   switch (document.version) {
     case 1:
-      validateScenarios(document.scenarios, isLegacyScenario);
-      return document.scenarios.map((scenario) => withUnknownSolar(withUnknownParking(scenario)));
+      validateScenarios(document.scenarios, isLegacyScenario, true);
+      scenarios = document.scenarios.map((scenario) => withUnknownSolar(withUnknownParking(scenario)));
+      break;
     case 2:
-      validateScenarios(document.scenarios, isParkingScenario);
-      return document.scenarios.map(withUnknownSolar);
+      validateScenarios(document.scenarios, isParkingScenario, true);
+      scenarios = document.scenarios.map(withUnknownSolar);
+      break;
     case 3:
-      validateScenarios(document.scenarios, isScenario);
-      return document.scenarios;
+      validateScenarios(document.scenarios, isScenario, true);
+      scenarios = document.scenarios;
+      break;
     default:
       throw new Error("Version des scénarios multimodaux invalide ou incompatible");
   }
+  const reserved = new Set(scenarios.map((scenario) => scenario.id));
+  const seen = new Set<string>();
+  let repaired = false;
+  scenarios = scenarios.map((scenario) => {
+    if (!seen.has(scenario.id)) { seen.add(scenario.id); return scenario; }
+    let suffix = 1;
+    let id = `${scenario.id}-recovered-${suffix}`;
+    while (reserved.has(id)) id = `${scenario.id}-recovered-${++suffix}`;
+    reserved.add(id);
+    seen.add(id);
+    repaired = true;
+    return { ...scenario, id };
+  });
+  return { scenarios, repaired };
 }
 
 /** Storage errors propagate so the caller can tell the user saving failed. */

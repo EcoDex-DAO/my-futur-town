@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios,
+  createScenario, duplicateScenario, estimateScenario, INPUT_KEYS, loadScenarios, loadScenariosWithRecovery,
   renameScenario, saveScenarios, SCENARIOS_STORAGE_KEY,
 } from "./scenarios";
 import type { MultimodalInputs } from "./estimate";
@@ -172,7 +172,7 @@ describe("multimodal scenarios", () => {
     expect(storage.getItem(SCENARIOS_STORAGE_KEY)).toBeNull();
   });
 
-  it("rejects invalid provenance or duplicate identifiers on read without replacing data", () => {
+  it("rejects invalid provenance on read without replacing data", () => {
     const storage = memoryStorage();
     const scenario = createScenario("a", "Base");
     const invalidNature = { ...scenario, assumptions: { ...scenario.assumptions, busShare: { ...scenario.assumptions.busShare, nature: "verified" } } };
@@ -180,11 +180,37 @@ describe("multimodal scenarios", () => {
     const invalidParkingProvenance = { ...scenario, parkingProvenance: {} };
     const invalidSolar = { ...scenario, solar: { ...scenario.solar, pvgisSlopeDeg: 91 } };
     const invalidSolarProvenance = { ...scenario, solarProvenance: {} };
-    for (const scenarios of [[invalidNature], [invalidParking], [invalidParkingProvenance], [invalidSolar], [invalidSolarProvenance], [scenario, scenario]]) {
+    for (const scenarios of [[invalidNature], [invalidParking], [invalidParkingProvenance], [invalidSolar], [invalidSolarProvenance]]) {
       const raw = JSON.stringify({ version: 3, scenarios });
       storage.setItem(SCENARIOS_STORAGE_KEY, raw);
       expect(() => loadScenarios(storage)).toThrow();
       expect(storage.getItem(SCENARIOS_STORAGE_KEY)).toBe(raw);
+    }
+  });
+
+  it("recovers duplicate identifiers without losing scenarios or writing until save", () => {
+    const storage = memoryStorage();
+    const first = createScenario("a", "Premier");
+    const second = duplicateScenario(first, "a", "Second");
+    second.assumptions.busShare = { value: 0.4, nature: "local", source: "Étude", date: "2026", scope: "Site" };
+    second.parking.levels = 3;
+    second.solar.pvgisYieldKwhPerKwpYear = 1200;
+    const reserved = createScenario("a-recovered-1", "Troisième");
+    for (const version of [1, 2, 3]) {
+      const items = [first, second, reserved].map(({ id, name, assumptions, parking, parkingProvenance, solar, solarProvenance }) =>
+        version === 1 ? { id, name, assumptions } : version === 2 ? { id, name, assumptions, parking, parkingProvenance } :
+          { id, name, assumptions, parking, parkingProvenance, solar, solarProvenance });
+      const raw = JSON.stringify({ version, scenarios: items });
+      storage.setItem(SCENARIOS_STORAGE_KEY, raw);
+      const recovered = loadScenariosWithRecovery(storage);
+      expect(recovered.repaired).toBe(true);
+      expect(recovered.scenarios.map((s) => s.id)).toEqual(["a", "a-recovered-2", "a-recovered-1"]);
+      expect(recovered.scenarios[1].assumptions).toEqual(second.assumptions);
+      if (version >= 2) expect(recovered.scenarios[1].parking).toEqual(second.parking);
+      if (version === 3) expect(recovered.scenarios[1].solar).toEqual(second.solar);
+      expect(storage.getItem(SCENARIOS_STORAGE_KEY)).toBe(raw);
+      saveScenarios(storage, recovered.scenarios);
+      expect(loadScenariosWithRecovery(storage)).toEqual({ scenarios: recovered.scenarios, repaired: false });
     }
   });
 
