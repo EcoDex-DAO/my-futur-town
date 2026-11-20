@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { calculateParking, createParkingAssumptions, PARKING_KEYS, PARKING_MAXIMUMS } from "./parking";
+import {
+  AVERAGE_PARKING_AREA_SHARE, calculateParking, createAverageParkingAssumptions,
+  createParkingAssumptions, PARKING_FOOTPRINT_AREA_SQ_METERS, PARKING_KEYS, PARKING_MAXIMUMS,
+} from "./parking";
 
 const assumptions = {
   levels: 3,
@@ -13,6 +16,32 @@ describe("parking estimate", () => {
     const unknown = createParkingAssumptions();
     expect(PARKING_KEYS.every((key) => unknown[key] === null)).toBe(true);
     expect(calculateParking(unknown)).toEqual({ capacity: null, heightMeters: null, errors: {} });
+  });
+
+  it("bases the editable average variant on the indicative contour and a transferred ratio", () => {
+    const { parking, parkingProvenance } = createAverageParkingAssumptions();
+    expect(PARKING_FOOTPRINT_AREA_SQ_METERS).toBeCloseTo(6624, 0);
+    expect(parking).toEqual({
+      levels: 3, levelHeightMeters: 3, areaPerLevelSqMeters: 5300, squareMetersPerSpace: 25,
+    });
+    expect(parking.areaPerLevelSqMeters).toBeCloseTo(PARKING_FOOTPRINT_AREA_SQ_METERS * AVERAGE_PARKING_AREA_SHARE, -1);
+    expect(calculateParking(parking)).toEqual({ capacity: 636, heightMeters: 9, errors: {} });
+    expect(parkingProvenance.levels.nature).toBe("assumed");
+    expect(parkingProvenance.levelHeightMeters.nature).toBe("assumed");
+    expect(parkingProvenance.areaPerLevelSqMeters.nature).toBe("assumed");
+    expect(parkingProvenance.areaPerLevelSqMeters.scope).toContain("La circulation");
+    expect(parkingProvenance.squareMetersPerSpace.nature).toBe("transferred");
+    expect(parkingProvenance.squareMetersPerSpace.source).toContain("p. 44");
+  });
+
+  it("returns independent assumptions and provenance on each request", () => {
+    const variant = createAverageParkingAssumptions();
+    variant.parking.levels = 4;
+    variant.parkingProvenance.levels.scope = "Autre hypothèse";
+    const original = createAverageParkingAssumptions();
+    expect(original.parking.levels).toBe(3);
+    expect(original.parkingProvenance.levels.scope).not.toBe(variant.parkingProvenance.levels.scope);
+    expect(createParkingAssumptions().levels).toBeNull();
   });
 
   it("uses the area per level and floors the capacity", () => {

@@ -6,6 +6,15 @@ place avec circulation comprise. Ces hypothèses sont initialement inconnues et 
 source, date et périmètre sont modifiables. Elles sont enregistrées localement avec le
 scénario ; aucune valeur réelle du site n'est préremplie.
 
+Le bouton « Utiliser les valeurs moyennes » propose une variante de départ modifiable :
+trois niveaux de 3 m, un contour OSM d'environ 6 624 m² et 80 % de cette surface par
+niveau, arrondis à 5 300 m². Les 20 % restants sont une marge supposée pour les espaces
+hors ratio, et non une mesure locale ni une exigence réglementaire. Le ratio transféré est
+de 25 m² par place, dégagements compris. Avec ces seules hypothèses, le calcul donne
+636 places théoriques et 9 m de hauteur. Ces valeurs ne garantissent pas la faisabilité.
+L'application du modèle demande confirmation si des valeurs de parking existent déjà ;
+elle n'enregistre pas automatiquement le scénario.
+
 La capacité théorique vaut `plancher(surface par niveau × niveaux / surface par place)`.
 La surface par niveau doit correspondre au périmètre du ratio ; il ne faut pas soustraire
 une seconde fois la circulation déjà comprise dans ce ratio. Rampes, cages, locaux,
