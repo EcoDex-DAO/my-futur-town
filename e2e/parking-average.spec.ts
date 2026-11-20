@@ -63,6 +63,8 @@ test("les valeurs moyennes du parking restent modifiables sans sauvegarde automa
   await expect(levels).toHaveValue("4");
   await expect(page.getByText("848 places", { exact: true })).toBeVisible();
   await expect(volume).toBeVisible();
+  await page.getByRole("button", { name: "Masquer le volume" }).click();
+  await expect(volume).toHaveCount(0);
   await page.getByRole("button", { name: "Nouveau scénario" }).click();
   if (!await page.getByLabel("Source — Niveaux hors sol").isVisible()) {
     await page.locator("summary").filter({ hasText: "Source — Niveaux hors sol" }).click();
