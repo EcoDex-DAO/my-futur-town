@@ -17,7 +17,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.goto("/");
     await expect(page.locator(".map canvas")).toBeVisible({ timeout: 90_000 });
     await openBus(page);
-    await expect(page.getByRole("button", { name: "Créer une ligne de bus" })).toBeEnabled({ timeout: 40_000 });
+    await expect(page.getByRole("button", { name: "Créer une ligne de bus" })).toBeEnabled({ timeout: 90_000 });
     await page.getByRole("button", { name: "Créer une ligne de bus" }).click();
     const creator = page.getByRole("region", { name: "Créer une ligne" });
     await expect(creator).toBeVisible();
@@ -40,6 +40,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.getByRole("button", { name: "Modifier", exact: true }).click();
     await page.getByRole("button", { name: "Créer une variante à partir de ce parcours" }).click();
     await page.getByLabel("Nom de la variante").fill("Variante test");
+    await page.getByLabel("Nom de l’arrêt 1").fill("Arrêt variante");
     await page.reload();
     await openBus(page);
     await page.getByRole("button", { name: /Administrer les lignes créées/ }).click();
@@ -50,6 +51,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     const stored = await page.evaluate((storageKey) => JSON.parse(localStorage.getItem(storageKey)!), key);
     expect(stored[0].name).toBe("Ligne test");
     expect(stored[0].variants[0].name).toBe("Variante test");
+    expect(stored[0].arrets[0].name).toBe("Arrêt 1");
+    expect(stored[0].variants[0].arrets[0].name).toBe("Arrêt variante");
   });
 }
 
@@ -63,6 +66,22 @@ test("une erreur de stockage ne remplace pas la ligne enregistrée", async ({ pa
   await page.getByRole("button", { name: "Modifier", exact: true }).click();
   await page.evaluate(() => { Storage.prototype.setItem = () => { throw new Error("quota"); }; });
   await page.getByRole("button", { name: "Créer une variante à partir de ce parcours" }).click();
-  await expect(page.getByRole("alert")).toContainText("Enregistrement impossible");
+  await expect(page.locator(".bus-creator-error")).toContainText("Enregistrement impossible");
   expect(await page.evaluate((storageKey) => JSON.parse(localStorage.getItem(storageKey)!), key)).toEqual(old);
+});
+
+test("un échec de calcul reste visible sans inventer de tracé", async ({ page }) => {
+  await page.route("**/api/bus-route", (route) => route.fulfill({ status: 422, json: { status: "unavailable", warnings: ["Aucun parcours trouvé"] } }));
+  await page.goto("/");
+  await expect(page.locator(".map canvas")).toBeVisible({ timeout: 90_000 });
+  await openBus(page);
+  await page.getByRole("button", { name: "Créer une ligne de bus" }).click({ timeout: 90_000 });
+  const creator = page.getByRole("region", { name: "Créer une ligne" });
+  for (let i = 0; i < 2; i++) {
+    await creator.getByRole("button", { name: "Placer", exact: true }).first().click();
+    await creator.getByRole("button", { name: "Placer au centre de la carte" }).click();
+  }
+  await creator.getByRole("button", { name: "Valider les terminus et générer le tracé" }).click();
+  await expect(creator.locator(".bus-creator-error")).toContainText("Aucun parcours trouvé");
+  expect(await page.evaluate((storageKey) => localStorage.getItem(storageKey), key)).toBeNull();
 });

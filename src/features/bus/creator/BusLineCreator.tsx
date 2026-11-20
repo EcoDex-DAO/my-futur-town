@@ -68,6 +68,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   const placementRef = useRef(false);
   const selectedLine = lines.find((line) => line.id === selectedLineId) ?? null;
   const activeLine = draft ?? (variantId ? selectedLine?.variants?.find((variant) => variant.id === variantId) : selectedLine) ?? null;
+  const showCreatedOnMap = createdVisible || (open && activeLine !== null);
 
   useEffect(() => { lineChangeRef.current = onLinesChange; }, [onLinesChange]);
   useEffect(() => { selectLineRef.current = onSelectLine; }, [onSelectLine]);
@@ -261,10 +262,10 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   }, [map, ready]);
 
   const routeLines = useMemo(() => {
-    const visible = lines.filter((line) => line.id !== selectedLineId && visibleCreatedLineIds.includes(line.id));
+    const visible = createdVisible ? lines.filter((line) => line.id !== selectedLineId && visibleCreatedLineIds.includes(line.id)) : [];
     const active = draft ? lineForMap(draft) : lines.find((line) => line.id === selectedLineId) ?? null;
     return active ? [...visible, active] : visible;
-  }, [draft, lines, selectedLineId, visibleCreatedLineIds]);
+  }, [createdVisible, draft, lines, selectedLineId, visibleCreatedLineIds]);
 
   useEffect(() => {
     if (!map || !ready) return;
@@ -281,9 +282,9 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   useEffect(() => {
     if (!map || !ready) return;
     for (const id of ["yft-created-bus-line-casing", "yft-created-bus-line"]) {
-      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", createdVisible ? "visible" : "none");
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", showCreatedOnMap ? "visible" : "none");
     }
-  }, [map, ready, createdVisible, routeLines]);
+  }, [map, ready, showCreatedOnMap, routeLines]);
 
   useEffect(() => {
     if (!map || !ready || !map.getLayer("yft-created-bus-line")) return;
@@ -307,7 +308,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   }, [draft, map, mapActionRef, ready]);
 
   useEffect(() => {
-    if (!map || !ready || !activeLine || !createdVisible) return;
+    if (!map || !ready || !activeLine || !showCreatedOnMap) return;
     const markers = [...activeLine.termini, ...activeLine.passages, ...activeLine.arrets];
     const instances: maplibregl.Marker[] = [];
     markers.forEach((marker) => {
@@ -348,7 +349,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
       instances.push(instance);
     });
     return () => { instances.forEach((marker) => marker.remove()); };
-  }, [activeLine, calculate, createdVisible, map, open, ready, updateActive]);
+  }, [activeLine, calculate, showCreatedOnMap, map, open, ready, updateActive]);
 
   const handleMapRequest = (target: Exclude<PlacementTarget, null>) => {
     setPlacementTarget(target);
