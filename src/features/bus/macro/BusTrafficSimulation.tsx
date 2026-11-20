@@ -19,6 +19,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
   const [date, setDate] = useState("");
   const [second, setSecond] = useState(8 * 3600);
   const [speed, setSpeed] = useState<(typeof speeds)[number]>(1);
+  const [dwellSeconds, setDwellSeconds] = useState(DEFAULT_ESTIMATED_DWELL_SECONDS);
   const [active, setActive] = useState(false);
   const [playing, setPlaying] = useState(false);
   const clock = useRef(8 * 3600);
@@ -50,7 +51,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
     return () => window.clearInterval(timer);
   }, [playing, speed]);
 
-  const vehicles = useMemo(() => active && schedule && date ? networkActiveVehicles(schedule, data, date, second, { estimatedDwellSeconds: DEFAULT_ESTIMATED_DWELL_SECONDS }) : [], [active, schedule, data, date, second]);
+  const vehicles = useMemo(() => active && schedule && date ? networkActiveVehicles(schedule, data, date, second, { estimatedDwellSeconds: dwellSeconds }) : [], [active, schedule, data, date, second, dwellSeconds]);
   const points = useMemo(() => networkVehiclePoints(vehicles, data), [vehicles, data]);
 
   useEffect(() => {
@@ -75,6 +76,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
     <h2 id="bus-traffic-title">Simulation du trafic</h2>
     <p className="caption">{data.lines.length} ligne{data.lines.length === 1 ? "" : "s"} SIBRA cochée{data.lines.length === 1 ? "" : "s"} · points calculés à partir des horaires théoriques, sans temps réel.</p>
     {error ? <p className="bus-simulation-message" role="alert">{error}</p> : !schedule ? <p role="status">Chargement des horaires…</p> : <>
+      <p className="caption">Horaires valides du {schedule.metadata.validFrom} au {schedule.metadata.validTo} · {schedule.metadata.timeZone}</p>
       {todayOutsideCoverage && <p className="bus-simulation-message" role="status">Les horaires disponibles vont du {schedule.metadata.validFrom} au {schedule.metadata.validTo}. La date initiale choisie est dans cette période.</p>}
       <div className="bus-simulation-fields">
         <label htmlFor="traffic-date">Date<input id="traffic-date" type="date" min={schedule.metadata.validFrom} max={schedule.metadata.validTo} value={date} onChange={(event) => setDate(event.target.value)} /></label>
@@ -85,12 +87,17 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
         {active && <button type="button" className="bus-simulation-reset" onClick={stop}>Arrêter</button>}
       </div>
       <div className="bus-simulation-speeds" role="group" aria-label="Vitesse de simulation">{speeds.map((value) => <button type="button" key={value} aria-pressed={speed === value} onClick={() => setSpeed(value)}>×{value}</button>)}</div>
+      <label className="bus-simulation-dwell" htmlFor="traffic-dwell">Arrêt estimé
+        <select id="traffic-dwell" value={dwellSeconds} onChange={(event) => setDwellSeconds(Number(event.target.value))}>
+          <option value={0}>Désactivé</option><option value={5}>5 secondes</option><option value={12}>12 secondes (moyenne)</option><option value={20}>20 secondes</option>
+        </select>
+      </label>
       <p className="bus-simulation-clock"><strong>{formatTime(second)}</strong> · {vehicles.length} bus en circulation</p>
       {!data.lines.length && <p className="bus-simulation-message">Cochez au moins une ligne SIBRA pour lancer la simulation.</p>}
       {!inCoverage && <p className="bus-simulation-message">Choisissez une date entre le {schedule.metadata.validFrom} et le {schedule.metadata.validTo}.</p>}
       {inCoverage && active && !vehicles.length && <p className="bus-simulation-message">Aucun bus des lignes cochées à cette date et cette heure.</p>}
       {visibleCreatedCount > 0 && <p className="bus-simulation-message">Les lignes créées n’ont pas encore d’horaires et ne peuvent pas être simulées.</p>}
-      <p className="bus-simulation-disclaimer">Arrêt estimé : {DEFAULT_ESTIMATED_DWELL_SECONDS} secondes lorsque les horaires le permettent. Les points représentent des positions calculées, sans objets 3D.</p>
+      <p className="bus-simulation-disclaimer">Arrêt estimé : {dwellSeconds} secondes lorsque les horaires le permettent, réduit si nécessaire sans modifier les horaires publiés. Les points représentent des positions calculées, sans objets 3D.</p>
     </>}
   </section>;
 }
