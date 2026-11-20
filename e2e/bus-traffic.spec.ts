@@ -37,6 +37,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(panel.getByLabel("Bus simulés par ligne")).toContainText(/5 : [1-9]/);
     if (viewport.width === 1440) {
       await panel.getByRole("button", { name: "Voir un bus de près" }).click();
+      await expect(page.locator(".bus-traffic-markers")).toHaveAttribute("data-models", /^[1-9]\d*$/, { timeout: 60000 });
+      await expect(page.locator(".bus-traffic-markers")).toHaveAttribute("data-model-parts", /^[1-9]\d*$/);
       await page.waitForTimeout(6000);
       await page.screenshot({ path: "test-results/traffic-bus-3d.png" });
     }

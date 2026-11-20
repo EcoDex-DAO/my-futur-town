@@ -88,8 +88,13 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
       container.replaceChildren();
       displayingModels.current = true;
       const visible = vehicles.filter((vehicle) => map.getBounds().contains(vehicle.position));
-      source?.setData({ type: "FeatureCollection", features: busDisplayFeatures(visible, map.getZoom()) });
+      const features = busDisplayFeatures(visible, map.getZoom());
+      container.dataset.models = String(visible.length);
+      container.dataset.modelParts = String(features.length);
+      source?.setData({ type: "FeatureCollection", features });
     } else {
+      delete container.dataset.models;
+      delete container.dataset.modelParts;
       if (displayingModels.current) {
         displayingModels.current = false;
         source?.setData({ type: "FeatureCollection", features: [] });
