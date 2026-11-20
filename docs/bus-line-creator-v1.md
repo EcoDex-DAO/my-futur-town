@@ -9,7 +9,7 @@
 5. Valider le tracé, placer les arrêts, nommer la ligne et terminer.
 6. La ligne et ses marqueurs restent visibles. On peut la rouvrir, modifier les marqueurs ou la supprimer.
 
-Le parcours retour reprend la géométrie aller en sens inverse. Le modèle ne stocke qu’une géométrie et ne certifie pas que chaque rue est praticable dans les deux sens.
+Le parcours principal conserve le format des lignes enregistrées précédemment. Une ligne peut comporter des variantes indépendantes, créées à partir d’une copie puis modifiées séparément : chaque variante conserve ses terminus, points de passage, arrêts et tracé. La copie ne garantit pas un retour praticable : pour un trajet retour, modifier les repères et vérifier les sens de circulation.
 
 ## Calcul du tracé
 
@@ -24,7 +24,8 @@ Le parcours retour reprend la géométrie aller en sens inverse. Le modèle ne s
 - La couverture est celle de l’archive OSM, pas une garantie que toutes les rues utiles sont présentes.
 - Accès bus, gabarit, restrictions conditionnelles et certains tournants ne sont pas certifiés.
 - Une rue à sens unique peut rendre le retour théorique impraticable.
-- Les lignes terminées sont conservées dans `localStorage` de ce navigateur. Elles ne sont ni synchronisées entre appareils ni converties en horaires GTFS.
+- Les lignes terminées et leurs variantes sont conservées dans `localStorage` de ce navigateur. Elles ne sont ni synchronisées entre appareils ni converties en horaires GTFS.
+- Si le stockage est inaccessible, illisible ou modifié dans un autre onglet, l’enregistrement est refusé et un message invite à corriger le problème. Un recalcul qui éloignerait un arrêt de plus de 60 m est refusé ; déplacer ou retirer cet arrêt avant de modifier le tracé.
 - Le brouillon reste en mémoire si le panneau est fermé, mais disparaît au rechargement de la page.
 
 ## Validation avant livraison V1

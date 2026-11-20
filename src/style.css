@@ -811,7 +811,8 @@ section h2 span {
   font-size: 12px;
   font-weight: 700;
 }
-.bus-creator-name input {
+.bus-creator-name input,
+.bus-creator-name select {
   display: block;
   width: 100%;
   min-height: 42px;
