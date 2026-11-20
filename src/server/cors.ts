@@ -1,4 +1,4 @@
-const defaultOrigins = "http://localhost:5173";
+const defaultOrigins = "http://localhost:3000";
 
 function allowedOrigin(request: Request): string | null {
   const origin = request.headers.get("origin");
