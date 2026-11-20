@@ -408,7 +408,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   if (!open || !activeLine) return null;
 
   return (
-    <section className="bus-creator-panel" aria-labelledby="bus-creator-title">
+    <section className={`bus-creator-panel${placementTarget ? " bus-creator-panel--placing" : ""}`} aria-labelledby="bus-creator-title">
       <header className="bus-creator-heading">
         <div>
           <h2 id="bus-creator-title">{draft ? "Créer une ligne" : selectedLine?.name}</h2>
@@ -501,5 +501,6 @@ function fitRoute(map: maplibregl.Map | null, coordinates: BusCoordinate[]) {
   if (!map || coordinates.length < 2) return;
   const bounds = new maplibregl.LngLatBounds();
   coordinates.forEach((coordinate) => bounds.extend(coordinate));
-  map.fitBounds(bounds, { padding: { top: 100, right: 390, bottom: 80, left: 60 }, maxZoom: 16 });
+  const mobile = map.getCanvas().clientWidth <= 760;
+  map.fitBounds(bounds, { padding: mobile ? { top: 130, right: 30, bottom: 100, left: 30 } : { top: 100, right: 390, bottom: 80, left: 60 }, maxZoom: 16 });
 }

@@ -1156,3 +1156,8 @@ main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
 .bilan-report a { text-decoration: underline; text-underline-offset: 2px; }
 
 .bilan-subgroup { margin-left: 16px; }
+
+@media (max-width: 760px) {
+  .bus-creator-panel--placing > :not(.bus-creator-map-prompt) { display: none; }
+  .bus-creator-panel--placing .bus-creator-map-prompt { margin-top: 0; }
+}

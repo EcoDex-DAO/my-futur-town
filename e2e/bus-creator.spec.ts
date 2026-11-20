@@ -35,6 +35,10 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await creator.getByRole("button", { name: "Valider le tracé et passer aux arrêts" }).click();
     await creator.getByLabel("Nom de la ligne").fill("Ligne test");
     await creator.getByRole("button", { name: "Ajouter un arrêt sur la carte" }).click();
+    if (viewport.width < 760) {
+      await expect(creator.getByRole("heading", { name: "Placez les arrêts" })).toBeHidden();
+      await expect(creator.getByText("Cliquez sur la carte pour poser l’arrêt.")).toBeVisible();
+    }
     const first = await page.locator(".bus-line-marker--terminus").nth(0).boundingBox();
     const last = await page.locator(".bus-line-marker--terminus").nth(1).boundingBox();
     if (!first || !last) throw new Error("Terminaux invisibles");
