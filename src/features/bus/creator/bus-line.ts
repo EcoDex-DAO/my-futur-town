@@ -18,7 +18,9 @@ export type BusCreatedLine = {
   distanceM: number | null;
   warnings: string[];
   updatedAt: string;
+  variants?: BusLineVariant[];
 };
+export type BusLineVariant = Omit<BusCreatedLine, "variants">;
 
 export const BUS_CREATED_LINES_KEY = "yft.bus-created-lines.v1";
 
@@ -40,7 +42,7 @@ export function readBusCreatedLines(raw: string | null): BusCreatedLine[] {
     return value.filter((item): item is BusCreatedLine => {
       if (!item || typeof item !== "object") return false;
       const line = item as Partial<BusCreatedLine>;
-      return typeof line.id === "string" && typeof line.name === "string" && Array.isArray(line.termini) && line.termini.length === 2 && line.termini.every(isMarker) && Array.isArray(line.passages) && line.passages.every(isMarker) && Array.isArray(line.arrets) && line.arrets.every(isMarker) && Array.isArray(line.geometry) && line.geometry.length >= 2 && line.geometry.every(isCoordinate) && (typeof line.distanceM === "number" || line.distanceM === null) && Array.isArray(line.warnings);
+      return (line.variants === undefined || (Array.isArray(line.variants) && line.variants.every((variant) => readBusCreatedLines(JSON.stringify([variant])).length === 1))) && typeof line.id === "string" && typeof line.name === "string" && Array.isArray(line.termini) && line.termini.length === 2 && line.termini.every(isMarker) && Array.isArray(line.passages) && line.passages.every(isMarker) && Array.isArray(line.arrets) && line.arrets.every(isMarker) && Array.isArray(line.geometry) && line.geometry.length >= 2 && line.geometry.every(isCoordinate) && (typeof line.distanceM === "number" || line.distanceM === null) && Array.isArray(line.warnings);
     });
   } catch {
     return [];
@@ -64,7 +66,7 @@ export function createBusLineDraft(): Omit<BusCreatedLine, "termini"> & { termin
 export function busCreatedLineFeatures(lines: BusCreatedLine[]): FeatureCollection<LineString, { lineId: string; name: string }> {
   return {
     type: "FeatureCollection",
-    features: lines.filter((line) => line.geometry.length >= 2).map((line): Feature<LineString, { lineId: string; name: string }> => ({
+    features: lines.flatMap((line) => [line, ...(line.variants ?? []).map((variant) => ({ ...variant, id: line.id, name: line.name }))]).filter((line) => line.geometry.length >= 2).map((line): Feature<LineString, { lineId: string; name: string }> => ({
       type: "Feature",
       properties: { lineId: line.id, name: line.name },
       geometry: { type: "LineString", coordinates: line.geometry },

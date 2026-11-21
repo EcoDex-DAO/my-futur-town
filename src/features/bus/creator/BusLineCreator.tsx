@@ -54,17 +54,21 @@ function anchors(line: BusLineDraft | BusCreatedLine): BusCoordinate[] {
 export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId, createdVisible, visibleCreatedLineIds, onClose, onLinesChange, onSelectLine, onCreated, onDraftChange, mapActionRef }: Props) {
   const [lines, setLines] = useState<BusCreatedLine[]>([]);
   const [draft, setDraft] = useState<BusLineDraft | null>(null);
+  const [variantId, setVariantId] = useState<string | null>(null);
   const [step, setStep] = useState<Step>(0);
   const [maxStep, setMaxStep] = useState<Step>(0);
   const [placementTarget, setPlacementTarget] = useState<PlacementTarget>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const storageSnapshot = useRef<string | null>(null);
   const lineChangeRef = useRef(onLinesChange);
   const selectLineRef = useRef(onSelectLine);
   const mapClickRef = useRef<(coordinate: BusCoordinate) => void>(() => undefined);
   const placementRef = useRef(false);
-  const activeLine = draft ?? lines.find((line) => line.id === selectedLineId) ?? null;
+  const selectedLine = lines.find((line) => line.id === selectedLineId) ?? null;
+  const activeLine = draft ?? (variantId ? selectedLine?.variants?.find((variant) => variant.id === variantId) : selectedLine) ?? null;
+  const showCreatedOnMap = createdVisible || (open && activeLine !== null);
 
   useEffect(() => { lineChangeRef.current = onLinesChange; }, [onLinesChange]);
   useEffect(() => { selectLineRef.current = onSelectLine; }, [onSelectLine]);
@@ -72,7 +76,9 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
 
   useEffect(() => {
     try {
-      const loaded = readBusCreatedLines(window.localStorage.getItem(BUS_CREATED_LINES_KEY));
+      const raw = window.localStorage.getItem(BUS_CREATED_LINES_KEY);
+      storageSnapshot.current = raw;
+      const loaded = readBusCreatedLines(raw);
       setLines(loaded);
       lineChangeRef.current(loaded);
     } catch {
@@ -82,7 +88,9 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   useEffect(() => {
     const refresh = () => {
       try {
-        const loaded = readBusCreatedLines(window.localStorage.getItem(BUS_CREATED_LINES_KEY));
+        const raw = window.localStorage.getItem(BUS_CREATED_LINES_KEY);
+        storageSnapshot.current = raw;
+        const loaded = readBusCreatedLines(raw);
         setLines(loaded);
         lineChangeRef.current(loaded);
       } catch { setError("Les lignes enregistrées ne sont pas accessibles dans ce navigateur."); }
@@ -93,6 +101,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
 
   useEffect(() => {
     if (newLineToken === 0) return;
+    setVariantId(null);
     setDraft(createBusLineDraft());
     setStep(0);
     setMaxStep(0);
@@ -103,6 +112,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
 
   useEffect(() => {
     if (!selectedLineId) return;
+    setVariantId(null);
     setDraft(null);
     setStep(2);
     setMaxStep(2);
@@ -110,23 +120,43 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
     setError("");
   }, [selectedLineId]);
 
-  const persistLines = useCallback((next: BusCreatedLine[]) => {
-    setLines(next);
-    lineChangeRef.current(next);
+  const persistLines = useCallback((next: BusCreatedLine[]): boolean => {
     try {
-      window.localStorage.setItem(BUS_CREATED_LINES_KEY, JSON.stringify(next));
+      const raw = window.localStorage.getItem(BUS_CREATED_LINES_KEY);
+      if (raw !== storageSnapshot.current) {
+        setSaved(false);
+        setError("Les lignes ont changé dans un autre onglet. Rechargez la page avant d’enregistrer.");
+        return false;
+      }
+      if (raw !== null) {
+        const stored: unknown = JSON.parse(raw);
+        if (!Array.isArray(stored) || readBusCreatedLines(raw).length !== stored.length) {
+          throw new Error("invalid storage");
+        }
+      }
+      const serialized = JSON.stringify(next);
+      window.localStorage.setItem(BUS_CREATED_LINES_KEY, serialized);
+      storageSnapshot.current = serialized;
+      setLines(next);
+      lineChangeRef.current(next);
       setSaved(true);
       setError("");
+      return true;
     } catch {
       setSaved(false);
-      setError("Enregistrement impossible. Vérifiez l’espace disponible dans le navigateur.");
+      setError("Enregistrement impossible. Vérifiez le stockage du navigateur ; les données existantes sont conservées.");
+      return false;
     }
   }, []);
 
   const updateActive = useCallback((next: BusLineDraft | BusCreatedLine) => {
     if (draft) setDraft(next as BusLineDraft);
-    else persistLines(lines.map((line) => line.id === next.id ? next as BusCreatedLine : line));
-  }, [draft, lines, persistLines]);
+    else if (variantId && selectedLine) {
+      persistLines(lines.map((line) => line.id === selectedLine.id
+        ? { ...line, variants: line.variants?.map((variant) => variant.id === variantId ? next as BusCreatedLine : variant) }
+        : line));
+    } else persistLines(lines.map((line) => line.id === next.id ? next as BusCreatedLine : line));
+  }, [draft, lines, persistLines, selectedLine, variantId]);
 
   const calculate = useCallback(async (line: BusLineDraft | BusCreatedLine): Promise<BusLineDraft | BusCreatedLine | null> => {
     if (line.termini.length !== 2) {
@@ -149,6 +179,10 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
       }
       const nextTermini = line.termini.map((marker, index) => ({ ...marker, coordinates: result.snaps![index === 0 ? 0 : result.snaps!.length - 1].coordinates })) as [BusLineMarker, BusLineMarker];
       const nextPassages = line.passages.map((marker, index) => ({ ...marker, coordinates: result.snaps![index + 1].coordinates }));
+      if (line.arrets.some((stop) => !nearestPointOnBusLine(stop.coordinates, result.geometry!))) {
+        setError("Le nouveau tracé s'éloigne d'un arrêt. Déplacez ou retirez cet arrêt avant de modifier le parcours.");
+        return null;
+      }
       const next = { ...line, termini: nextTermini, passages: nextPassages, geometry: result.geometry, distanceM: result.distanceM ?? null, warnings: result.warnings, updatedAt: new Date().toISOString() };
       return next;
     } catch {
@@ -228,10 +262,10 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   }, [map, ready]);
 
   const routeLines = useMemo(() => {
-    const visible = lines.filter((line) => line.id !== selectedLineId && visibleCreatedLineIds.includes(line.id));
+    const visible = createdVisible ? lines.filter((line) => line.id !== selectedLineId && visibleCreatedLineIds.includes(line.id)) : [];
     const active = draft ? lineForMap(draft) : lines.find((line) => line.id === selectedLineId) ?? null;
     return active ? [...visible, active] : visible;
-  }, [draft, lines, selectedLineId, visibleCreatedLineIds]);
+  }, [createdVisible, draft, lines, selectedLineId, visibleCreatedLineIds]);
 
   useEffect(() => {
     if (!map || !ready) return;
@@ -248,9 +282,9 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   useEffect(() => {
     if (!map || !ready) return;
     for (const id of ["yft-created-bus-line-casing", "yft-created-bus-line"]) {
-      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", createdVisible ? "visible" : "none");
+      if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", showCreatedOnMap ? "visible" : "none");
     }
-  }, [map, ready, createdVisible, routeLines]);
+  }, [map, ready, showCreatedOnMap, routeLines]);
 
   useEffect(() => {
     if (!map || !ready || !map.getLayer("yft-created-bus-line")) return;
@@ -274,7 +308,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   }, [draft, map, mapActionRef, ready]);
 
   useEffect(() => {
-    if (!map || !ready || !activeLine || !createdVisible) return;
+    if (!map || !ready || !activeLine || !showCreatedOnMap) return;
     const markers = [...activeLine.termini, ...activeLine.passages, ...activeLine.arrets];
     const instances: maplibregl.Marker[] = [];
     markers.forEach((marker) => {
@@ -294,6 +328,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
           const snapped = nearestPointOnBusLine(nextCoordinates, activeLine.geometry);
           if (!snapped) {
             setError("Un arrêt doit rester à moins de 60 m du tracé.");
+            instance.setLngLat(marker.coordinates);
             return;
           }
           const nextStops = activeLine.arrets.map((item) => item.id === marker.id ? { ...item, coordinates: snapped } : item);
@@ -314,7 +349,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
       instances.push(instance);
     });
     return () => { instances.forEach((marker) => marker.remove()); };
-  }, [activeLine, calculate, createdVisible, map, open, ready, updateActive]);
+  }, [activeLine, calculate, showCreatedOnMap, map, open, ready, updateActive]);
 
   const handleMapRequest = (target: Exclude<PlacementTarget, null>) => {
     setPlacementTarget(target);
@@ -348,7 +383,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
       return;
     }
     const complete: BusCreatedLine = { ...draft, name: draft.name.trim(), termini: [draft.termini[0], draft.termini[1]], updatedAt: new Date().toISOString() };
-    persistLines([...lines, complete]);
+    if (!persistLines([...lines, complete])) return;
     setDraft(null);
     setMaxStep(2);
     setStep(2);
@@ -358,8 +393,8 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
 
   const deleteSelectedLine = () => {
     if (!activeLine || draft) return;
-    if (!window.confirm(`Supprimer la ligne « ${activeLine.name} » ? Cette action est définitive.`)) return;
-    persistLines(lines.filter((line) => line.id !== activeLine.id));
+    if (!window.confirm(`Supprimer la ligne « ${selectedLine?.name} » et toutes ses variantes ? Cette action est définitive.`)) return;
+    if (!persistLines(lines.filter((line) => line.id !== selectedLineId))) return;
     onSelectLine(null);
     setStep(0);
     onClose();
@@ -373,14 +408,33 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   if (!open || !activeLine) return null;
 
   return (
-    <section className="bus-creator-panel" aria-labelledby="bus-creator-title">
+    <section className={`bus-creator-panel${placementTarget ? " bus-creator-panel--placing" : ""}`} aria-labelledby="bus-creator-title">
       <header className="bus-creator-heading">
         <div>
-          <h2 id="bus-creator-title">{draft ? "Créer une ligne" : activeLine.name}</h2>
+          <h2 id="bus-creator-title">{draft ? "Créer une ligne" : selectedLine?.name}</h2>
           <p>{draft ? "Placez les repères sur la carte, une étape à la fois." : "Modifiez cette ligne en déplaçant ses repères."}</p>
         </div>
         <button type="button" className="bus-creator-close" aria-label="Fermer le créateur de ligne" onClick={closePanel}>×</button>
       </header>
+
+      {!draft && selectedLine && <div className="bus-creator-content">
+        <label className="bus-creator-name">Variante active
+          <select value={variantId ?? ""} disabled={busy} onChange={(event) => { setVariantId(event.target.value || null); setPlacementTarget(null); setError(""); }}>
+            <option value="">Parcours principal</option>
+            {(selectedLine.variants ?? []).map((variant) => <option key={variant.id} value={variant.id}>{variant.name}</option>)}
+          </select>
+        </label>
+        <button type="button" className="bus-creator-secondary" disabled={busy} onClick={() => {
+          const { variants: _variants, ...copy } = activeLine as BusCreatedLine;
+          const variant = structuredClone({ ...copy, id: `bus:${crypto.randomUUID()}`, name: `Variante ${(selectedLine.variants?.length ?? 0) + 1}` });
+          if (persistLines(lines.map((line) => line.id === selectedLine.id ? { ...line, variants: [...(line.variants ?? []), variant] } : line))) setVariantId(variant.id);
+        }}>Créer une variante à partir de ce parcours</button>
+        {variantId && <button type="button" className="bus-creator-danger" disabled={busy} onClick={() => {
+          if (!window.confirm(`Supprimer la variante « ${activeLine.name} » ?`)) return;
+          if (persistLines(lines.map((line) => line.id === selectedLine.id ? { ...line, variants: line.variants?.filter((variant) => variant.id !== variantId) } : line))) setVariantId(null);
+        }}>Supprimer cette variante</button>}
+      </div>}
+      <p className="bus-creator-status">Parcours proposé à vérifier : accès bus, virages et sens de circulation ne sont pas certifiés.</p>
 
       <nav className="bus-creator-tabs" role="tablist" aria-label="Étapes de création de la ligne">
         {steps.map((label, index) => {
@@ -405,7 +459,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
       {step === 1 && <div className="bus-creator-content">
         <h3>Précisez le passage</h3>
         <p>La route générée s’affiche sur la carte. Ajoutez des points pour la faire passer par les rues voulues ; le tracé se recalcule à chaque point.</p>
-        {activeLine.distanceM !== null && <p className="bus-creator-distance">{(activeLine.distanceM / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km · retour sur le même tracé, en sens inverse</p>}
+        {activeLine.distanceM !== null && <p className="bus-creator-distance">{(activeLine.distanceM / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km · retour non calculé</p>}
         <ol className="bus-creator-markers">
           {activeLine.passages.map((marker, index) => <li key={marker.id}><span className="bus-creator-marker-key">P{index + 1}</span><span>{marker.name}</span><button type="button" disabled={busy} onClick={() => removePassage(marker.id)}>Retirer</button></li>)}
         </ol>
@@ -416,7 +470,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
       {step === 2 && <div className="bus-creator-content">
         {draft ? <>
           <h3>Placez les arrêts</h3>
-          <p>Cliquez près du tracé. Les arrêts restent accrochés à la ligne et suivent les deux sens.</p>
+          <p>Cliquez près du tracé. Les arrêts sont rattachés à ce parcours.</p>
           <label className="bus-creator-name">Nom de la ligne<input aria-label="Nom de la ligne" placeholder="Ex. Ligne du centre-ville" value={activeLine.name} onChange={(event) => updateActive({ ...activeLine, name: event.target.value })} /></label>
           <ol className="bus-creator-markers">
             {activeLine.arrets.map((marker, index) => <li key={marker.id}><span className="bus-creator-marker-key">A{index + 1}</span><input aria-label={`Nom de l’arrêt ${index + 1}`} value={marker.name} onChange={(event) => updateActive({ ...activeLine, arrets: activeLine.arrets.map((item) => item.id === marker.id ? { ...item, name: event.target.value } : item) })} /><button type="button" onClick={() => updateActive({ ...activeLine, arrets: activeLine.arrets.filter((item) => item.id !== marker.id) })}>Retirer</button></li>)}
@@ -424,7 +478,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
           <button type="button" className="bus-creator-secondary" onClick={() => handleMapRequest("arret")}>Ajouter un arrêt sur la carte</button>
           <button type="button" className="bus-creator-primary" disabled={!activeLine.name.trim() || activeLine.arrets.length === 0 || busy} onClick={saveNewLine}>Valider et terminer la ligne</button>
         </> : <>
-          <label className="bus-creator-name">Nom de la ligne<input value={activeLine.name} onChange={(event) => updateActive({ ...activeLine, name: event.target.value, updatedAt: new Date().toISOString() })} /></label>
+          <label className="bus-creator-name">{variantId ? "Nom de la variante" : "Nom de la ligne"}<input value={activeLine.name} onChange={(event) => updateActive({ ...activeLine, name: event.target.value, updatedAt: new Date().toISOString() })} /></label>
           <h3>Arrêts</h3>
           <ol className="bus-creator-markers">
             {activeLine.arrets.map((marker, index) => <li key={marker.id}><span className="bus-creator-marker-key">A{index + 1}</span><input aria-label={`Nom de l’arrêt ${index + 1}`} value={marker.name} onChange={(event) => updateActive({ ...activeLine, arrets: activeLine.arrets.map((item) => item.id === marker.id ? { ...item, name: event.target.value } : item), updatedAt: new Date().toISOString() })} /><button type="button" onClick={() => updateActive({ ...activeLine, arrets: activeLine.arrets.filter((item) => item.id !== marker.id), updatedAt: new Date().toISOString() })}>Retirer</button></li>)}
@@ -447,5 +501,6 @@ function fitRoute(map: maplibregl.Map | null, coordinates: BusCoordinate[]) {
   if (!map || coordinates.length < 2) return;
   const bounds = new maplibregl.LngLatBounds();
   coordinates.forEach((coordinate) => bounds.extend(coordinate));
-  map.fitBounds(bounds, { padding: { top: 100, right: 390, bottom: 80, left: 60 }, maxZoom: 16 });
+  const mobile = map.getCanvas().clientWidth <= 760;
+  map.fitBounds(bounds, { padding: mobile ? { top: 130, right: 30, bottom: 100, left: 30 } : { top: 100, right: 390, bottom: 80, left: 60 }, maxZoom: 16 });
 }
