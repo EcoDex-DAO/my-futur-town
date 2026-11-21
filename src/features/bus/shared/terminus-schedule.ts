@@ -2,17 +2,17 @@ import type { ScheduleTrip } from "./bus-simulation";
 
 /** GTFS service time: 25:10 belongs to the previous service day. */
 export function parseServiceTime(value: string): number | null {
-  const match = /^(\d{1,2}):([0-5]\d)$/.exec(value.trim());
+  const match = /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/.exec(value.trim());
   if (!match) return null;
   const hours = Number(match[1]);
   if (hours > 47) return null;
-  return (hours * 60 + Number(match[2])) * 60;
+  return (hours * 60 + Number(match[2])) * 60 + Number(match[3] ?? 0);
 }
 
 export function formatServiceTime(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const hour = Math.floor(minutes / 60);
-  return `${String(hour).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}${hour >= 24 ? " (lendemain)" : ""}`;
+  return `${String(hour).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}${seconds % 60 ? `:${String(seconds % 60).padStart(2, "0")}` : ""}${hour >= 48 ? ` (+${Math.floor(hour / 24)} jours)` : hour >= 24 ? " (lendemain)" : ""}`;
 }
 
 /** Preserve all published arrival and departure intervals, including dwell. */
@@ -41,4 +41,11 @@ export function propagateCreatedTrip(departure: number, stops: TimedStop[]): { i
 
 export function hasDuplicateDeparture(departures: readonly number[]): boolean {
   return new Set(departures).size !== departures.length;
+}
+
+/** Detect a changed or missing GTFS template before treating saved offsets as current. */
+export function matchesTripTemplate(trip: ScheduleTrip | undefined, stops: { id: string; offset: number }[]): boolean {
+  if (!trip || trip.stops.length !== stops.length) return false;
+  const first = trip.stops[0].departure;
+  return trip.stops.every((stop, index) => stop.stopId === stops[index].id && stop.departure - first === stops[index].offset);
 }

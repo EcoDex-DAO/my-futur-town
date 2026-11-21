@@ -1161,3 +1161,11 @@ main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
   .bus-creator-panel--placing > :not(.bus-creator-map-prompt) { display: none; }
   .bus-creator-panel--placing .bus-creator-map-prompt { margin-top: 0; }
 }
+
+.terminus-editor { display: grid; gap: 0.65rem; padding: 0.75rem 0; }
+.terminus-editor label { display: grid; gap: 0.25rem; }
+.terminus-editor input, .terminus-editor select, .terminus-editor button { max-width: 100%; min-height: 2.5rem; }
+.terminus-editor article { border-top: 1px solid #c5d3ca; padding: 0.5rem 0; }
+.terminus-editor article ul { max-height: 12rem; overflow: auto; }
+.terminus-editor, .terminus-editor label { min-width: 0; }
+.terminus-editor input, .terminus-editor select { width: 100%; min-width: 0; box-sizing: border-box; }

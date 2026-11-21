@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatServiceTime, hasDuplicateDeparture, parseServiceTime, propagateCreatedTrip, shiftTrip } from "./terminus-schedule";
+import { formatServiceTime, hasDuplicateDeparture, matchesTripTemplate, parseServiceTime, propagateCreatedTrip, shiftTrip } from "./terminus-schedule";
 import type { ScheduleTrip } from "./bus-simulation";
 
 const trip: ScheduleTrip = { id: "trip", lineId: "1", variantId: "v", directionId: "0", serviceId: "s", stops: [
@@ -24,6 +24,11 @@ describe("horaires au terminus", () => {
     expect(propagateCreatedTrip(86340, [{ id: "a", elapsedSeconds: 0 }, { id: "b", elapsedSeconds: 120 }])[1].time).toBe(86460);
     expect(() => propagateCreatedTrip(0, [{ id: "a", elapsedSeconds: 0 }, { id: "b", elapsedSeconds: 0 }])).toThrow();
     expect(() => propagateCreatedTrip(0, [{ id: "a", elapsedSeconds: 0 }, { id: "a", elapsedSeconds: 2 }])).toThrow();
+  });
+  it("détecte un modèle GTFS modifié ou absent", () => {
+    expect(matchesTripTemplate(trip, [{ id: "a", offset: 0 }, { id: "b", offset: 390 }])).toBe(true);
+    expect(matchesTripTemplate(trip, [{ id: "a", offset: 0 }, { id: "b", offset: 391 }])).toBe(false);
+    expect(matchesTripTemplate(undefined, [])).toBe(false);
   });
   it("détecte les départs identiques", () => {
     expect(hasDuplicateDeparture([100, 200, 100])).toBe(true);

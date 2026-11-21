@@ -2,7 +2,7 @@
 
 **Branche** : `EcoDex-DAO/issue-38-horaires-terminus`  
 **Issue** : [#38](https://github.com/EcoDex-DAO/my-futur-town/issues/38)  
-**État** : cadrage en cours
+**État** : implémenté, en attente de revue
 
 ## Scénarios et vérification
 
