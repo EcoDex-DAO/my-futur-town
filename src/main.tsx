@@ -11,6 +11,7 @@ import { BusReport } from "./features/bus/macro/BusReport";
 import { BusTrafficSimulation } from "./features/bus/macro/BusTrafficSimulation";
 import { BusStopTimetable } from "./features/bus/shared/BusStopTimetable";
 import { TerminusEditor } from "./features/bus/shared/TerminusEditor";
+import { BusFleetManager } from "./features/bus/shared/BusFleetManager";
 import { CreatedStopTimetable } from "./features/bus/shared/CreatedStopTimetable";
 import { MultimodalPanel } from "./features/multimodal/MultimodalPanel";
 import { PARKING_BOUNDS, syncParkingMap, type ParkingPreview } from "./features/multimodal/parking-map";
@@ -408,6 +409,7 @@ export default function App() {
               <button type="button" className="bus-tool-button secondary" onClick={() => setManageCreatedOpen(true)}>Administrer les lignes créées ({createdLines.length})</button>
             </section>
             <details><summary>Créer ou modifier les horaires</summary>{busData && <TerminusEditor data={busData} createdLines={createdLines} />}</details>
+            <BusFleetManager />
             <label className="bus-stops-mode">Arrêts de bus<select value={busStopsMode} onChange={(event) => setBusStopsMode(event.target.value as "all" | "selected" | "none")}><option value="all">Tous les arrêts</option><option value="selected">Des lignes cochées</option><option value="none">Aucun arrêt</option></select></label>
             {busError && <p className="caption" role="alert">{busError}</p>}
             {!busData && !busError && <p className="caption" role="status">Chargement du réseau SIBRA…</p>}

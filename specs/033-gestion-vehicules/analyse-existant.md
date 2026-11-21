@@ -1,0 +1,10 @@
+# Analyse de l'existant — issue #30
+
+- La V3 enregistre dans le navigateur des lignes et variantes orientées, chacune avec ses terminus et arrêts. Une variante retour n'est pas déduite automatiquement.
+- La V4 conserve séparément ses départs datés : modifications d'une course GTFS, courses supplémentaires basées sur une course GTFS, et courses de parcours créés. Les heures supérieures à 24 h appartiennent au jour de service d'origine. Une signature permet de repérer des parcours créés modifiés ; une comparaison repère les modèles GTFS modifiés.
+- Le GTFS contient les courses, services, arrêts et heures théoriques, mais pas l'identité ou la disponibilité des véhicules. La durée peut être calculée entre le départ initial et l'arrivée finale lorsque les horaires sont valides. Les temps aux arrêts et les heures d'arrivée et de départ ne doivent pas être confondus.
+- Les horaires V4 peuvent changer après une affectation. Il faut préserver sa référence et avertir en cas de disparition ou de modification ; une copie figée ne doit pas être présentée comme un horaire actuel.
+- La simulation actuelle utilise les horaires GTFS, pas les horaires de scénario ni les affectations : [issue #50](https://github.com/EcoDex-DAO/my-futur-town/issues/50). Aucun mouvement de véhicule ou résultat de bilan ne doit être présenté comme issu du futur planning V5 avant cette intégration.
+- Les chiffres publics du parc et les estimations du calcul multimodal sont agrégés ; ils ne décrivent pas les véhicules individuels ni leurs disponibilités. Les durées de transfert, de pause, de retournement et de maintenance restent inconnues sans saisie ou source explicite.
+- Le stockage V4 vérifie le format et compare un instantané avant écriture pour signaler les modifications concurrentes. La V5 doit protéger ses propres données et ne pas modifier les clés V3/V4.
+- Les dates et heures de service traversent minuit ; les comparaisons entre services doivent tenir compte du calendrier civil et des changements d'heure, sans assimiler automatiquement un jour local à 86 400 secondes réelles.
