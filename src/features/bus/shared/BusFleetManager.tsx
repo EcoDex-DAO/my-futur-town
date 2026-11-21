@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { summarizeFleet, validateFleetRecords } from "./fleet-inventory";
 
 const KEY = "yft.bus-fleet-models.v1";
-type Model = { id: string; name: string; size: string; power: string; count: string; unavailable: string; seated: string; capacity: string; use: string; consumption: string; adblue: string; age: string; range: string; recharge: string; tank: string; notes: string; source: string; year: string; scope: string };
-const blank = (id: string, name: string, size: string, power: string, count = ""): Model => ({ id, name, size, power, count, unavailable: "", seated: "", capacity: "", use: "", consumption: "", adblue: "", age: "", range: "", recharge: "", tank: "", notes: "", source: "", year: "", scope: "" });
+type Model = { id: string; network: string; name: string; size: string; power: string; count: string; unavailable: string; seated: string; capacity: string; use: string; consumption: string; adblue: string; age: string; range: string; recharge: string; tank: string; notes: string; source: string; year: string; scope: string };
+const blank = (id: string, name: string, size: string, power: string, count = ""): Model => ({ id, network: id.startsWith("rumilly-") ? "J’ybus · Rumilly" : "Grand Annecy", name, size, power, count, unavailable: "", seated: "", capacity: "", use: "", consumption: "", adblue: "", age: "", range: "", recharge: "", tank: "", notes: "", source: "", year: "", scope: "" });
 const reference: Model[] = [
   { ...blank("standard-diesel", "Bus standard", "Standard", "Gazole", "48"), consumption: "39 L/100 km (moyenne des standards)", adblue: "1,50 L/100 km (moyenne des standards)", age: "6,4 ans (âge moyen 2023)", notes: "Les consommations 2023 sont données pour les standards agrégés ; elles ne sont pas isolées par énergie. Les affecter à ce modèle gazole est indicatif.", source: "Effectif : rapport Grand Annecy 2024 ; caractéristiques : rapport SIBRA 2023, §§5.1–5.2", year: "2024 (effectif), 2023 (caractéristiques)", scope: "Parc moyen mis à disposition du Grand Annecy" },
   { ...blank("standard-electric", "Bus standard", "Standard", "Électrique", "6"), source: "Rapport Grand Annecy, section 5.1", year: "2024", scope: "Inclus dans les 54 standards" },
@@ -30,7 +31,7 @@ function read(raw: string | null): Model[] {
   if (!raw) return reference;
   const value: unknown = JSON.parse(raw);
   if (!Array.isArray(value) || value.some((model) => !model || typeof model.id !== "string" || typeof model.name !== "string" || typeof model.size !== "string" || typeof model.power !== "string" || fields.some(({ key }) => model[key] !== undefined && typeof model[key] !== "string"))) throw new Error("Données de flotte illisibles. Elles n'ont pas été modifiées.");
-  const existing = value.map((model) => ({ ...blank(model.id, model.name, model.size, model.power), ...model })) as Model[];
+  const existing = value.map((model) => ({ ...blank(model.id, model.name, model.size, model.power), ...model, network: typeof model.network === "string" ? model.network : (model.id.startsWith("rumilly-") ? "J’ybus · Rumilly" : "Grand Annecy") })) as Model[];
   const known = new Set(existing.map((model) => model.id));
   return [...existing, ...reference.filter((model) => !known.has(model.id))];
 }
@@ -51,31 +52,25 @@ export function BusFleetManager() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => { try { const raw = localStorage.getItem(KEY); setModels(read(raw)); setCustomized(raw !== null); setReady(true); } catch (error) { setMessage(error instanceof Error ? error.message : "Lecture impossible."); } }, []);
   useEffect(() => { const dialog = dialogRef.current; if (open && dialog && !dialog.open) dialog.showModal(); else if (!open && dialog?.open) dialog.close(); }, [open]);
-  const total = models.reduce((sum, model) => sum + (count(model.count) ?? 0), 0);
-  const complete = models.every((model) => count(model.count) !== null);
   function update(id: string, key: keyof Model, value: string) { setModels((current) => current.map((model) => model.id === id ? { ...model, [key]: value } : model)); }
   function save() {
-    for (const model of models) {
-      const amount = model.count === "" ? null : count(model.count);
-      const unavailable = model.unavailable === "" ? null : count(model.unavailable);
-      const seated = model.seated === "" ? null : count(model.seated);
-      const capacity = model.capacity === "" ? null : count(model.capacity);
-      if ((model.count !== "" && amount === null) || (model.unavailable !== "" && unavailable === null) || (model.seated !== "" && seated === null) || (model.capacity !== "" && capacity === null) || (amount !== null && unavailable !== null && unavailable > amount) || (seated !== null && capacity !== null && seated > capacity)) { setMessage("Vérifiez les nombres : entiers positifs, indisponibles ≤ effectif et places assises ≤ capacité totale."); return; }
-    }
+    const validation = validateFleetRecords(models);
+    if (validation) { setMessage(validation); return; }
     try { localStorage.setItem(KEY, JSON.stringify(models)); setCustomized(true); setMessage("Inventaire enregistré dans ce navigateur."); } catch { setMessage("Enregistrement impossible. Vérifiez le stockage du navigateur."); }
   }
   function addModel() { const name = newName.trim(); if (!name) { setMessage("Donnez un nom au modèle."); return; } setModels((current) => [...current, blank(crypto.randomUUID(), name, newSize, newPower)]); setNewName(""); setAdding(false); setCustomized(true); }
   function restore() { if (!window.confirm("Restaurer les modèles et effectifs de référence ? Les modifications locales seront supprimées.")) return; try { localStorage.removeItem(KEY); setModels(reference); setCustomized(false); setMessage("Référence initiale restaurée."); } catch { setMessage("Restauration impossible."); } }
   const groups = [...new Set(models.map((model) => model.size))];
+  const summaries = summarizeFleet(models);
   return <section className="bus-fleet" aria-label="Inventaire de la flotte de bus">
     {!open && <button type="button" className="bus-fleet-open" aria-expanded={open} onClick={() => setOpen(true)}>Ouvrir le parc de bus</button>}
     {open && <dialog ref={dialogRef} className="bus-fleet-panel" aria-labelledby="bus-fleet-title" onCancel={(event) => { event.preventDefault(); setOpen(false); }} onClick={(event) => { if (event.target === event.currentTarget) setOpen(false); }}><div className="bus-fleet-heading"><div><h3 id="bus-fleet-title">Flotte d’Annecy</h3><p>Effectifs agrégés par gabarit et motorisation</p></div><button type="button" aria-label="Fermer l’inventaire" onClick={() => setOpen(false)}>Fermer</button></div>
       <p className="bus-fleet-source">Référence : parc moyen mis à disposition par le Grand Annecy en 2024. Ce relevé historique ne décrit pas le parc actuel. {customized && <strong>Affichage modifié pour ce scénario.</strong>}</p>
-      <div className="bus-fleet-summary"><strong>{complete ? `${total} véhicules recensés` : `Au moins ${total} véhicules recensés`}</strong><span>{complete ? "Plusieurs réseaux et périmètres sources ; les effectifs restent détaillés par fiche" : "Total partiel : certains effectifs sont inconnus"}</span></div>
+      <div className="bus-fleet-totals" aria-label="Totaux séparés par réseau et périmètre">{summaries.map(({ label, known, complete: scopeComplete }) => <p className="bus-fleet-summary" key={label}><strong>{scopeComplete ? `${known} véhicules` : `Au moins ${known} véhicules`}</strong><span>{label}{scopeComplete ? " · total des modèles affichés" : " · total partiel, effectifs inconnus"}</span></p>)}</div>
       <button type="button" onClick={() => setAdding((value) => !value)}>{adding ? "Annuler l’ajout" : "Ajouter un modèle de bus"}</button>
       {adding && <form className="bus-fleet-add" onSubmit={(event) => { event.preventDefault(); addModel(); }}><label>Nom du modèle<input value={newName} onChange={(event) => setNewName(event.target.value)} required /></label><label>Gabarit<select value={newSize} onChange={(event) => setNewSize(event.target.value)}><option>Standard</option><option>Articulé</option><option>Moyenne capacité</option><option>Minibus</option><option>Autocar moyen</option><option>Autre</option></select></label><label>Énergie ou motorisation<select value={newPower} onChange={(event) => setNewPower(event.target.value)}><option>Gazole</option><option>Électrique</option><option>Hybride</option><option>Gaz</option><option>Hydrogène</option><option>Inconnue</option></select></label><button type="submit">Créer le modèle</button></form>}
       {groups.map((group) => <details className="bus-fleet-group" key={group} open><summary>{group}<span>{models.filter((model) => model.size === group).length} modèles</span></summary>
-        <div className="bus-fleet-models">{models.filter((model) => model.size === group).map((model) => <details className="bus-fleet-model" key={model.id}><summary><span className="bus-fleet-model-title"><BusIcon articulated={model.size === "Articulé"} electric={model.power === "Électrique"} /><span><strong>{model.power}</strong><small>{model.name}</small></span></span><b>{count(model.count) === null ? "Inconnu" : `${model.count} bus`}</b></summary>
+        <div className="bus-fleet-models">{models.filter((model) => model.size === group).map((model) => <details className="bus-fleet-model" key={model.id}><summary><span className="bus-fleet-model-title"><BusIcon articulated={model.size === "Articulé"} electric={model.power === "Électrique"} /><span><strong>{model.power}</strong><small>{model.name} · {model.network} · {model.scope}</small></span></span><b>{count(model.count) === null ? "Inconnu" : `${model.count} bus`}{count(model.count) !== null && count(model.unavailable) !== null && <small>{count(model.count)! - count(model.unavailable)!} disponibles</small>}</b></summary>
           <div className="bus-fleet-fields">{fields.filter(({ key }) => !(model.power === "Électrique" && key === "tank") && !(["Gazole", "Hybride"].includes(model.power) && ["range", "recharge"].includes(key))).map(({ key, label, unit }) => <label key={key}>{label}{unit && <small>{unit}</small>}<input type={["count", "unavailable", "seated", "capacity"].includes(key) ? "number" : "text"} min="0" step="1" value={model[key]} placeholder="Inconnu" onChange={(event) => update(model.id, key, event.target.value)} /></label>)}</div>
         </details>)}</div>
       </details>)}
