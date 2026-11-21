@@ -1,10 +1,10 @@
-export type FleetRecord = { network: string; scope: string; count: string; unavailable: string; seated: string; capacity: string };
+export type FleetRecord = { network: string; scopeCategory: string; countYear: string; count: string; unavailable: string; seated: string; capacity: string };
 export type FleetScopeTotal = { label: string; known: number; complete: boolean };
 function integer(value: string): number | null { return value.trim() && Number.isInteger(Number(value)) && Number(value) >= 0 ? Number(value) : null; }
 export function summarizeFleet(records: readonly FleetRecord[]): FleetScopeTotal[] {
-  const labels = [...new Set(records.map((record) => `${record.network} · ${record.scope.toLocaleLowerCase().includes("sous-trait") ? "Sous-traitants" : "Parc SIBRA"}`))];
+  const labels = [...new Set(records.map((record) => `${record.network} · ${record.scopeCategory} · effectifs ${record.countYear || "année inconnue"}`))];
   return labels.map((label) => {
-    const subset = records.filter((record) => `${record.network} · ${record.scope.toLocaleLowerCase().includes("sous-trait") ? "Sous-traitants" : "Parc SIBRA"}` === label);
+    const subset = records.filter((record) => `${record.network} · ${record.scopeCategory} · effectifs ${record.countYear || "année inconnue"}` === label);
     return { label, known: subset.reduce((sum, record) => sum + (integer(record.count) ?? 0), 0), complete: subset.every((record) => integer(record.count) !== null) };
   });
 }
