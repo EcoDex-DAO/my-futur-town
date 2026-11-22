@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { parseSchedule, type Schedule } from "../shared/bus-simulation";
 import type { SibraData } from "../shared/sibra";
 import { annualLineActivity } from "./bus-report";
+import { readReportSnapshot, REPORT_STORAGE_KEY, saveReportSnapshot } from "./report-storage";
 
-const key = "bus-report-v1";
 const defaults = { standard: 38.4, articulated: 55.5, electric: 1.07, gas: 0.53, density: 0.84, dieselGhg: 3.16, electricGhg: 0.092, gasGhg: "", dieselNox: 1.85, gasNox: 0.713, pm10: 0.059, pm25: 0.0316, tyreLife: 85000, tyresStandard: 6, tyresArticulated: 10, occupancy: 20, capacityStandard: 100, capacityArticulated: 150, dwell: 12 };
 type Parameters = { [K in keyof typeof defaults]: string | number };
 type Scenario = "diesel" | "electric" | "gas";
@@ -23,14 +23,14 @@ export function BusReport({ data, groups, selectedIds }: { data: SibraData; grou
   const [scenario, setScenario] = useState<Scenario>("diesel");
   const [loaded, setLoaded] = useState(false);
   const [scope, setScope] = useState<"all" | "selected">("all");
+  const snapshot = useRef<string | null>(null);
   useEffect(() => {
-    try { const saved = JSON.parse(localStorage.getItem(key) ?? "null"); if (saved?.parameters) setParameters({ ...defaults, ...saved.parameters }); if (saved?.sizes) setSizes(saved.sizes); if (["diesel", "electric", "gas"].includes(saved?.scenario)) setScenario(saved.scenario); } catch { /* A corrupt snapshot falls back to documented defaults. */ }
-    setLoaded(true);
+    try { const raw = localStorage.getItem(REPORT_STORAGE_KEY); const saved = readReportSnapshot(raw); snapshot.current = raw; if (saved.parameters) setParameters({ ...defaults, ...saved.parameters }); if (saved.sizes) setSizes(saved.sizes); if (saved.scenario) setScenario(saved.scenario); setLoaded(true); } catch { setError("Hypothèses illisibles ou stockage inaccessible. Les données conservées ne seront pas écrasées."); }
     const controller = new AbortController();
     fetch("/data/sibra-schedule.json", { signal: controller.signal }).then((r) => { if (!r.ok) throw new Error(); return r.json(); }).then((v) => { const parsed = parseSchedule(v); const days = (Date.parse(`${parsed.metadata.validTo}T00:00:00Z`) - Date.parse(`${parsed.metadata.validFrom}T00:00:00Z`)) / 86400000 + 1; if (Object.keys(parsed.serviceDates).length !== days) throw new Error("Calendrier incomplet"); setSchedule(parsed); }).catch(() => { if (!controller.signal.aborted) setError("Horaires indisponibles ou calendrier incomplet. Rechargez la page pour réessayer."); });
     return () => controller.abort();
   }, []);
-  useEffect(() => { if (loaded) try { localStorage.setItem(key, JSON.stringify({ parameters, sizes, scenario })); } catch { setError("Les hypothèses ne peuvent pas être sauvegardées dans ce navigateur."); } }, [loaded, parameters, sizes, scenario]);
+  useEffect(() => { if (loaded) try { snapshot.current = saveReportSnapshot(localStorage, snapshot.current, { parameters, sizes, scenario }); } catch (error) { setLoaded(false); setError(error instanceof Error && error.message.includes("autre onglet") ? error.message : "Les hypothèses ne peuvent pas être sauvegardées dans ce navigateur."); } }, [loaded, parameters, sizes, scenario]);
   const rows = useMemo(() => schedule ? annualLineActivity(data, schedule).filter((row) => scope === "all" || selectedIds.includes(row.id)) : [], [data, schedule, scope, selectedIds]);
   const calc = (row: typeof rows[number]) => {
     const size = sizes[row.id] ?? "standard";
