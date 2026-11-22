@@ -1,0 +1,150 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { BusCreatedLine } from "../creator/bus-line";
+import { parseSchedule, requireCompleteCalendar, type Schedule } from "../shared/bus-simulation";
+import { FLEET_STORAGE_KEY, readFleet, type Model } from "../shared/BusFleetManager";
+import { fleetDemand } from "../shared/fleet-demand";
+import { resolveScenario } from "../shared/scenario-schedule";
+import type { SibraData } from "../shared/sibra";
+import { writeSnapshot } from "../shared/snapshot-storage";
+import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "../shared/terminus-storage";
+import { lineActivity } from "./bus-report";
+import { initialFactors, scenarioImpact, type ImpactFactors } from "./scenario-impact";
+
+const KEY = "yft.bus-report-v2.v1";
+type FactorKey = keyof ImpactFactors;
+type Settings = { reference: Record<string, string>; scenario: Record<string, string>; turnaround: string; factors: Record<FactorKey, string>; factorSources: Record<FactorKey, string> };
+const initial: Settings = { reference: {}, scenario: {}, turnaround: "0", factors: { dieselGhg: "3.16", electricGhg: "0.092", gasGhg: "", dieselNox: "1.85", gasNox: "0.713", pm10: "0.059", pm25: "0.0316" }, factorSources: { dieselGhg: "", electricGhg: "", gasGhg: "", dieselNox: "", gasNox: "", pm10: "", pm25: "" } };
+function readSettings(raw: string | null): Settings {
+  if (raw === null) return initial;
+  const value: unknown = JSON.parse(raw);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Bilan V2 illisible");
+  const record = value as Settings;
+  const validMap = (item: unknown) => item && typeof item === "object" && !Array.isArray(item) && Object.values(item).every((v) => typeof v === "string");
+  if (Object.keys(record).some((key) => !["reference", "scenario", "turnaround", "factors", "factorSources"].includes(key)) || ![record.reference, record.scenario].every(validMap) || (record.turnaround !== undefined && typeof record.turnaround !== "string") || (record.factors !== undefined && !validMap(record.factors)) || (record.factorSources !== undefined && !validMap(record.factorSources))) throw new Error("Bilan V2 illisible");
+  return { ...record, turnaround: record.turnaround ?? "0", factors: { ...initial.factors, ...record.factors }, factorSources: { ...initial.factorSources, ...record.factorSources } };
+}
+
+const format = (value: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(Math.abs(value) < 0.05 ? 0 : value);
+function SourceInfo({ label, children }: { label: string; children: React.ReactNode }) {
+  return <details><summary>Informations sur {label}</summary>{children}</details>;
+}
+
+export function BusScenarioReport({ data, createdLines, selectedIds }: { data: SibraData; createdLines: BusCreatedLine[]; selectedIds: string[] | null }) {
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [entries, setEntries] = useState<TerminusEntry[]>([]);
+  const [fleet, setFleet] = useState<Model[]>([]);
+  const [settings, setSettings] = useState<Settings>(initial);
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState("");
+  const [settingsError, setSettingsError] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
+  const snapshot = useRef<string | null>(null);
+  useEffect(() => {
+    const refresh = () => {
+      try { setEntries(readTerminusStore(localStorage.getItem(TERMINUS_STORAGE_KEY)).entries); setFleet(readFleet(localStorage.getItem(FLEET_STORAGE_KEY))); setError(""); }
+      catch { setError("Horaires ou flotte illisibles. Les données n’ont pas été modifiées ; le bilan adapté est indisponible."); }
+    };
+    try { const raw = localStorage.getItem(KEY); setSettings(readSettings(raw)); snapshot.current = raw; setReady(true); } catch { setSettingsError("Affectations du bilan illisibles. Les données n’ont pas été modifiées."); }
+    refresh();
+    const controller = new AbortController();
+    fetch("/data/sibra-schedule.json", { signal: controller.signal }).then((r) => { if (!r.ok) throw new Error(); return r.json(); }).then(parseSchedule).then(requireCompleteCalendar).then(setSchedule).catch(() => { if (!controller.signal.aborted) setError("Horaires de référence indisponibles ou calendrier incomplet."); });
+    window.addEventListener("storage", refresh); window.addEventListener("yft:terminus-updated", refresh); window.addEventListener("yft:fleet-updated", refresh);
+    return () => { controller.abort(); window.removeEventListener("storage", refresh); window.removeEventListener("yft:terminus-updated", refresh); window.removeEventListener("yft:fleet-updated", refresh); };
+  }, []);
+  const resolved = useMemo(() => schedule ? resolveScenario(schedule, data, createdLines, entries) : null, [schedule, data, createdLines, entries]);
+  const reference = useMemo(() => schedule ? lineActivity(data, schedule) : [], [schedule, data]);
+  const adapted = useMemo(() => resolved ? lineActivity(resolved.data, resolved.schedule) : [], [resolved]);
+  const rows = adapted.filter((row) => selectedIds === null || selectedIds.includes(row.id));
+  const referenceById = new Map(reference.map((row) => [row.id, row]));
+  const selected = new Set(rows.map((row) => row.id));
+  const diagnostics = resolved?.diagnostics.filter((item) => selectedIds === null || entries.some((entry) => entry.id === item.entryId && selected.has(entry.lineId))) ?? [];
+  const update = (side: "reference" | "scenario", lineId: string, value: string) => setSettings((current) => ({ ...current, [side]: { ...current[side], [lineId]: value } }));
+  const save = () => { try { snapshot.current = writeSnapshot(localStorage, KEY, snapshot.current, JSON.stringify(settings)); setSaveMessage("Affectations et facteurs enregistrés dans ce navigateur."); } catch (reason) { setSaveMessage(reason instanceof Error && reason.message.includes("autre onglet") ? `${reason.message} Vos modifications restent affichées pour que vous puissiez les relever.` : "Affectations et facteurs non enregistrés. Vérifiez le stockage."); } };
+  if (error || settingsError) return <p role="alert">{error || settingsError}</p>;
+  if (!schedule || !resolved) return <p role="status">Chargement du bilan adapté…</p>;
+  const assigned = (side: "reference" | "scenario", id: string) => settings[side][id] ?? "standard-diesel";
+  const scenarioAssignments = Object.fromEntries(rows.map((row) => [row.id, assigned("scenario", row.id)]));
+  const minutes = Number(settings.turnaround);
+  const demand = settings.turnaround.trim() !== "" && Number.isSafeInteger(minutes) && minutes >= 0 && minutes <= 1440 ? fleetDemand(resolved.schedule, scenarioAssignments, selected, minutes * 60) : null;
+  const factors = Object.fromEntries((Object.keys(initialFactors) as FactorKey[]).map((key) => { const text = settings.factors[key].trim(); const value = Number(text); return [key, text && Number.isFinite(value) && value >= 0 ? value : null]; })) as ImpactFactors;
+  const summarize = (side: "reference" | "scenario") => {
+    let ghg = 0, diesel = 0, electric = 0, gas = 0, nox = 0, pm10 = 0, pm25 = 0, unknown = 0, covered = 0, ghgCovered = 0, unknownPollutants = 0;
+    for (const row of rows) {
+      const km = side === "reference" ? referenceById.get(row.id)?.km ?? 0 : row.km;
+      if (!km) continue;
+      const result = scenarioImpact(km, fleet.find((model) => model.id === assigned(side, row.id)), factors);
+      if (!result) { unknown++; unknownPollutants++; continue; }
+      covered++;
+      if (result.ghgKg === null) unknown++; else { ghg += result.ghgKg; ghgCovered++; }
+      if (result.noxKg === null || result.pm10Kg === null || result.pm25Kg === null) unknownPollutants++;
+      nox += result.noxKg ?? 0; pm10 += result.pm10Kg ?? 0; pm25 += result.pm25Kg ?? 0;
+      if (result.unit === "L") diesel += result.energy; else if (result.unit === "kWh") electric += result.energy; else gas += result.energy;
+    }
+    const missing = rows.reduce((sum, row) => sum + (side === "reference" ? referenceById.get(row.id)?.missing ?? 0 : row.missing), 0) + (side === "scenario" ? diagnostics.length : 0);
+    return { ghg, diesel, electric, gas, nox, pm10, pm25, unknown, missing, covered, ghgCovered, unknownPollutants };
+  };
+  const beforeTotal = summarize("reference"), afterTotal = summarize("scenario");
+  return <div className="bilan-report">
+    <h3>Bilan V2 · {selectedIds === null ? "toutes les lignes" : "lignes sélectionnées"}</h3>
+    <p>Référence GTFS et scénario comparés du {schedule.metadata.validFrom} au {schedule.metadata.validTo}, sur les mêmes jours de service. Les lignes créées n’existent que dans le scénario. Courses planifiées et tracés indicatifs : ce ne sont pas des mesures. Les trajets à vide et les annulations sont inconnus.</p>
+    <details><summary>Légende des provenances et de leur vérification</summary><p><span style={{ color: "#155b32" }}>Rapport SIBRA ou Annecy</span> · <span style={{ color: "#174c83" }}>Constructeur</span> · <span style={{ color: "#5d3f83" }}>Autre rapport</span> · <span style={{ color: "#7a4a00" }}>Hypothèse issue d’une source comparable</span> · <span>Origine déclarée ou inconnue</span>.</p><p>Ces catégories décrivent l’origine, pas la fiabilité. La vérification est indiquée séparément ; si elle n’est pas documentée, elle reste inconnue. Les valeurs saisies sont déclaratives et conservent la source inscrite dans l’inventaire.</p></details>
+    {diagnostics.length > 0 && <p role="alert">{diagnostics.length} horaire(s) de scénario exclus : parcours ou modèle invalide, modifié, absent ou hors calendrier. La comparaison est partielle.</p>}
+    {!rows.length ? <p>Aucune ligne dans le périmètre choisi.</p> : <>
+      <dl className="bilan-totals">
+        <div><dt>Kilomètres de référence</dt><dd>{format(rows.reduce((sum, row) => sum + (referenceById.get(row.id)?.km ?? 0), 0))} km</dd></div>
+        <div><dt>Kilomètres du scénario</dt><dd>{format(rows.reduce((sum, row) => sum + row.km, 0))} km</dd></div>
+        <div><dt>Écart de kilomètres</dt><dd>{format(rows.reduce((sum, row) => sum + row.km - (referenceById.get(row.id)?.km ?? 0), 0))} km</dd></div>
+      </dl>
+      <SourceInfo label="les kilomètres"><p>Origine : horaires planifiés du <a href={data.metadata.sourceUrl} target="_blank" rel="noreferrer">GTFS SIBRA</a>, édition {schedule.metadata.validFrom}–{schedule.metadata.validTo}, et parcours de scénario saisis. Méthode : longueur des géométries et courses programmées ; unité : km. Vérification des parcours créés et incertitude chiffrée inconnues. Aucun kilomètre à vide.</p></SourceInfo>
+      {[{ label: "Référence", value: beforeTotal }, { label: "Scénario", value: afterTotal }].map(({ label, value }) => <p key={label}>{label} : {value.unknown && !value.covered ? "énergie et GES inconnus" : `${format(value.diesel)} L gazole · ${format(value.electric)} kWh électricité · ${format(value.gas)} kg gaz · ${value.unknown && !value.ghgCovered ? "GES inconnus" : `${format(value.ghg)} kg CO₂e estimés`}`}{value.unknown || value.missing ? ` — partiel : ${value.unknown} ligne(s) sans facteur ou modèle, ${value.missing} course(s) non résolues` : ""}.</p>)}
+      {!beforeTotal.unknown && !beforeTotal.missing && !afterTotal.unknown && !afterTotal.missing && <p>Écart estimé de GES : {format(afterTotal.ghg - beforeTotal.ghg)} kg CO₂e.</p>}
+      {[{ label: "Référence", value: beforeTotal }, { label: "Scénario", value: afterTotal }].map(({ label, value }) => <p key={`pollutants-${label}`}>{label}, polluants estimés : {value.unknownPollutants ? `incomplets : ${value.unknownPollutants} ligne(s) sans facteur ou modèle` : `NOx ${format(value.nox)} kg · PM10 ${format(value.pm10)} kg · PM2,5 ${format(value.pm25)} kg`}{value.missing ? ` — ${value.missing} course(s) non résolues` : ""}. PM2,5 incluses dans PM10.</p>)}
+      {!beforeTotal.unknownPollutants && !beforeTotal.missing && !afterTotal.unknownPollutants && !afterTotal.missing && <p>Écarts estimés : NOx {format(afterTotal.nox - beforeTotal.nox)} kg · PM10 {format(afterTotal.pm10 - beforeTotal.pm10)} kg · PM2,5 {format(afterTotal.pm25 - beforeTotal.pm25)} kg.</p>}
+      <p>Par défaut, toutes les lignes utilisent à titre d’hypothèse le modèle standard gazole historique : ce choix uniforme ne décrit pas le parc ni les affectations réelles en 2026. Modifiez chaque affectation ou choisissez « Modèle inconnu ». Sa consommation historique est transférée faute de donnée par ligne ; son incertitude n’est pas quantifiée. Les consommations doivent préciser leur unité dans l’inventaire. Les valeurs manquantes restent inconnues. Les totaux ci-dessus sont partiels si des courses ne sont pas résolues.</p>
+      <details><summary>Facteurs modifiables et provenance</summary><p>Ces facteurs sont des hypothèses appliquées aux deux côtés de la comparaison. Un champ vide signifie inconnu. Indiquez source, date, périmètre et limites pour toute modification.</p>
+        {([
+          ["dieselGhg", "GES gazole", "kg CO₂e/L", "Guide ministériel, tableau 17 ; facteur historique amont compris, année du facteur à vérifier.", "https://www.ecologie.gouv.fr/sites/default/files/publications/Info%20GES_Guide%20m%C3%A9thodo.pdf"],
+          ["electricGhg", "GES électricité", "kg CO₂e/kWh", "ADEME Base Carbone V6, guide 2013 ; moyenne France historique avec pertes, à actualiser.", "https://bilans-ges.ademe.fr/docutheque/Guide-Sectoriel-Granulat-et-sites-recyclage.ext"],
+          ["gasGhg", "GES gaz", "kg CO₂e/kg", "Facteur inconnu : préciser la filière, les fuites et le périmètre avant utilisation.", "https://base-empreinte.ademe.fr/"],
+          ["dieselNox", "NOx gazole", "g/km", "ADEME HBEFA 4.1, parc français urbain 2026 ; moyenne prospective, pas mesure locale.", "https://data.ademe.fr/datasets/etude-facteurs-d%27emissions-des-differents-modes-de-transport-routier"],
+          ["gasNox", "NOx gaz naturel", "g/km", "ADEME HBEFA 4.1, parc français urbain 2026 ; moyenne prospective transférée aux bus à gaz.", "https://data.ademe.fr/datasets/etude-facteurs-d%27emissions-des-differents-modes-de-transport-routier"],
+          ["pm10", "PM10 pneus et freins", "g/km", "EMEP/EEA 2024 tableau 3-1, poids lourds incluant les bus ; sans correction du freinage régénératif.", "https://copert.emisia.com/wp-content/uploads/2024/07/1.A.3.b.vi-vii-Road-tyre-and-brake-wear-2024.pdf"],
+          ["pm25", "PM2,5 pneus et freins", "g/km", "EMEP/EEA 2024 tableau 3-1, poids lourds incluant les bus ; incluses dans PM10, ne pas additionner.", "https://copert.emisia.com/wp-content/uploads/2024/07/1.A.3.b.vi-vii-Road-tyre-and-brake-wear-2024.pdf"],
+        ] as [FactorKey, string, string, string, string][]).map(([key, label, unit, description, url]) => <div key={key} className="bilan-input"><label>{label} ({unit}) <input type="number" min="0" step="any" value={settings.factors[key]} onChange={(event) => setSettings((current) => ({ ...current, factors: { ...current.factors, [key]: event.target.value } }))} /></label><SourceInfo label={label}><p>{!settings.factors[key].trim() ? <>Valeur inconnue ; aucun facteur n’est appliqué.</> : Number(settings.factors[key]) === initialFactors[key] ? <><span style={{ color: "#7a4a00" }}>Hypothèse issue d’une source comparable</span> : <a href={url} target="_blank" rel="noreferrer">{description}</a> Vérification de l’actualité et incertitude chiffrée inconnues.</> : <>Valeur modifiée par l’utilisateur ; sa provenance initiale ne s’applique pas automatiquement. Vérification inconnue.</>}</p><label>Source, date, périmètre et limites saisis <input value={settings.factorSources[key]} onChange={(event) => setSettings((current) => ({ ...current, factorSources: { ...current.factorSources, [key]: event.target.value } }))} placeholder="Inconnus" /></label></SourceInfo></div>)}
+        <p>Consommation électrique standard manquante : hypothèse 1,07 kWh/km estimée dans le <a href="https://www.annecy.fr/api/fileadmin/mediatheque_annecy/Deliberations/2025/20251215/D_CN_2025_390.pdf" target="_blank" rel="noreferrer">rapport SIBRA 2024, p. 67</a>. Consommation gaz manquante : hypothèse 0,53 kg/km issue d’une <a href="https://link.springer.com/article/10.1007/s11367-021-02013-w" target="_blank" rel="noreferrer">étude de cas européenne de 2021</a>, transférabilité incertaine. Modifiez ces consommations dans l’inventaire.</p><p>NOx à l’échappement d’un bus électrique : zéro par absence d’échappement. Les résultats excluent la fabrication et les particules à l’échappement. PM2,5 est incluse dans PM10.</p>
+      </details>
+      {rows.map((row) => {
+        const before = referenceById.get(row.id);
+        const beforeModel = fleet.find((model) => model.id === assigned("reference", row.id));
+        const afterModel = fleet.find((model) => model.id === assigned("scenario", row.id));
+        const beforeImpact = scenarioImpact(before?.km ?? 0, beforeModel, factors);
+        const afterImpact = scenarioImpact(row.km, afterModel, factors);
+        const models = (side: "reference" | "scenario") => <select value={assigned(side, row.id)} onChange={(event) => update(side, row.id, event.target.value)}><option value="">Modèle inconnu</option>{fleet.map((model) => <option key={model.id} value={model.id}>{model.name} · {model.power} · {model.network} · {model.countYear || "année inconnue"}</option>)}</select>;
+        return <details className="bilan-line" key={row.id}><summary>{row.name} · {format(row.km)} km scénario</summary>
+          <p>Référence : {format(before?.km ?? 0)} km · {format(before?.trips ?? 0)} courses ; scénario : {format(row.km)} km · {format(row.trips)} courses.</p>
+          {(row.missing > 0 || (before?.missing ?? 0) > 0) && <p role="alert">Courses sans tracé résolu : référence {before?.missing ?? 0}, scénario {row.missing}. Résultats partiels.</p>}
+          <label>Modèle supposé en référence {models("reference")}</label><label>Modèle supposé en scénario {models("scenario")}</label>
+          <p>Référence : {before?.km === 0 || !before ? "0 km" : beforeImpact ? `${format(beforeImpact.energy)} ${beforeImpact.unit} · ${beforeImpact.ghgKg === null ? "GES inconnus" : `${format(beforeImpact.ghgKg)} kg CO₂e`}` : "énergie et GES inconnus"} ; scénario : {row.km === 0 ? "0 km" : afterImpact ? `${format(afterImpact.energy)} ${afterImpact.unit} · ${afterImpact.ghgKg === null ? "GES inconnus" : `${format(afterImpact.ghgKg)} kg CO₂e`}` : "énergie et GES inconnus"}.</p>
+          {[{ name: "Référence", impact: beforeImpact }, { name: "Scénario", impact: afterImpact }].map(({ name, impact }) => impact && <p key={name}>Polluants {name.toLowerCase()} : NOx échappement {impact.noxKg === null ? "inconnu" : `${format(impact.noxKg)} kg`} ; PM10 pneus et freins {impact.pm10Kg === null ? "inconnu" : `${format(impact.pm10Kg)} kg`} ; PM2,5 {impact.pm25Kg === null ? "inconnu" : `${format(impact.pm25Kg)} kg`} (incluses dans PM10).</p>)}
+          <SourceInfo label={`les valeurs de ${row.name}`}><p>Origine : affectations déclarées par l’utilisateur ; vérification et compatibilité réelle inconnues.</p>{beforeImpact && <p>Référence : {beforeImpact.source}</p>}{afterImpact && <p>Scénario : {afterImpact.source}</p>}<p>Les champs saisis dans l’inventaire sont déclaratifs. Leur source peut ne pas avoir été mise à jour après modification. Les facteurs GES historiques sont décrits ci-dessus ; pollution et incertitude chiffrée restent inconnues.</p></SourceInfo>
+        </details>;
+      })}
+      <h4>Besoin horaire agrégé du scénario</h4>
+      <p>Pic des courses simultanées par modèle supposé, avec une durée après chaque course. Cette borne indicative suppose un retournement immédiat au-delà de cette durée ; elle ne vérifie ni les enchaînements géographiques, ni les pauses, ni les trajets dépôt. Elle ne mesure pas la disponibilité réelle.</p>
+      <label>Retournement et pause supposés après chaque course (minutes)<input type="number" min="0" max="1440" step="1" value={settings.turnaround} onChange={(event) => setSettings((current) => ({ ...current, turnaround: event.target.value }))} /></label>
+      <SourceInfo label="le besoin de flotte"><p>Origine : horaires planifiés et affectations hypothétiques locales. Méthode : nombre maximal de courses simultanées prolongées par le temps saisi ; unité : bus. Les effectifs, années et périmètres sont ceux de chaque modèle de l’inventaire. Les déplacements à vide, pauses réelles et compatibilités sont inconnus ; ce maximum est une borne indicative et non une affectation réalisable garantie.</p></SourceInfo>
+      {!demand ? <p role="alert">Saisissez un nombre entier de minutes entre 0 et 1440.</p> : <>{demand.unassigned > 0 && <p role="status">{demand.unassigned} course(s) sans modèle sont exclues du besoin par modèle ; le bilan est incomplet.</p>}{demand.models.length === 0 ? <p>Aucun besoin calculable avec les affectations actuelles.</p> : <ul>{demand.models.map((item) => {
+        const model = fleet.find((candidate) => candidate.id === item.modelId);
+        const count = model?.count.trim() ? Number(model.count) : NaN;
+        const unavailable = model?.unavailable.trim() ? Number(model.unavailable) : NaN;
+        const available = Number.isInteger(count) && count >= 0 && Number.isInteger(unavailable) && unavailable >= 0 && unavailable <= count ? count - unavailable : null;
+        const comparable = model?.network === "Grand Annecy" && model.countYear === schedule.metadata.validFrom.slice(0, 4) && model.countYear === schedule.metadata.validTo.slice(0, 4);
+        return <li key={item.modelId}>{model ? `${model.name} · ${model.power} · ${model.network} · ${model.scopeCategory} · ${model.countYear || "année inconnue"}` : "Modèle supprimé"} : pic {item.peak} bus, {item.peakAt} (heure locale du service). {!comparable ? "Effectif non comparable : réseau ou année différent ou inconnu." : available === null ? "Flotte disponible inconnue." : `${available} bus déclarés disponibles ; écart indicatif ${available - item.peak}.`}</li>;
+      })}</ul>}</>}
+      <button type="button" disabled={!ready} onClick={save}>Enregistrer les affectations et facteurs</button>
+      {saveMessage && <p role="status">{saveMessage}</p>}
+    </>}
+  </div>;
+}

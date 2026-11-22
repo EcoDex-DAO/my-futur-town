@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { SibraData } from "../shared/sibra";
-import { DEFAULT_ESTIMATED_DWELL_SECONDS, parseSchedule, type Schedule } from "../shared/bus-simulation";
+import { DEFAULT_ESTIMATED_DWELL_SECONDS, parseSchedule, requireCompleteCalendar, type Schedule } from "../shared/bus-simulation";
 import { networkActiveVehicles, networkVehiclePoints } from "./bus-traffic";
 import { busDisplayFeatures } from "../micro/bus-models";
+import type { BusCreatedLine } from "../creator/bus-line";
+import { resolveScenario } from "../shared/scenario-schedule";
+import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "../shared/terminus-storage";
 
-type Props = { map: MapLibreMap | null; mapReady: boolean; data: SibraData; visibleCreatedCount: number };
+type Props = { map: MapLibreMap | null; mapReady: boolean; data: SibraData; createdLines: BusCreatedLine[] };
 const sourceId = "yft-traffic-vehicles";
 const layerId = "yft-traffic-points";
 const modelsLayerId = "yft-traffic-models";
@@ -15,9 +18,12 @@ const speeds = [1, 5, 10, 60] as const;
 const maxSecond = 86_399;
 const formatTime = (value: number) => { const seconds = Math.max(0, Math.min(maxSecond, Math.floor(value))); return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; };
 
-export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount }: Props) {
+export function BusTrafficSimulation({ map, mapReady, data, createdLines }: Props) {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [error, setError] = useState("");
+  const [scenario, setScenario] = useState(false);
+  const [entries, setEntries] = useState<TerminusEntry[]>([]);
+  const [scenarioError, setScenarioError] = useState("");
   const [date, setDate] = useState("");
   const [second, setSecond] = useState(8 * 3600);
   const [speed, setSpeed] = useState<(typeof speeds)[number]>(1);
@@ -33,7 +39,7 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
     const controller = new AbortController();
     fetch("/data/sibra-schedule.json", { signal: controller.signal })
       .then((response) => { if (!response.ok) throw new Error(); return response.json(); })
-      .then(parseSchedule)
+      .then(parseSchedule).then(requireCompleteCalendar)
       .then((result) => {
         const today = new Intl.DateTimeFormat("en-CA", { timeZone: result.metadata.timeZone }).format(new Date());
         setDate(today >= result.metadata.validFrom && today <= result.metadata.validTo ? today : result.metadata.validFrom);
@@ -41,6 +47,14 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
       })
       .catch(() => { if (!controller.signal.aborted) setError("Impossible de charger les horaires. Rechargez la page pour réessayer."); });
     return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => { try { setEntries(readTerminusStore(localStorage.getItem(TERMINUS_STORAGE_KEY)).entries); setScenarioError(""); } catch { setScenarioError("Horaires du scénario illisibles. La simulation du scénario est indisponible ; les données n’ont pas été modifiées."); } };
+    refresh();
+    window.addEventListener("storage", refresh);
+    window.addEventListener("yft:terminus-updated", refresh);
+    return () => { window.removeEventListener("storage", refresh); window.removeEventListener("yft:terminus-updated", refresh); };
   }, []);
 
   useEffect(() => {
@@ -56,9 +70,16 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
     return () => window.clearInterval(timer);
   }, [playing, speed]);
 
-  const vehicles = useMemo(() => active && schedule && date ? networkActiveVehicles(schedule, data, date, second, { estimatedDwellSeconds: dwellSeconds }) : [], [active, schedule, data, date, second, dwellSeconds]);
-  const points = useMemo(() => networkVehiclePoints(vehicles, data), [vehicles, data]);
-  const lineCounts = useMemo(() => data.lines.map((line) => ({ line, count: vehicles.filter((vehicle) => vehicle.lineId === line.id).length })), [data, vehicles]);
+  const resolved = useMemo(() => {
+    if (!schedule || !scenario || scenarioError) return null;
+    const selectedIds = new Set([...data.lines.map((line) => line.id), ...createdLines.map((line) => line.id)]);
+    return resolveScenario(schedule, data, createdLines, entries.filter((entry) => selectedIds.has(entry.lineId)));
+  }, [schedule, scenario, scenarioError, data, createdLines, entries]);
+  const currentSchedule = scenario ? resolved?.schedule : schedule;
+  const currentData = scenario ? resolved?.data : data;
+  const vehicles = useMemo(() => active && currentSchedule && currentData && date ? networkActiveVehicles(currentSchedule, currentData, date, second, { estimatedDwellSeconds: dwellSeconds }) : [], [active, currentSchedule, currentData, date, second, dwellSeconds]);
+  const points = useMemo(() => networkVehiclePoints(vehicles, currentData ?? data), [vehicles, currentData, data]);
+  const lineCounts = useMemo(() => (currentData ?? data).lines.map((line) => ({ line, count: vehicles.filter((vehicle) => vehicle.lineId === line.id).length })), [currentData, data, vehicles]);
 
   useEffect(() => {
     if (!active || !map || !mapReady) return;
@@ -122,13 +143,16 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
     <p className="caption">{data.lines.length} ligne{data.lines.length === 1 ? "" : "s"} SIBRA cochée{data.lines.length === 1 ? "" : "s"} · positions calculées à partir des horaires théoriques, sans temps réel.</p>
     {error ? <p className="bus-simulation-message" role="alert">{error}</p> : !schedule ? <p role="status">Chargement des horaires…</p> : <>
       <p className="caption">Horaires valides du {schedule.metadata.validFrom} au {schedule.metadata.validTo} · {schedule.metadata.timeZone}</p>
+      <label>Horaires utilisés<select value={scenario ? "scenario" : "reference"} onChange={(event) => setScenario(event.target.value === "scenario")}><option value="reference">Référence GTFS</option><option value="scenario">Scénario local, lignes créées comprises</option></select></label>
+      {scenario && scenarioError && <p role="alert">{scenarioError}</p>}
+      {scenario && resolved && resolved.diagnostics.length > 0 && <p role="alert">{resolved.diagnostics.length} horaire(s) de scénario exclus : parcours ou modèle modifié, absent, invalide ou hors calendrier. Vérifiez les horaires enregistrés.</p>}
       {todayOutsideCoverage && <p className="bus-simulation-message" role="status">Les horaires disponibles vont du {schedule.metadata.validFrom} au {schedule.metadata.validTo}. La date initiale choisie est dans cette période.</p>}
       <div className="bus-simulation-fields">
         <label htmlFor="traffic-date">Date<input id="traffic-date" type="date" min={schedule.metadata.validFrom} max={schedule.metadata.validTo} value={date} onChange={(event) => setDate(event.target.value)} /></label>
         <label htmlFor="traffic-time">Heure<input id="traffic-time" type="time" step="1" value={formatTime(second)} onChange={(event) => setTime(event.target.value)} /></label>
       </div>
       <div className="bus-simulation-controls">
-        <button type="button" className="bus-simulation-play" disabled={!mapReady || !inCoverage || !data.lines.length} onClick={() => { setActive(true); setPlaying(!playing); }}>{playing ? "Pause" : active ? "Reprendre" : "Démarrer"}</button>
+        <button type="button" className="bus-simulation-play" disabled={!mapReady || !inCoverage || !(currentData?.lines.length) || (scenario && !!scenarioError)} onClick={() => { setActive(true); setPlaying(!playing); }}>{playing ? "Pause" : active ? "Reprendre" : "Démarrer"}</button>
         {active && <button type="button" className="bus-simulation-reset" onClick={stop}>Arrêter</button>}
       </div>
       <div className="bus-simulation-speeds" role="group" aria-label="Vitesse de simulation">{speeds.map((value) => <button type="button" key={value} aria-pressed={speed === value} onClick={() => setSpeed(value)}>×{value}</button>)}</div>
@@ -140,10 +164,10 @@ export function BusTrafficSimulation({ map, mapReady, data, visibleCreatedCount 
       <p className="bus-simulation-clock"><strong>{formatTime(second)}</strong> · {vehicles.length} bus en circulation</p>
       <button type="button" className="bus-simulation-focus" disabled={!vehicles.length || !map} onClick={() => { if (vehicles[0] && map) map.flyTo({ center: vehicles[0].position, zoom: 18, pitch: 50, essential: true }); }}>Voir un bus de près</button>
       {active && lineCounts.length > 0 && <p className="caption" aria-label="Bus simulés par ligne">{lineCounts.map(({ line, count }) => `${line.shortName} : ${count}`).join(" · ")}</p>}
-      {!data.lines.length && <p className="bus-simulation-message">Cochez au moins une ligne SIBRA pour lancer la simulation.</p>}
+      {!currentData?.lines.length && <p className="bus-simulation-message">Cochez au moins une ligne pour lancer la simulation.</p>}
       {!inCoverage && <p className="bus-simulation-message">Choisissez une date entre le {schedule.metadata.validFrom} et le {schedule.metadata.validTo}.</p>}
       {inCoverage && active && !vehicles.length && <p className="bus-simulation-message">Aucun bus des lignes cochées à cette date et cette heure.</p>}
-      {visibleCreatedCount > 0 && <p className="bus-simulation-message">Les lignes créées n’ont pas encore d’horaires et ne peuvent pas être simulées.</p>}
+      {!scenario && createdLines.length > 0 && <p className="bus-simulation-message">Choisissez le scénario local pour simuler les horaires des lignes créées.</p>}
       <p className="bus-simulation-disclaimer">Arrêt estimé : {dwellSeconds} secondes lorsque les horaires le permettent, réduit si nécessaire sans modifier les horaires publiés. Les positions sont calculées ; les véhicules 3D sont schématiques.</p>
     </>}
   </section>;

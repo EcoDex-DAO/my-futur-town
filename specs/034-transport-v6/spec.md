@@ -62,6 +62,7 @@ Une personne retrouve ses scénarios et identifie l'origine et les limites des v
 - **FR-011** : chaque valeur présente un accès clavier et lecteur d'écran à sa provenance : URL, organisme, date, périmètre, unité, méthode et limites lorsqu'ils sont documentés.
 - **FR-012** : une légende et des libellés accompagnent un code couleur pour distinguer source constructeur, rapport SIBRA/Annecy, autre rapport, hypothèse transférée et donnée vérifiée ; l'origine et le degré de vérification restent deux informations distinctes et ne présument pas la fiabilité.
 - **FR-013** : préserver et afficher la provenance propre aux saisies utilisateur ; les éléments non documentés restent inconnus.
+- **FR-014** : proposer trois vues : bilan V1 théorique sur toutes les lignes, bilan V2 adapté sur toutes les lignes et bilan V2 sur les lignes sélectionnées ; les deux vues V2 incluent les lignes créées et leurs horaires attribués.
 
 ### Key Entities
 

@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { summarizeFleet, validateFleetRecords } from "./fleet-inventory";
 import { writeSnapshot } from "./snapshot-storage";
 
-const KEY = "yft.bus-fleet-models.v1";
-type Model = { id: string; network: string; scopeCategory: "SIBRA" | "Sous-traitant" | "Inconnu"; countYear: string; name: string; size: string; power: string; count: string; unavailable: string; seated: string; capacity: string; use: string; consumption: string; adblue: string; age: string; range: string; recharge: string; tank: string; notes: string; source: string; year: string; scope: string };
+export const FLEET_STORAGE_KEY = "yft.bus-fleet-models.v1";
+const KEY = FLEET_STORAGE_KEY;
+export type Model = { id: string; network: string; scopeCategory: "SIBRA" | "Sous-traitant" | "Inconnu"; countYear: string; name: string; size: string; power: string; count: string; unavailable: string; seated: string; capacity: string; use: string; consumption: string; adblue: string; age: string; range: string; recharge: string; tank: string; notes: string; source: string; year: string; scope: string };
 const blank = (id: string, name: string, size: string, power: string, count = "", scopeCategory: Model["scopeCategory"] = "Inconnu", countYear = ""): Model => ({ id, network: id.startsWith("rumilly-") ? "J’ybus · Rumilly" : "Grand Annecy", scopeCategory, countYear, name, size, power, count, unavailable: "", seated: "", capacity: "", use: "", consumption: "", adblue: "", age: "", range: "", recharge: "", tank: "", notes: "", source: "", year: "", scope: "" });
 const reference: Model[] = [
   { ...blank("standard-diesel", "Bus standard", "Standard", "Gazole", "48", "SIBRA", "2024"), consumption: "39 L/100 km (moyenne des standards)", adblue: "1,50 L/100 km (moyenne des standards)", age: "6,4 ans (âge moyen 2023)", notes: "Les consommations 2023 sont données pour les standards agrégés ; elles ne sont pas isolées par énergie. Les affecter à ce modèle gazole est indicatif.", source: "Effectif : rapport Grand Annecy 2024 ; caractéristiques : rapport SIBRA 2023, §§5.1–5.2", year: "2024 (effectif), 2023 (caractéristiques)", scope: "Parc moyen mis à disposition du Grand Annecy" },
@@ -28,7 +29,7 @@ const fields: { key: keyof Model; label: string; unit?: string }[] = [
   { key: "tank", label: "Capacité du réservoir", unit: "L" }, { key: "source", label: "Source" },
   { key: "year", label: "Millésime" }, { key: "scope", label: "Périmètre" }, { key: "notes", label: "Notes" },
 ];
-function read(raw: string | null): Model[] {
+export function readFleet(raw: string | null): Model[] {
   if (raw === null) return reference;
   const value: unknown = JSON.parse(raw);
   if (!Array.isArray(value) || value.some((model) => !model || typeof model.id !== "string" || typeof model.name !== "string" || typeof model.size !== "string" || typeof model.power !== "string" || fields.some(({ key }) => model[key] !== undefined && typeof model[key] !== "string"))) throw new Error("Données de flotte illisibles. Elles n'ont pas été modifiées.");
@@ -62,16 +63,16 @@ export function BusFleetManager() {
   const [newCountYear, setNewCountYear] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const snapshot = useRef<string | null>(null);
-  useEffect(() => { try { const raw = localStorage.getItem(KEY); setModels(read(raw)); snapshot.current = raw; setCustomized(raw !== null); setReady(true); } catch (error) { setMessage(error instanceof Error ? error.message : "Lecture impossible."); } }, []);
+  useEffect(() => { try { const raw = localStorage.getItem(KEY); setModels(readFleet(raw)); snapshot.current = raw; setCustomized(raw !== null); setReady(true); } catch (error) { setMessage(error instanceof Error ? error.message : "Lecture impossible."); } }, []);
   useEffect(() => { const dialog = dialogRef.current; if (open && dialog && !dialog.open) dialog.showModal(); else if (!open && dialog?.open) dialog.close(); }, [open]);
   function update(id: string, key: keyof Model, value: string) { setModels((current) => current.map((model) => model.id === id ? { ...model, [key]: value } : model)); }
   function save() {
     const validation = validateFleetRecords(models);
     if (validation) { setMessage(validation); return; }
-    try { snapshot.current = writeSnapshot(localStorage, KEY, snapshot.current, JSON.stringify(models)); setCustomized(true); setMessage("Inventaire enregistré dans ce navigateur."); } catch (error) { setMessage(error instanceof Error && error.message.includes("autre onglet") ? error.message : "Enregistrement impossible. Vérifiez le stockage du navigateur."); }
+    try { snapshot.current = writeSnapshot(localStorage, KEY, snapshot.current, JSON.stringify(models)); window.dispatchEvent(new Event("yft:fleet-updated")); setCustomized(true); setMessage("Inventaire enregistré dans ce navigateur."); } catch (error) { setMessage(error instanceof Error && error.message.includes("autre onglet") ? error.message : "Enregistrement impossible. Vérifiez le stockage du navigateur."); }
   }
   function addModel() { const name = newName.trim(); if (!name) { setMessage("Donnez un nom au modèle."); return; } setModels((current) => [...current, { ...blank(crypto.randomUUID(), name, newSize, newPower, "", newScope, newCountYear), network: newNetwork }]); setNewName(""); setAdding(false); setCustomized(true); }
-  function restore() { if (!window.confirm("Restaurer les modèles et effectifs de référence ? Les modifications locales seront supprimées.")) return; try { snapshot.current = writeSnapshot(localStorage, KEY, snapshot.current, null); setModels(reference); setCustomized(false); setMessage("Référence initiale restaurée."); } catch (error) { setMessage(error instanceof Error && error.message.includes("autre onglet") ? error.message : "Restauration impossible."); } }
+  function restore() { if (!window.confirm("Restaurer les modèles et effectifs de référence ? Les modifications locales seront supprimées.")) return; try { snapshot.current = writeSnapshot(localStorage, KEY, snapshot.current, null); window.dispatchEvent(new Event("yft:fleet-updated")); setModels(reference); setCustomized(false); setMessage("Référence initiale restaurée."); } catch (error) { setMessage(error instanceof Error && error.message.includes("autre onglet") ? error.message : "Restauration impossible."); } }
   const groups = [...new Set(models.map((model) => model.size))];
   const summaries = summarizeFleet(models);
   return <section className="bus-fleet" aria-label="Inventaire de la flotte de bus">

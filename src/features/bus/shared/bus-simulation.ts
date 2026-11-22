@@ -76,6 +76,16 @@ export function parseSchedule(value: unknown): Schedule {
   return schedule;
 }
 
+/** Missing calendar dates cannot be interpreted as days without service. */
+export function requireCompleteCalendar(schedule: Schedule): Schedule {
+  const first = dateDay(schedule.metadata.validFrom), last = dateDay(schedule.metadata.validTo);
+  for (let day = first; day <= last; day++) {
+    const date = new Date(day * 86400000).toISOString().slice(0, 10);
+    if (!Object.hasOwn(schedule.serviceDates, date)) throw new Error("Calendrier incomplet : certains jours sont inconnus.");
+  }
+  return schedule;
+}
+
 const serviceDateCache = new WeakMap<Schedule, Map<string, string[]>>();
 function datesByService(schedule: Schedule): Map<string, string[]> {
   const cached = serviceDateCache.get(schedule);

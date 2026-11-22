@@ -7,7 +7,7 @@ import type { MapGeoJSONFeature } from "maplibre-gl";
 import { ANNECY, HEIGHT, buildingSource, groupForLayer } from "./map";
 
 import { BusLineCreator } from "./features/bus/creator/BusLineCreator";
-import { BusReport } from "./features/bus/macro/BusReport";
+import { BusReportViews } from "./features/bus/macro/BusReportViews";
 import { BusTrafficSimulation } from "./features/bus/macro/BusTrafficSimulation";
 import { BusStopTimetable } from "./features/bus/shared/BusStopTimetable";
 import { TerminusEditor } from "./features/bus/shared/TerminusEditor";
@@ -414,7 +414,7 @@ export default function App() {
             {busError && <p className="caption" role="alert">{busError}</p>}
             {!busData && !busError && <p className="caption" role="status">Chargement du réseau SIBRA…</p>}
             {busData && <><button className="bus-tool-button" type="button" onClick={() => setTrafficOpen((value) => !value)} aria-expanded={trafficOpen}>{trafficOpen ? "Masquer la simulation des lignes cochées" : "Simuler les lignes cochées"}</button>
-              {trafficOpen && visibleBusData && <BusTrafficSimulation map={map.current} mapReady={ready} data={visibleBusData} visibleCreatedCount={createdVisible ? createdLines.filter((line) => !hiddenCreatedLineIds.includes(line.id)).length : 0} />}</>}
+              {trafficOpen && visibleBusData && <BusTrafficSimulation map={map.current} mapReady={ready} data={visibleBusData} createdLines={createdVisible ? createdLines.filter((line) => !hiddenCreatedLineIds.includes(line.id)) : []} />}</>}
             {busData && <div className="sibra-line-tree"><details open><summary><label><input type="checkbox" checked={selectedNetworkIds.length === busData.lines.length && createdVisible} onChange={(event) => { setHiddenBusLineIds(event.target.checked ? [] : busData.lines.map((line) => line.id)); setCreatedVisible(event.target.checked); }} /> Tout le réseau ({busData.lines.length + createdLines.length})</label></summary>
               {Array.from(new Set(BUS_GROUPS.map((group) => group.category))).map((category) => { const groups = BUS_GROUPS.filter((group) => group.category === category); const categoryIds = [...new Set(groups.flatMap((group) => group.ids.map((id) => busData.lines.find((line) => line.id === id)?.id).filter((id): id is string => !!id)))]; return <details key={category} open><summary><label><input type="checkbox" checked={categoryIds.length > 0 && categoryIds.every((id) => selectedNetworkIds.includes(id))} onChange={(event) => setHiddenBusLineIds((hidden) => event.target.checked ? hidden.filter((id) => !categoryIds.includes(id)) : [...new Set([...hidden, ...categoryIds])])} /> {category}</label></summary>{groups.map((group) => { const ids = group.ids.filter((id) => busData.lines.some((line) => line.id === id)); return <details key={group.sub} open><summary><label><input type="checkbox" checked={ids.length > 0 && ids.every((id) => selectedNetworkIds.includes(id))} onChange={(event) => setHiddenBusLineIds((hidden) => event.target.checked ? hidden.filter((id) => !ids.includes(id)) : [...new Set([...hidden, ...ids])])} /> {group.sub}</label></summary><ul>{busData.lines.filter((line) => ids.includes(line.id)).map((line) => <li key={line.id}><label><input type="checkbox" checked={selectedNetworkIds.includes(line.id)} onChange={(event) => setHiddenBusLineIds((hidden) => event.target.checked ? hidden.filter((id) => id !== line.id) : [...new Set([...hidden, line.id])])} /><span><span className="bus-line-chip" style={{ backgroundColor: line.color }}>{line.shortName}</span> {line.longName}</span></label></li>)}</ul></details>; })}</details>; })}
               <details className="created-bus-category" open><summary><label><input type="checkbox" checked={createdVisible && hiddenCreatedLineIds.length === 0} onChange={(event) => { setCreatedVisible(event.target.checked); setHiddenCreatedLineIds(event.target.checked ? [] : createdLines.map((line) => line.id)); }} /> Créées ({createdLines.length})</label></summary>{createdLines.map((line) => <label key={line.id}><input type="checkbox" checked={createdVisible && !hiddenCreatedLineIds.includes(line.id)} onChange={(event) => setHiddenCreatedLineIds((hidden) => event.target.checked ? hidden.filter((id) => id !== line.id) : [...new Set([...hidden, line.id])])} /><span>{line.name}</span></label>)}</details>
@@ -422,7 +422,7 @@ export default function App() {
           </section>
           <section className="bilan-tools" hidden={activePanel !== "bilan"}>
             <h2>Bilan énergie et environnement</h2>
-            {busData ? <BusReport data={busData} groups={BUS_GROUPS} selectedIds={selectedNetworkIds} /> : <p className="caption">Chargement des données SIBRA…</p>}
+            {busData ? <BusReportViews data={busData} groups={BUS_GROUPS} selectedIds={selectedNetworkIds} createdLines={createdLines} selectedCreatedIds={createdVisible ? createdLines.filter((line) => !hiddenCreatedLineIds.includes(line.id)).map((line) => line.id) : []} /> : <p className="caption">Chargement des données SIBRA…</p>}
           </section>
           <section className="multimodal-tools" hidden={activePanel !== "multimodal"} aria-label="Scénarios multimodaux">
             <MultimodalPanel onParkingPreview={setParkingPreview} onFocusParking={focusParking} mapReady={ready} />

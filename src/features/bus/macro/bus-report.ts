@@ -12,10 +12,10 @@ function lengthKm(coordinates: [number, number][]) {
   }
   return total;
 }
-/** Annualise the available calendar uniformly, including service days without trips. */
-export function annualLineActivity(data: SibraData, schedule: Schedule): LineActivity[] {
+/** Calculate the actual covered service dates; annualisation is explicitly optional. */
+export function lineActivity(data: SibraData, schedule: Schedule, annualise = false): LineActivity[] {
   const days = (Date.parse(`${schedule.metadata.validTo}T00:00:00Z`) - Date.parse(`${schedule.metadata.validFrom}T00:00:00Z`)) / 86400000 + 1;
-  const factor = 365 / days;
+  const factor = annualise ? 365 / days : 1;
   const frequencies = new Map<string, number>();
   for (const services of Object.values(schedule.serviceDates)) for (const id of services) frequencies.set(id, (frequencies.get(id) ?? 0) + 1);
   const lengths = new Map(data.lines.flatMap((line) => line.variants.map((v) => [`${line.id}\0${v.id}`, lengthKm(v.coordinates)] as const)));
@@ -33,4 +33,9 @@ export function annualLineActivity(data: SibraData, schedule: Schedule): LineAct
     row.hours += (last.arrival - first.departure) / 3600 * count * factor;
   }
   return rows;
+}
+
+/** Annualise the available calendar uniformly, including service days without trips. */
+export function annualLineActivity(data: SibraData, schedule: Schedule): LineActivity[] {
+  return lineActivity(data, schedule, true);
 }

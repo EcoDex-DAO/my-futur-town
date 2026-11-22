@@ -3,13 +3,14 @@
 ## Fondations
 
 - [ ] T001 Protéger les écritures et restaurations du bilan et de la flotte dans `src/features/bus/macro/BusReport.tsx` et `src/features/bus/shared/BusFleetManager.tsx`, avec tests d'erreurs et concurrence.
-- [ ] T002 Construire les courses datées et leurs diagnostics depuis le GTFS, les horaires et les variantes dans `src/features/bus/shared/`, avec tests des modèles invalides et après-minuit.
+- [x] T002 Construire les courses datées et leurs diagnostics depuis le GTFS, les horaires et les variantes dans `src/features/bus/shared/`, avec tests des modèles invalides et après-minuit.
 
 ## US1 : bilan et comparaison
 
 - [ ] T003 [US1] Calculer les activités comparables sur même période et même périmètre dans `src/features/bus/macro/bus-report.ts`, avec tests parcours et horaires.
 - [ ] T004 [US1] Relier modèles, affectations hypothétiques et facteurs aux impacts dans `src/features/bus/macro/BusReport.tsx`, avec tests motorisation, inconnues et couverture.
 - [ ] T005 [US1] Présenter comparaison, écarts, période et limites dans `src/features/bus/macro/BusReport.tsx`.
+- [ ] T013 [US1] Distinguer dans `src/features/bus/macro/BusReport.tsx` les vues V1 théorique toutes lignes, V2 adaptée toutes lignes et V2 adaptée lignes sélectionnées, y compris lignes créées et horaires attribués.
 
 ## US2 : simulation
 
