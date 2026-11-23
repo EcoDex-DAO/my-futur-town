@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { parseSchedule, type Schedule } from "./bus-simulation";
 import { stopDeparturesByHour } from "./bus-stop-timetable";
 import type { SibraData } from "./sibra";
-import { formatServiceTime, matchesTripTemplate, shiftTrip } from "./terminus-schedule";
+import { formatServiceTime, matchesTripTemplate, selectedDepartureTrip, shiftTrip } from "./terminus-schedule";
 import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "./terminus-storage";
 import { departureRunsOnDate, readWeeklyTimetables, WEEKLY_TIMETABLES_KEY, type WeeklyTimetable } from "./weekly-timetables";
 import { serviceDayType } from "./service-day-type";
@@ -64,7 +64,7 @@ export function BusStopTimetable({ data, stopId, preferredLineId }: Props) {
   const dayType = serviceDayType(date);
   const replacement = links.replacements[lineId];
   const replaced = !scenarioError && !!replacement && (links.mode === "period" || scenario.some((entry) => entry.kind === "created" && entry.lineId === replacement && entry.date === date) || (!!dayType && weekly.some((table) => table.kind === "created" && table.lineId === replacement && date >= table.validFrom && date <= table.validTo)));
-  const weeklyForStop = replaced ? [] : weekly.filter((table) => table.kind === "gtfs" && table.lineId === lineId && selectedDirection?.variantIds.has(table.variantId) && date >= table.validFrom && date <= table.validTo && table.stops.some((stop) => stop.id === stopId) && !scenario.some((entry) => entry.kind === "gtfs" && entry.lineId === lineId && entry.variantId === table.variantId && entry.date === date));
+  const weeklyForStop = replaced ? [] : weekly.filter((table) => table.kind === "gtfs" && table.lineId === lineId && date >= table.validFrom && date <= table.validTo && !scenario.some((entry) => entry.kind === "gtfs" && entry.lineId === lineId && entry.variantId === table.variantId && entry.date === date) && ((selectedDirection?.variantIds.has(table.variantId) && table.stops.some((stop) => stop.id === stopId)) || Object.values(table.notes ?? {}).some((notes) => Object.values(notes ?? {}).some((note) => note.rule === "trip" && schedule?.trips.some((trip) => trip.id === note.targetTripId && selectedDirection?.variantIds.has(trip.variantId) && trip.stops.some((stop) => stop.stopId === stopId))))));
 
   if (!lines.length) return <p>Aucune ligne SIBRA ne dessert cet arrêt dans les données chargées.</p>;
   return <div className="stop-timetable">
@@ -79,8 +79,13 @@ export function BusStopTimetable({ data, stopId, preferredLineId }: Props) {
     {weeklyForStop.length > 0 && <div><h3>Tableau du scénario local</h3>{!dayType ? <p role="alert">Jours fériés inconnus pour cette année : tableau non appliqué.</p> : <ul>{weeklyForStop.flatMap((table) => {
       const template = schedule?.trips.find((trip) => trip.id === table.tripId);
       if (!matchesTripTemplate(template, table.stops) || template?.lineId !== table.lineId || template.variantId !== table.variantId || template.directionId !== table.directionId) return [<li key={table.id}>Modèle GTFS modifié ou absent : tableau à vérifier.</li>];
-      const stop = table.stops.find((item) => item.id === stopId)!;
-      return table.days[dayType].filter((departure) => departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date)).map((departure) => { try { shiftTrip(template, departure); return <li key={`${table.id}-${departure}`}>{formatServiceTime(departure + stop.offset)} · tableau théorique{table.notes?.[dayType]?.[String(departure)] && <> · option {table.notes[dayType]![String(departure)].code} : {table.notes[dayType]![String(departure)].description || "à vérifier"} ({table.notes[dayType]![String(departure)].rule === "calendar" ? "jours et date appliqués" : "non appliquée"})</>}</li>; } catch { return <li key={`${table.id}-${departure}`}>Départ invalide : tableau à vérifier.</li>; } });
+      return table.days[dayType].filter((departure) => departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date)).flatMap((departure) => {
+        const note = table.notes?.[dayType]?.[String(departure)];
+        const chosen = selectedDepartureTrip(template, note, schedule?.trips ?? []);
+        if (!chosen) return [<li key={`${table.id}-${departure}`}>Parcours alternatif absent ou modifié : départ à vérifier.</li>];
+        if (!selectedDirection?.variantIds.has(chosen.variantId) || !chosen.stops.some((stop) => stop.stopId === stopId)) return [];
+        try { const stop = shiftTrip(chosen, departure).stops.find((item) => item.stopId === stopId)!; return [<li key={`${table.id}-${departure}`}>{formatServiceTime(stop.departure)} · tableau théorique{note && <> · option {note.code} : {note.description || "à vérifier"} ({note.rule === "trip" ? "parcours et conditions appliqués" : note.rule === "calendar" ? "jours et date appliqués" : "non appliquée"})</>}</li>]; } catch { return [<li key={`${table.id}-${departure}`}>Départ invalide : tableau à vérifier.</li>]; }
+      });
     })}</ul>}<p>La grille GTFS ci-dessous est la référence inchangée. Un tableau vide ne prévoit aucun départ pour ce type de jour.</p></div>}
     {!replaced && scenario.filter((entry) => entry.kind === "gtfs" && entry.date === date && entry.lineId === lineId && selectedDirection?.variantIds.has(entry.variantId) && entry.stops.some((stop) => stop.id === stopId)).length > 0 && <div><h3>Passages du scénario local</h3><p>Ces passages remplacent ou complètent les courses indiquées ; la grille de référence ci-dessous reste inchangée.</p><ul>{scenario.filter((entry) => entry.kind === "gtfs" && entry.date === date && entry.lineId === lineId && selectedDirection?.variantIds.has(entry.variantId)).flatMap((entry) => entry.stops.filter((stop) => stop.id === stopId).map((stop, index) => <li key={`${entry.id}-${index}`}>{formatServiceTime(entry.departure + stop.offset)} · {entry.id.startsWith("gtfs-new:") ? "course ajoutée" : "course modifiée"}{schedule && !matchesTripTemplate(schedule.trips.find((trip) => trip.id === entry.tripId), entry.stops) ? " · référence modifiée ou absente, à vérifier" : ""}</li>))}</ul></div>}
     {error ? <p className="bus-info-message" role="alert">{error}</p> : !schedule ? <p role="status">Chargement des horaires…</p> : !inCoverage ? <p className="bus-info-message">Horaires indisponibles pour cette date. Données du {schedule.metadata.validFrom} au {schedule.metadata.validTo}.</p> : !hours.length ? <p>Aucun départ pour cette direction et ce jour.</p> : <>

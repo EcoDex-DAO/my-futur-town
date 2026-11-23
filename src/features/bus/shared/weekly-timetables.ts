@@ -4,11 +4,11 @@ import type { ServiceDayType } from "./service-day-type";
 
 export const WEEKLY_TIMETABLES_KEY = "yft.bus-weekly-timetables.v1";
 export const DAY_TYPES: readonly ServiceDayType[] = ["weekday", "saturday", "sunday-holiday"];
-export type DepartureNote = { code: string; description: string; until: string; days: number[]; rule?: "calendar" };
+export type DepartureNote = { code: string; description: string; until: string; days: number[]; rule?: "calendar" | "trip"; targetTripId?: string; targetSignature?: string };
 
 /** A rule is applied only after the author explicitly confirms its meaning. */
 export function departureRunsOnDate(note: DepartureNote | undefined, date: string): boolean {
-  if (note?.rule !== "calendar") return true;
+  if (!note?.rule) return true;
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   return (!note.until || date <= note.until) && (!note.days.length || note.days.includes(weekday));
 }
@@ -52,7 +52,7 @@ export function readWeeklyTimetables(raw: string | null): WeeklyTimetable[] {
         if (notes === undefined) continue;
         if (!notes || typeof notes !== "object" || Array.isArray(notes)) return fail();
         for (const [time, note] of Object.entries(notes)) {
-          if (!/^\d+$/.test(time) || !table.days[day].includes(Number(time)) || !note || typeof note !== "object" || Object.keys(note).some((key) => !["code", "description", "until", "days", "rule"].includes(key)) || (note.rule !== undefined && note.rule !== "calendar") || typeof note.code !== "string" || !note.code.trim() || typeof note.description !== "string" || typeof note.until !== "string" || (note.until !== "" && (!/^\d{4}-\d{2}-\d{2}$/.test(note.until) || !Number.isFinite(Date.parse(`${note.until}T00:00:00Z`)) || new Date(`${note.until}T00:00:00Z`).toISOString().slice(0, 10) !== note.until)) || !Array.isArray(note.days) || note.days.some((value) => !Number.isInteger(value) || value < 0 || value > 6) || new Set(note.days).size !== note.days.length) return fail();
+          if (!/^\d+$/.test(time) || !table.days[day].includes(Number(time)) || !note || typeof note !== "object" || Object.keys(note).some((key) => !["code", "description", "until", "days", "rule", "targetTripId", "targetSignature"].includes(key)) || (note.rule !== undefined && !["calendar", "trip"].includes(note.rule)) || (note.rule === "trip" ? typeof note.targetTripId !== "string" || !note.targetTripId || typeof note.targetSignature !== "string" || !note.targetSignature : note.targetTripId !== undefined || note.targetSignature !== undefined) || typeof note.code !== "string" || !note.code.trim() || typeof note.description !== "string" || typeof note.until !== "string" || (note.until !== "" && (!/^\d{4}-\d{2}-\d{2}$/.test(note.until) || !Number.isFinite(Date.parse(`${note.until}T00:00:00Z`)) || new Date(`${note.until}T00:00:00Z`).toISOString().slice(0, 10) !== note.until)) || !Array.isArray(note.days) || note.days.some((value) => !Number.isInteger(value) || value < 0 || value > 6) || new Set(note.days).size !== note.days.length) return fail();
         }
       }
     }

@@ -1,7 +1,7 @@
 import type { BusCreatedLine, BusLineMarker } from "../creator/bus-line";
 import type { Schedule, ScheduleTrip } from "./bus-simulation";
 import type { SibraData, SibraStop, SibraVariant } from "./sibra";
-import { matchesTripTemplate, shiftTrip } from "./terminus-schedule";
+import { matchesTripTemplate, selectedDepartureTrip, shiftTrip } from "./terminus-schedule";
 import type { TerminusEntry } from "./terminus-storage";
 import type { LineReplacements } from "./line-replacements";
 import { serviceDayType } from "./service-day-type";
@@ -87,7 +87,7 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
       } else trips.push({ ...trip, id: `${trip.id}@${date}`, serviceId });
     }
     if (dayType) for (const table of dailyTables) {
-      if (Object.values(table.notes?.[dayType] ?? {}).some((note) => note.rule !== "calendar")) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Options de départ non prises en compte dans le calcul" });
+      if (Object.values(table.notes?.[dayType] ?? {}).some((note) => !note.rule || (note.rule === "trip" && table.kind !== "gtfs"))) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Options de départ non prises en compte dans le calcul" });
       if (table.kind === "gtfs") {
         if (replaced.has(table.lineId)) continue;
         const template = templates.get(table.tripId ?? "");
@@ -96,8 +96,14 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
           continue;
         }
         for (const departure of table.days[dayType]) {
-          if (!departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date)) continue;
-          try { trips.push({ ...shiftTrip(template, departure), id: `weekly:${table.id}:${date}:${departure}`, serviceId }); }
+          const note = table.notes?.[dayType]?.[String(departure)];
+          if (!departureRunsOnDate(note, date)) continue;
+          const selected = selectedDepartureTrip(template, note, reference.trips);
+          if (!selected) {
+            diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Parcours alternatif absent, modifié ou incompatible" });
+            continue;
+          }
+          try { trips.push({ ...shiftTrip(selected, departure), id: `weekly:${table.id}:${date}:${departure}`, serviceId }); }
           catch { diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Départ du tableau invalide" }); }
         }
       } else {

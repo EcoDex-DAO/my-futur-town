@@ -7,6 +7,7 @@ import { resolveScenario } from "../shared/scenario-schedule";
 import type { SibraData } from "../shared/sibra";
 import type { TerminusEntry } from "../shared/terminus-storage";
 import type { WeeklyTimetable } from "../shared/weekly-timetables";
+import { tripSignature } from "../shared/terminus-schedule";
 
 const schedule: Schedule = { metadata: { validFrom: "2026-11-04", validTo: "2026-11-04", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-04": ["s"] }, trips: [{ id: "t", serviceId: "s", lineId: "1", variantId: "v", directionId: "0", stops: [{ stopId: "a", arrival: 3600, departure: 3600, progress: 0 }, { stopId: "b", arrival: 4200, departure: 4200, progress: 1 }] }] };
 const data = { metadata: {}, lines: [{ id: "1", shortName: "1", longName: "1", color: "#000000", variants: [{ id: "v", headsign: "B", coordinates: [[6, 45], [6.01, 45]], stops: [] }] }] } as unknown as SibraData;
@@ -45,5 +46,24 @@ describe("intégration du bilan sur période commune", () => {
     expect(scenarioImpact(scenario.km, diesel)!.energy).toBeCloseTo(scenarioImpact(baseline.km, diesel)!.energy / 2, 10);
     expect(scenarioImpact(scenario.km, diesel)!.noxKg).toBeCloseTo(scenarioImpact(baseline.km, diesel)!.noxKg! / 2, 10);
     expect(scenarioImpact(scenario.km, diesel)!.pm10Kg).toBeCloseTo(scenarioImpact(baseline.km, diesel)!.pm10Kg! / 2, 10);
+  });
+  it("répercute un terminus alternatif et refuse un modèle modifié", () => {
+    const alternate = { ...schedule.trips[0], id: "short", variantId: "short-route", stops: [{ stopId: "a", arrival: 3600, departure: 3600, progress: 0 }, { stopId: "c", arrival: 3900, departure: 3900, progress: 1 }] };
+    const reference = { ...schedule, trips: [...schedule.trips, { ...alternate, serviceId: "unused" }] };
+    const network = { ...data, lines: [{ ...data.lines[0], variants: [...data.lines[0].variants, { id: "short-route", headsign: "C", coordinates: [[6, 45], [6.005, 45]] as [number, number][], stops: [] }] }] };
+    const note = { code: "r", description: "terminus C", days: [], until: "", rule: "trip" as const, targetTripId: alternate.id, targetSignature: tripSignature(alternate) };
+    const weekly: WeeklyTimetable = { id: "w", kind: "gtfs", lineId: "1", variantId: "v", directionId: "0", tripId: "t", stops: copy.stops, validFrom: "2026-11-04", validTo: "2026-11-04", days: { weekday: [3600], saturday: [], "sunday-holiday": [] }, notes: { weekday: { "3600": note } } };
+    const result = resolveScenario(reference, network, [], [], {}, "dates", [weekly]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.schedule.trips[0].variantId).toBe("short-route");
+    expect(result.schedule.trips[0].stops.at(-1)?.stopId).toBe("c");
+    const before = lineActivity(network, reference)[0].km;
+    const after = lineActivity(result.data, result.schedule)[0].km;
+    expect(after).toBeCloseTo(before / 2, 6);
+    expect(scenarioImpact(after, diesel)!.energy).toBeCloseTo(scenarioImpact(before, diesel)!.energy / 2, 6);
+    const changed = { ...reference, trips: reference.trips.map((trip) => trip.id === "short" ? { ...trip, variantId: "changed" } : trip) };
+    const invalid = resolveScenario(changed, network, [], [], {}, "dates", [weekly]);
+    expect(invalid.diagnostics.some((item) => item.reason.includes("alternatif"))).toBe(true);
+    expect(invalid.schedule.trips).toHaveLength(0);
   });
 });

@@ -2,6 +2,7 @@
 
 ## Vérifications réalisées
 
+- Pour une ligne GTFS, une option peut référencer explicitement une course d'un parcours alternatif au même départ et dans le même sens. Les arrêts et la durée de ce modèle alimentent les passages et la simulation ; la géométrie de sa variante alimente les kilomètres et impacts. Des tests couvrent notamment la ligne 41 sans Les Balmettes, un trajet plus court et un modèle devenu incompatible. Les codes ne sont pas associés automatiquement aux fiches.
 - Une annotation explicitement confirmée comme restriction de jours/date est conservée dans le stockage, appliquée aux passages et aux courses du scénario ; un test relie la suppression d'une course aux kilomètres, à l'énergie et aux émissions estimées. Les anciennes annotations demeurent non interprétées par défaut.
 - Tests unitaires : horaires de scénario datés, copie et remplacement, passage après minuit, modèle invalidé, ligne créée, activités sur même période, motorisation et besoins simultanés.
 - Tests navigateur sur ordinateur (1440 px) et mobile (390 px), avec routes API interrompues : choix des trois vues, écart initial nul, affectations et réouverture après sauvegarde. Le test sur ordinateur vérifie aussi le refus d'une écriture concurrente.

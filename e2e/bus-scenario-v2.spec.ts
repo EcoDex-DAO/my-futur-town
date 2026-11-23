@@ -1,5 +1,32 @@
 import { expect, test } from "@playwright/test";
 
+for (const width of [1440, 390]) test(`un départ utilise un parcours alternatif GTFS ${width}px`, async ({ page }) => {
+  test.setTimeout(90000);
+  await page.setViewportSize({ width, height: 844 });
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("yft.bus-weekly-timetables.v1")) localStorage.setItem("yft.bus-weekly-timetables.v1", JSON.stringify({ version: 1, tables: [{ id: "w", kind: "gtfs", lineId: "1", variantId: "v", directionId: "0", tripId: "base", stops: [{ id: "a", name: "A", offset: 0 }, { id: "b", name: "B", offset: 600 }], validFrom: "2026-11-04", validTo: "2026-11-04", days: { weekday: [28800], saturday: [], "sunday-holiday": [] } }] }));
+  });
+  await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
+  await page.route("**/data/sibra.json", (route) => route.fulfill({ json: { metadata: { sourceUrl: "fixture", attribution: "fixture", license: "fixture", validFrom: "2026-11-04", validTo: "2026-11-04", generatedAt: "2026-11-01" }, lines: [{ id: "1", shortName: "1", longName: "Test", color: "#004433", variants: [{ id: "v", headsign: "B", coordinates: [[6.12, 45.9], [6.13, 45.9]], stops: [{ id: "a", name: "A", coordinates: [6.12, 45.9] }, { id: "b", name: "B", coordinates: [6.13, 45.9] }] }, { id: "short", headsign: "C", coordinates: [[6.12, 45.9], [6.125, 45.9]], stops: [{ id: "a", name: "A", coordinates: [6.12, 45.9] }, { id: "c", name: "C", coordinates: [6.125, 45.9] }] }] }] } }));
+  await page.route("**/data/sibra-schedule.json", (route) => route.fulfill({ json: { metadata: { validFrom: "2026-11-04", validTo: "2026-11-04", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-04": ["s"] }, trips: [{ id: "base", lineId: "1", variantId: "v", directionId: "0", serviceId: "s", stops: [{ stopId: "a", arrival: 28800, departure: 28800, progress: 0 }, { stopId: "b", arrival: 29400, departure: 29400, progress: 1 }] }, { id: "alternative", lineId: "1", variantId: "short", directionId: "0", serviceId: "s", stops: [{ stopId: "a", arrival: 28800, departure: 28800, progress: 0 }, { stopId: "c", arrival: 29100, departure: 29100, progress: 1 }] }] } }));
+  await page.route("**/api/**", (route) => route.abort());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menu Bus" }).click();
+  await page.getByRole("button", { name: "Ouvrir le gestionnaire d’horaires" }).click();
+  const manager = page.getByRole("dialog", { name: "Gestion des horaires" });
+  await expect(manager.getByLabel("Course modèle pour les durées")).toHaveValue("base");
+  await manager.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 08 heures, minute").focus();
+  await manager.getByLabel("Code", { exact: true }).fill("r");
+  await manager.getByLabel("Parcours alternatif pour ce départ").selectOption("alternative");
+  await manager.getByRole("button", { name: "Enregistrer les horaires" }).click();
+  await expect(manager.getByRole("status")).toContainText("enregistrés");
+  await page.reload();
+  await page.getByRole("button", { name: "Menu Bus" }).click();
+  await page.getByRole("button", { name: "Ouvrir le gestionnaire d’horaires" }).click();
+  await manager.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 08 heures, minute").focus();
+  await expect(manager.getByLabel("Parcours alternatif pour ce départ")).toHaveValue("alternative");
+});
+
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
   test(`bilan V2 et persistance sans API ${viewport.width}px`, async ({ page }) => {
     await page.setViewportSize(viewport);

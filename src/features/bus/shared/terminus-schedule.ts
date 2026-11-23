@@ -1,4 +1,5 @@
 import type { ScheduleTrip } from "./bus-simulation";
+import type { DepartureNote } from "./weekly-timetables";
 
 /** GTFS service time: 25:10 belongs to the previous service day. */
 export function parseServiceTime(value: string): number | null {
@@ -22,6 +23,17 @@ export function shiftTrip(trip: ScheduleTrip, departure: number): ScheduleTrip {
   const stops = trip.stops.map((stop) => ({ ...stop, arrival: stop.arrival + delta, departure: stop.departure + delta }));
   if (stops.some((stop) => stop.arrival < 0)) throw new Error("Le départ placerait un passage avant le jour de service.");
   return { ...trip, stops };
+}
+
+/** Detect a changed alternative, including its shape, direction and travel times. */
+export function tripSignature(trip: ScheduleTrip): string {
+  return JSON.stringify([trip.lineId, trip.variantId, trip.directionId, trip.stops]);
+}
+
+export function selectedDepartureTrip(base: ScheduleTrip, note: DepartureNote | undefined, trips: readonly ScheduleTrip[]): ScheduleTrip | undefined {
+  if (note?.rule !== "trip") return base;
+  const selected = trips.find((trip) => trip.id === note.targetTripId);
+  return selected && selected.lineId === base.lineId && selected.directionId === base.directionId && selected.stops[0]?.stopId === base.stops[0]?.stopId && tripSignature(selected) === note.targetSignature ? selected : undefined;
 }
 
 export type TimedStop = { id: string; elapsedSeconds: number };
