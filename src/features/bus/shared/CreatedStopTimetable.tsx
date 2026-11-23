@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { BusCreatedLine } from "../creator/bus-line";
 import { formatServiceTime } from "./terminus-schedule";
 import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "./terminus-storage";
-import { readWeeklyTimetables, WEEKLY_TIMETABLES_KEY, type WeeklyTimetable } from "./weekly-timetables";
+import { departureRunsOnDate, readWeeklyTimetables, WEEKLY_TIMETABLES_KEY, type WeeklyTimetable } from "./weekly-timetables";
 import { serviceDayType } from "./service-day-type";
 
 export function CreatedStopTimetable({ line, stopId }: { line: BusCreatedLine | undefined; stopId: string }) {
@@ -22,7 +22,7 @@ export function CreatedStopTimetable({ line, stopId }: { line: BusCreatedLine | 
   const dayType = serviceDayType(date);
   const weekly = tables.filter((table) => table.kind === "created" && table.lineId === line?.id && date >= table.validFrom && date <= table.validTo && table.stops.some((stop) => stop.id === stopId) && !entries.some((entry) => entry.kind === "created" && entry.lineId === table.lineId && entry.variantId === table.variantId && entry.date === date));
   return <div><label>Jour de service<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
-    {error ? <p role="alert">Les horaires enregistrés sont illisibles.</p> : <>{weekly.length > 0 && !dayType && <p role="alert">Jours fériés inconnus pour cette année : tableau non appliqué.</p>}{matches.length === 0 && (weekly.length === 0 || (!!dayType && weekly.every((table) => table.days[dayType].length === 0))) ? <p>Aucun horaire de scénario pour cet arrêt et ce jour.</p> : <><p>Passages calculés à partir des durées saisies ; horaires théoriques.</p><ul>{matches.map((entry) => {
+    {error ? <p role="alert">Les horaires enregistrés sont illisibles.</p> : <>{weekly.length > 0 && !dayType && <p role="alert">Jours fériés inconnus pour cette année : tableau non appliqué.</p>}{matches.length === 0 && (weekly.length === 0 || (!!dayType && weekly.every((table) => table.days[dayType].every((departure) => !departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date))))) ? <p>Aucun horaire de scénario pour cet arrêt et ce jour.</p> : <><p>Passages calculés à partir des durées saisies ; horaires théoriques.</p><ul>{matches.map((entry) => {
       const path = paths.find((item) => item.id === entry.variantId);
       const signature = path ? JSON.stringify([path.termini[0], ...path.arrets, path.termini[1]].map((marker) => [marker.id, marker.coordinates])) : "";
       const stop = entry.stops.find((item) => item.id === stopId)!;
@@ -32,7 +32,7 @@ export function CreatedStopTimetable({ line, stopId }: { line: BusCreatedLine | 
       const signature = path ? JSON.stringify([path.termini[0], ...path.arrets, path.termini[1]].map((marker) => [marker.id, marker.coordinates])) : "";
       const stop = table.stops.find((item) => item.id === stopId)!;
       if (signature !== table.directionId) return [<li key={table.id}>Parcours modifié : tableau horaire à vérifier.</li>];
-      return table.days[dayType].map((departure) => <li key={`${table.id}-${departure}`}>{formatServiceTime(departure + stop.offset)} · tableau {path?.name ?? "parcours créé"}{table.notes?.[dayType]?.[String(departure)] && <> · option {table.notes[dayType]![String(departure)].code} : {table.notes[dayType]![String(departure)].description || "à vérifier"} (non appliquée)</>}</li>);
+      return table.days[dayType].filter((departure) => departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date)).map((departure) => <li key={`${table.id}-${departure}`}>{formatServiceTime(departure + stop.offset)} · tableau {path?.name ?? "parcours créé"}{table.notes?.[dayType]?.[String(departure)] && <> · option {table.notes[dayType]![String(departure)].code} : {table.notes[dayType]![String(departure)].description || "à vérifier"} ({table.notes[dayType]![String(departure)].rule === "calendar" ? "jours et date appliqués" : "non appliquée"})</>}</li>);
     })}</ul></>}</>}
   </div>;
 }

@@ -78,6 +78,9 @@ for (const width of [1440, 390]) test(`une ligne créée avec horaire alimente s
   await weekly.getByLabel("B", { exact: true }).fill("20");
   await weekly.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 08 heures, minute").fill("00");
   await weekly.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 09 heures, minute").fill("00");
+  await weekly.getByLabel("Code", { exact: true }).fill("j");
+  await weekly.getByLabel("Jeudi", { exact: true }).check();
+  await weekly.getByLabel("Appliquer uniquement les jours et la date indiqués à ce départ").check();
   const weekday = weekly.getByRole("region", { name: "Tableau Jours de semaine · lundi à vendredi" });
   const saturday = weekly.getByRole("region", { name: "Tableau Samedi" });
   const sunday = weekly.getByRole("region", { name: "Tableau Dimanche et jours fériés" });
@@ -95,6 +98,8 @@ for (const width of [1440, 390]) test(`une ligne créée avec horaire alimente s
   await page.getByRole("button", { name: "Ouvrir le gestionnaire d’horaires" }).click();
   await weekly.getByRole("button", { name: "Ligne créée Citoyenne test" }).click();
   await expect(weekly.getByLabel("Samedi, rang 1, 08 heures, minute")).toHaveValue("00");
+  await weekly.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 09 heures, minute").focus();
+  await expect(weekly.getByLabel("Appliquer uniquement les jours et la date indiqués à ce départ")).toBeChecked();
   await weekly.getByRole("button", { name: "Fermer" }).click();
   await page.getByRole("button", { name: "Simuler les lignes cochées", exact: true }).click();
   const simulation = page.getByRole("region", { name: "Simulation des lignes cochées" });

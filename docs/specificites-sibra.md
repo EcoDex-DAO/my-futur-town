@@ -13,7 +13,7 @@ Consultation le 23 novembre 2026. Le [relevé par ligne et variante](inventaire-
 
 Le scénario de référence conserve les dates, courses, variantes et horaires de passage importés, ainsi que les parcours et temps de chaque course. Un tableau hebdomadaire de scénario remplace les départs de sa variante pour les dates correspondantes ; il ne préserve pas automatiquement les différences entre plusieurs lundis ou mercredis ni les temps propres à chaque course. Après copie d'une date GTFS, l'interface signale désormais les autres dates couvertes du même type qui ont des départs différents pour cette variante. Cet avertissement ne compare pas les temps intermédiaires ni les autres variantes.
 
-Les annotations saisies sont enregistrées, affichées et signalées comme non appliquées : ni leur destination ni leurs restrictions ne sont interprétées. Le calcul ne doit pas être présenté comme complet dans ce cas.
+Les annotations restent non interprétées par défaut. Si l’utilisateur confirme explicitement qu’une annotation ne fait que limiter les jours et la date de fin, ces conditions sont appliquées aux courses, aux arrêts, à la simulation et au bilan. Les changements de terminus et les autres annotations restent non interprétés et signalés ; le calcul ne doit pas être présenté comme complet dans ce cas.
 
 ## À poursuivre
 

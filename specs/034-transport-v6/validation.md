@@ -2,6 +2,7 @@
 
 ## Vérifications réalisées
 
+- Une annotation explicitement confirmée comme restriction de jours/date est conservée dans le stockage, appliquée aux passages et aux courses du scénario ; un test relie la suppression d'une course aux kilomètres, à l'énergie et aux émissions estimées. Les anciennes annotations demeurent non interprétées par défaut.
 - Tests unitaires : horaires de scénario datés, copie et remplacement, passage après minuit, modèle invalidé, ligne créée, activités sur même période, motorisation et besoins simultanés.
 - Tests navigateur sur ordinateur (1440 px) et mobile (390 px), avec routes API interrompues : choix des trois vues, écart initial nul, affectations et réouverture après sauvegarde. Le test sur ordinateur vérifie aussi le refus d'une écriture concurrente.
 - Test navigateur dédié : une ligne créée avec départ enregistré apparaît dans la simulation du scénario et le bilan V2.
