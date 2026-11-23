@@ -11,7 +11,7 @@ GTFS. Ils ne contiennent pas de positions de véhicules en temps réel.
 
 ## Édition source
 
-- Téléchargement : [GTFS SIBRA, édition publiée le 6 novembre 2026](https://static.data.gouv.fr/resources/offre-de-transports-sibra-a-annecy-gtfs/20261106-075925/gtfs-sibra.zip)
+- Téléchargement : [GTFS SIBRA, édition publiée le 6 novembre 2026](https://transport-data-gouv-fr-resource-history-prod.cellar-c2.services.clever-cloud.com/80100/80100.20261106.081009.206313.zip)
 - SHA-256 de l’archive : `13948ea007139e52708bd3ebc90c5eff481e091f13d28c98db2dccc90b67da51`
 - Fiche du jeu de données : [Réseau urbain Sibra](https://transport.data.gouv.fr/datasets/offre-de-transports-sibra-a-annecy-gtfs)
 - Publication : 2026-11-06
@@ -52,7 +52,7 @@ dont le contenu diffère de cette édition :
 
 ```sh
 curl -fL -o /tmp/gtfs-sibra.zip \
-  https://static.data.gouv.fr/resources/offre-de-transports-sibra-a-annecy-gtfs/20261106-075925/gtfs-sibra.zip
+  https://transport-data-gouv-fr-resource-history-prod.cellar-c2.services.clever-cloud.com/80100/80100.20261106.081009.206313.zip
 python3 scripts/importers/sibra_gtfs.py /tmp/gtfs-sibra.zip public/data/sibra.json \
   --generated-at 2026-11-06T20:17:00Z
 ```

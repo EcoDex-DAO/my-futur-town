@@ -94,3 +94,6 @@ Une personne retrouve ses scénarios et identifie l'origine et les limites des v
 - Les horaires publics sont planifiés et les affectations réelles inconnues ; les scénarios restent théoriques.
 - Une seule édition GTFS de 47 jours ne démontre pas une année représentative ; afficher sa période et éviter une comparaison directe à un rapport annuel de périmètre différent.
 - Les valeurs moyennes issues de sources comparables sont des hypothèses modifiables, jamais des mesures SIBRA.
+## Complément : spécificités des lignes SIBRA
+
+Le scénario doit pouvoir conserver et modifier les services par date, les variantes et terminus, les horaires propres aux courses et les conditions documentées par les fiches officielles. L'inventaire doit lier chaque règle vérifiée à sa source et sa période, distinguer l'offre GTFS planifiée des perturbations réelles et signaler explicitement les cas non interprétés. Une copie d'horaire ne doit pas masquer les différences entre dates sans avertissement.

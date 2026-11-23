@@ -37,3 +37,10 @@
 
 - [ ] T011 Vérifier tests, build, parcours ordinateur/mobile, API absente et captures ; consigner les limites dans `specs/034-transport-v6/validation.md`.
 - [ ] T012 Actualiser la documentation et ouvrir une PR liée à #32, #50 et #52 sans clôture automatique dans `specs/034-transport-v6/validation.md`.
+
+## Complément : fiches et particularités SIBRA
+
+- [ ] T021 Inventorier toutes les légendes des fiches officielles et leurs périodes pour chaque ligne, puis rapprocher chaque règle des courses et dates GTFS avec preuves et incertitudes.
+- [ ] T022 Préserver les calendriers et temps propres à chaque course lors de la création d'un scénario ; permettre les modifications explicites sans effacer les différences entre dates.
+- [ ] T023 Modéliser les restrictions et terminus alternatifs vérifiés, les appliquer aux arrêts, à la simulation et au bilan, et signaler les cas non interprétés.
+- [ ] T024 Vérifier les règles par ligne, les jours scolaires et fériés, les variantes, la persistance et la comparaison référence/scénario sur ordinateur et mobile.
