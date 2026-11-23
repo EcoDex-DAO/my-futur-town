@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import type { BusCreatedLine } from "../creator/bus-line";
 import { formatServiceTime } from "./terminus-schedule";
 import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "./terminus-storage";
-import { departureRunsOnDate, readWeeklyTimetables, WEEKLY_TIMETABLES_KEY, type WeeklyTimetable } from "./weekly-timetables";
+import { departureRunsOnDate, readWeeklyTimetables, selectedCreatedTable, WEEKLY_TIMETABLES_KEY, type WeeklyTimetable } from "./weekly-timetables";
 import { serviceDayType } from "./service-day-type";
 
 export function CreatedStopTimetable({ line, stopId }: { line: BusCreatedLine | undefined; stopId: string }) {
@@ -20,7 +20,7 @@ export function CreatedStopTimetable({ line, stopId }: { line: BusCreatedLine | 
   const paths = line ? [line, ...(line.variants ?? [])] : [];
   const matches = entries.filter((entry) => entry.kind === "created" && entry.lineId === line?.id && entry.date === date && entry.stops.some((stop) => stop.id === stopId));
   const dayType = serviceDayType(date);
-  const weekly = tables.filter((table) => table.kind === "created" && table.lineId === line?.id && date >= table.validFrom && date <= table.validTo && table.stops.some((stop) => stop.id === stopId) && !entries.some((entry) => entry.kind === "created" && entry.lineId === table.lineId && entry.variantId === table.variantId && entry.date === date));
+  const weekly = tables.filter((table) => table.kind === "created" && table.lineId === line?.id && date >= table.validFrom && date <= table.validTo && (table.stops.some((stop) => stop.id === stopId) || Object.values(table.notes ?? {}).some((notes) => Object.values(notes ?? {}).some((note) => note.rule === "created" && tables.some((item) => item.id === note.targetTableId && item.stops.some((stop) => stop.id === stopId))))) && !entries.some((entry) => entry.kind === "created" && entry.lineId === table.lineId && entry.variantId === table.variantId && entry.date === date));
   return <div><label>Jour de service<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
     {error ? <p role="alert">Les horaires enregistrés sont illisibles.</p> : <>{weekly.length > 0 && !dayType && <p role="alert">Jours fériés inconnus pour cette année : tableau non appliqué.</p>}{matches.length === 0 && (weekly.length === 0 || (!!dayType && weekly.every((table) => table.days[dayType].every((departure) => !departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date))))) ? <p>Aucun horaire de scénario pour cet arrêt et ce jour.</p> : <><p>Passages calculés à partir des durées saisies ; horaires théoriques.</p><ul>{matches.map((entry) => {
       const path = paths.find((item) => item.id === entry.variantId);
@@ -30,9 +30,17 @@ export function CreatedStopTimetable({ line, stopId }: { line: BusCreatedLine | 
     })}{dayType && weekly.flatMap((table) => {
       const path = paths.find((item) => item.id === table.variantId);
       const signature = path ? JSON.stringify([path.termini[0], ...path.arrets, path.termini[1]].map((marker) => [marker.id, marker.coordinates])) : "";
-      const stop = table.stops.find((item) => item.id === stopId)!;
       if (signature !== table.directionId) return [<li key={table.id}>Parcours modifié : tableau horaire à vérifier.</li>];
-      return table.days[dayType].filter((departure) => departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date)).map((departure) => <li key={`${table.id}-${departure}`}>{formatServiceTime(departure + stop.offset)} · tableau {path?.name ?? "parcours créé"}{table.notes?.[dayType]?.[String(departure)] && <> · option {table.notes[dayType]![String(departure)].code} : {table.notes[dayType]![String(departure)].description || "à vérifier"} ({table.notes[dayType]![String(departure)].rule === "calendar" ? "jours et date appliqués" : "non appliquée"})</>}</li>);
+      return table.days[dayType].filter((departure) => departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date)).flatMap((departure) => {
+        const note = table.notes?.[dayType]?.[String(departure)];
+        const selected = selectedCreatedTable(table, note, tables);
+        const selectedPath = paths.find((item) => item.id === selected?.variantId);
+        const selectedSignature = selectedPath ? JSON.stringify([selectedPath.termini[0], ...selectedPath.arrets, selectedPath.termini[1]].map((marker) => [marker.id, marker.coordinates])) : "";
+        if (!selected || selectedSignature !== selected.directionId) return [<li key={`${table.id}-${departure}`}>Parcours alternatif absent ou modifié : départ à vérifier.</li>];
+        const stop = selected.stops.find((item) => item.id === stopId);
+        if (!stop) return [];
+        return [<li key={`${table.id}-${departure}`}>{formatServiceTime(departure + stop.offset)} · tableau {selectedPath?.name ?? "parcours créé"}{note && <> · option {note.code} : {note.description || "à vérifier"} ({note.rule === "created" ? "parcours et conditions appliqués" : note.rule === "calendar" ? "jours et date appliqués" : "non appliquée"})</>}</li>];
+      });
     })}</ul></>}</>}
   </div>;
 }

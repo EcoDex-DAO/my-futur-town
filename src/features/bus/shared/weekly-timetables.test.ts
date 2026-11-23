@@ -54,5 +54,7 @@ describe("tableaux de jours types", () => {
     const route = { ...note, rule: "trip", targetTripId: "course", targetSignature: "signature" };
     expect(readWeeklyTimetables(JSON.stringify({ version: 1, tables: [{ ...table, notes: { weekday: { "90000": route } } }] }))[0].notes?.weekday?.["90000"]).toEqual(route);
     expect(() => readWeeklyTimetables(JSON.stringify({ version: 1, tables: [{ ...table, notes: { weekday: { "90000": { ...route, targetSignature: "" } } } }] }))).toThrow();
+    const created = { ...note, rule: "created", targetTableId: "autre-tableau", targetSignature: "signature" };
+    expect(readWeeklyTimetables(JSON.stringify({ version: 1, tables: [{ ...table, notes: { weekday: { "90000": created } } }] }))[0].notes?.weekday?.["90000"]).toEqual(created);
   });
 });

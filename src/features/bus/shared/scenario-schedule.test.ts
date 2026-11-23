@@ -3,7 +3,7 @@ import { getActiveVehicles, requireCompleteCalendar, type Schedule } from "./bus
 import type { SibraData } from "./sibra";
 import type { TerminusEntry } from "./terminus-storage";
 import { resolveScenario } from "./scenario-schedule";
-import type { WeeklyTimetable } from "./weekly-timetables";
+import { createdTableSignature, type WeeklyTimetable } from "./weekly-timetables";
 
 const schedule: Schedule = { metadata: { validFrom: "2026-11-04", validTo: "2026-11-05", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-04": ["s"], "2026-11-05": [] }, trips: [{ id: "t", serviceId: "s", lineId: "1", variantId: "v", directionId: "0", stops: [{ stopId: "a", arrival: 3600, departure: 3600, progress: 0 }, { stopId: "b", arrival: 4200, departure: 4200, progress: 1 }] }] };
 const data = { metadata: {}, lines: [{ id: "1", shortName: "1", longName: "1", color: "#000000", variants: [{ id: "v", headsign: "B", coordinates: [[6, 45], [6.01, 45]], stops: [] }] }] } as unknown as SibraData;
@@ -13,6 +13,11 @@ describe("résolution des horaires de scénario", () => {
   it("distingue jour sans service et jour de calendrier manquant", () => {
     expect(requireCompleteCalendar(schedule)).toBe(schedule);
     expect(() => requireCompleteCalendar({ ...schedule, serviceDates: { "2026-11-04": ["s"] } })).toThrow(/incomplet/);
+  });
+  it("signale l'écart de la ligne 41 pour les samedis du GTFS épinglé", () => {
+    const saturday = { ...schedule, metadata: { ...schedule.metadata, validTo: "2026-12-20" }, serviceDates: { "2026-11-07": ["s"] }, trips: [{ ...schedule.trips[0], lineId: "41" }] };
+    const result = resolveScenario(saturday, { ...data, metadata: { ...data.metadata, sourceUrl: "https://example.test/20261106-075925/gtfs-sibra.zip" }, lines: [{ ...data.lines[0], id: "41" }] }, [], []);
+    expect(result.diagnostics.some((item) => item.lineId === "41" && item.date === "2026-11-07" && item.reason.includes("samedi"))).toBe(true);
   });
   it("déplace une course après minuit sans changer la référence", () => {
     const result = resolveScenario(schedule, data, [], [entry]);
@@ -83,5 +88,22 @@ describe("résolution des horaires de scénario", () => {
     const result = resolveScenario(schedule, data, [line], [exception], {}, "dates", [weekly]);
     expect(result.schedule.trips.filter((trip) => trip.lineId === "created" && trip.serviceId === "scenario:2026-11-04").map((trip) => trip.stops[0].departure)).toEqual([3600]);
     expect(result.schedule.trips.filter((trip) => trip.lineId === "created" && trip.serviceId === "scenario:2026-11-05").map((trip) => trip.stops[0].departure)).toEqual([90000]);
+  });
+  it("applique un parcours créé alternatif et signale les durées modifiées", () => {
+    const a = { id: "a", name: "A", kind: "terminus" as const, coordinates: [6, 45] as [number, number] };
+    const b = { id: "b", name: "B", kind: "terminus" as const, coordinates: [6.01, 45] as [number, number] };
+    const c = { id: "c", name: "C", kind: "terminus" as const, coordinates: [6.005, 45] as [number, number] };
+    const alternate = { id: "alt", name: "Alternatif", termini: [a, c] as [typeof a, typeof c], passages: [], arrets: [], geometry: [a.coordinates, c.coordinates], distanceM: 350, warnings: [], updatedAt: "" };
+    const line = { ...alternate, id: "created", name: "Principale", termini: [a, b] as [typeof a, typeof b], geometry: [a.coordinates, b.coordinates], variants: [alternate] };
+    const target: WeeklyTimetable = { id: "target", kind: "created", lineId: "created", variantId: "alt", directionId: JSON.stringify([[a.id, a.coordinates], [c.id, c.coordinates]]), stops: [{ id: "a", name: "A", offset: 0 }, { id: "c", name: "C", offset: 300 }], validFrom: "2026-11-04", validTo: "2026-11-05", days: { weekday: [], saturday: [], "sunday-holiday": [] } };
+    const main: WeeklyTimetable = { ...target, id: "main", variantId: "created", directionId: JSON.stringify([[a.id, a.coordinates], [b.id, b.coordinates]]), stops: entry.stops, days: { weekday: [3600], saturday: [], "sunday-holiday": [] }, notes: { weekday: { "3600": { code: "r", description: "terminus C", until: "2026-11-04", days: [3], rule: "created", targetTableId: target.id, targetSignature: createdTableSignature(target) } } } };
+    const result = resolveScenario(schedule, data, [line], [], {}, "dates", [main, target]);
+    const trip = result.schedule.trips.find((item) => item.lineId === "created");
+    expect(result.diagnostics).toEqual([]);
+    expect(trip?.variantId).toBe("alt");
+    expect(trip?.stops.at(-1)?.arrival).toBe(3900);
+    expect(result.schedule.trips.filter((item) => item.lineId === "created")).toHaveLength(1);
+    const changed = { ...target, stops: [target.stops[0], { ...target.stops[1], offset: 360 }] };
+    expect(resolveScenario(schedule, data, [line], [], {}, "dates", [main, changed]).diagnostics.some((item) => item.reason.includes("alternatif"))).toBe(true);
   });
 });

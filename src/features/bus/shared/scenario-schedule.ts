@@ -5,7 +5,8 @@ import { matchesTripTemplate, selectedDepartureTrip, shiftTrip } from "./terminu
 import type { TerminusEntry } from "./terminus-storage";
 import type { LineReplacements } from "./line-replacements";
 import { serviceDayType } from "./service-day-type";
-import { departureRunsOnDate, type WeeklyTimetable } from "./weekly-timetables";
+import { sourceDiscrepancies } from "./source-discrepancies";
+import { departureRunsOnDate, selectedCreatedTable, type WeeklyTimetable } from "./weekly-timetables";
 
 export type ScenarioDiagnostic = { entryId: string; date: string; reason: string; lineId?: string };
 export type ResolvedScenario = { schedule: Schedule; data: SibraData; diagnostics: ScenarioDiagnostic[] };
@@ -39,7 +40,7 @@ function stopProgress(coordinates: [number, number][], markers: BusLineMarker[])
 
 /** Materialise one service per date. The original reference and entries are never mutated. */
 export function resolveScenario(reference: Schedule, data: SibraData, created: readonly BusCreatedLine[], entries: readonly TerminusEntry[], replacements: LineReplacements = {}, replacementMode: "dates" | "period" = "dates", weeklyTables: readonly WeeklyTimetable[] = []): ResolvedScenario {
-  const diagnostics: ScenarioDiagnostic[] = [];
+  const diagnostics: ScenarioDiagnostic[] = sourceDiscrepancies(reference, data);
   for (const table of weeklyTables) if (table.validFrom < reference.metadata.validFrom || table.validTo > reference.metadata.validTo) diagnostics.push({ entryId: table.id, date: table.validFrom, lineId: table.lineId, reason: "Période partiellement ou entièrement hors calendrier de référence" });
   const trips: ScheduleTrip[] = [];
   const serviceDates: Record<string, string[]> = {};
@@ -87,7 +88,7 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
       } else trips.push({ ...trip, id: `${trip.id}@${date}`, serviceId });
     }
     if (dayType) for (const table of dailyTables) {
-      if (Object.values(table.notes?.[dayType] ?? {}).some((note) => !note.rule || (note.rule === "trip" && table.kind !== "gtfs"))) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Options de départ non prises en compte dans le calcul" });
+      if (Object.values(table.notes?.[dayType] ?? {}).some((note) => !note.rule || (note.rule === "trip" && table.kind !== "gtfs") || (note.rule === "created" && table.kind !== "created"))) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Options de départ non prises en compte dans le calcul" });
       if (table.kind === "gtfs") {
         if (replaced.has(table.lineId)) continue;
         const template = templates.get(table.tripId ?? "");
@@ -112,7 +113,17 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
           diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Parcours du tableau créé absent ou modifié" });
           continue;
         }
-        for (const departure of table.days[dayType]) if (departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date)) trips.push({ id: `weekly:${table.id}:${date}:${departure}`, serviceId, lineId: table.lineId, variantId: table.variantId, directionId: table.directionId, stops: table.stops.map((stop, index) => ({ stopId: stop.id, arrival: departure + stop.offset, departure: departure + stop.offset, progress: path.progress![index] })) });
+        for (const departure of table.days[dayType]) {
+          const note = table.notes?.[dayType]?.[String(departure)];
+          if (!departureRunsOnDate(note, date)) continue;
+          const selected = selectedCreatedTable(table, note, weeklyTables);
+          const selectedPath = selected && createdPaths.get(JSON.stringify([selected.lineId, selected.variantId]));
+          if (!selected || !selectedPath || selectedPath.signature !== selected.directionId || !selectedPath.progress || selectedPath.markers.length !== selected.stops.length || selectedPath.markers.some((marker, index) => marker.id !== selected.stops[index].id) || selected.stops.some((stop, index) => index > 0 && stop.offset <= selected.stops[index - 1].offset)) {
+            diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Parcours créé alternatif absent, modifié ou incompatible" });
+            continue;
+          }
+          trips.push({ id: `weekly:${table.id}:${date}:${departure}`, serviceId, lineId: selected.lineId, variantId: selected.variantId, directionId: selected.directionId, stops: selected.stops.map((stop, index) => ({ stopId: stop.id, arrival: departure + stop.offset, departure: departure + stop.offset, progress: selectedPath.progress![index] })) });
+        }
       }
     }
     for (const entry of dayEntries) {

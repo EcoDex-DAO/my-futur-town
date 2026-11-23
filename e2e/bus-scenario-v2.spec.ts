@@ -89,10 +89,13 @@ for (const width of [1440, 390]) test(`une ligne créée avec horaire alimente s
   await page.addInitScript(() => {
     const a = { id: "a", kind: "terminus", name: "A", coordinates: [6.12, 45.9] };
     const b = { id: "b", kind: "terminus", name: "B", coordinates: [6.13, 45.9] };
-    const line = { id: "test-created", name: "Citoyenne test", termini: [a, b], passages: [], arrets: [], geometry: [a.coordinates, b.coordinates], distanceM: 800, warnings: [], updatedAt: "2026-11-04" };
+    const c = { id: "c", kind: "terminus", name: "C", coordinates: [6.125, 45.9] };
+    const alternate = { id: "test-created-alt", name: "Variante courte", termini: [a, c], passages: [], arrets: [], geometry: [a.coordinates, c.coordinates], distanceM: 400, warnings: [], updatedAt: "2026-11-04" };
+    const line = { id: "test-created", name: "Citoyenne test", termini: [a, b], passages: [], arrets: [], geometry: [a.coordinates, b.coordinates], distanceM: 800, warnings: [], updatedAt: "2026-11-04", variants: [alternate] };
     const entry = { id: "created:test", date: "2026-11-04", kind: "created", lineId: line.id, variantId: line.id, directionId: JSON.stringify([[a.id, a.coordinates], [b.id, b.coordinates]]), departure: 28800, stops: [{ id: "a", name: "A", offset: 0 }, { id: "b", name: "B", offset: 1200 }] };
     localStorage.setItem("yft.bus-created-lines.v1", JSON.stringify([line]));
     localStorage.setItem("yft.bus-terminus-schedules.v1", JSON.stringify({ version: 1, entries: [entry] }));
+    if (!localStorage.getItem("yft.bus-weekly-timetables.v1")) localStorage.setItem("yft.bus-weekly-timetables.v1", JSON.stringify({ version: 1, tables: [{ id: "target", kind: "created", lineId: line.id, variantId: alternate.id, directionId: JSON.stringify([[a.id, a.coordinates], [c.id, c.coordinates]]), stops: [{ id: "a", name: "A", offset: 0 }, { id: "c", name: "C", offset: 600 }], validFrom: "2026-11-04", validTo: "2026-11-05", days: { weekday: [], saturday: [], "sunday-holiday": [] } }] }));
   });
   await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
   await page.route("**/data/sibra.json", (route) => route.fulfill({ json: { metadata: { sourceUrl: "fixture", attribution: "fixture", license: "fixture", validFrom: "2026-11-04", validTo: "2026-11-05", generatedAt: "2026-11-01" }, lines: [{ id: "1", shortName: "1", longName: "Référence test", color: "#004433", variants: [{ id: "v", headsign: "B", coordinates: [[6.12, 45.9], [6.13, 45.9]], stops: [{ id: "a", name: "A", coordinates: [6.12, 45.9] }, { id: "b", name: "B", coordinates: [6.13, 45.9] }] }] }] } }));
@@ -115,6 +118,9 @@ for (const width of [1440, 390]) test(`une ligne créée avec horaire alimente s
   await weekly.getByLabel("Code", { exact: true }).fill("j");
   await weekly.getByLabel("Jeudi", { exact: true }).check();
   await weekly.getByLabel("Appliquer uniquement les jours et la date indiqués à ce départ").check();
+  await weekly.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 10 heures, minute").fill("00");
+  await weekly.getByLabel("Code", { exact: true }).fill("r");
+  await weekly.getByLabel("Parcours créé alternatif pour ce départ").selectOption("target");
   const weekday = weekly.getByRole("region", { name: "Tableau Jours de semaine · lundi à vendredi" });
   const saturday = weekly.getByRole("region", { name: "Tableau Samedi" });
   const sunday = weekly.getByRole("region", { name: "Tableau Dimanche et jours fériés" });
@@ -134,6 +140,8 @@ for (const width of [1440, 390]) test(`une ligne créée avec horaire alimente s
   await expect(weekly.getByLabel("Samedi, rang 1, 08 heures, minute")).toHaveValue("00");
   await weekly.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 09 heures, minute").focus();
   await expect(weekly.getByLabel("Appliquer uniquement les jours et la date indiqués à ce départ")).toBeChecked();
+  await weekly.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 10 heures, minute").focus();
+  await expect(weekly.getByLabel("Parcours créé alternatif pour ce départ")).toHaveValue("target");
   await weekly.getByRole("button", { name: "Fermer" }).click();
   await page.getByRole("button", { name: "Simuler les lignes cochées", exact: true }).click();
   const simulation = page.getByRole("region", { name: "Simulation des lignes cochées" });

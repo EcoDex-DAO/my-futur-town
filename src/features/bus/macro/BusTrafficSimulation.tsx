@@ -11,6 +11,7 @@ import { resolveScenario } from "../shared/scenario-schedule";
 import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "../shared/terminus-storage";
 import { LINE_REPLACEMENTS_KEY, readLineReplacements, type LineReplacementStore } from "../shared/line-replacements";
 import { WEEKLY_TIMETABLES_KEY, readWeeklyTimetables, type WeeklyTimetable } from "../shared/weekly-timetables";
+import { sourceDiscrepancies } from "../shared/source-discrepancies";
 
 type Props = { map: MapLibreMap | null; mapReady: boolean; data: SibraData; createdLines: BusCreatedLine[]; visibleCreatedIds: string[] };
 const sourceId = "yft-traffic-vehicles";
@@ -156,7 +157,8 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibl
       <p className="caption">Horaires valides du {schedule.metadata.validFrom} au {schedule.metadata.validTo} · {schedule.metadata.timeZone}</p>
       <label>Horaires utilisés<select value={scenario ? "scenario" : "reference"} onChange={(event) => setScenario(event.target.value === "scenario")}><option value="reference">Référence GTFS</option><option value="scenario">Scénario local, lignes créées comprises</option></select></label>
       {scenario && scenarioError && <p role="alert">{scenarioError}</p>}
-      {scenario && resolved && resolved.diagnostics.length > 0 && <p role="alert">{resolved.diagnostics.length} avertissement(s) : {[...new Set(resolved.diagnostics.map((item) => item.reason))].join(" ; ")}. La simulation est partielle ; vérifiez les horaires enregistrés.</p>}
+      {!scenario && schedule && sourceDiscrepancies(schedule, data).some((warning) => warning.date === date) && <p role="alert">Ligne 41 : le GTFS prévoit des courses ce samedi, sans tableau du samedi dans la <a href="https://www.sibra.fr/app/uploads/2026/07/DH_41_BD_31082026_web.pdf" target="_blank" rel="noreferrer">fiche SIBRA consultée</a>. La simulation suit le GTFS ; cet écart reste à vérifier.</p>}
+      {scenario && resolved && resolved.diagnostics.length > 0 && <p role="alert">{resolved.diagnostics.length} avertissement(s) : {[...new Set(resolved.diagnostics.map((item) => item.reason))].join(" ; ")}. La simulation est partielle ; vérifiez les horaires et leurs sources.</p>}
       {scenario && Object.keys(links.replacements).length > 0 && <p className="caption">Les remplacements s’appliquent {links.mode === "dates" ? "aux jours avec horaires créés" : "à toute la période, même sans horaires créés"}. Les lignes de remplacement liées aux lignes cochées sont incluses.</p>}
       {scenario && weekly.length > 0 && <p className="caption">Les tableaux par type de jour sont appliqués ; les horaires particuliers par date restent prioritaires.</p>}
       {todayOutsideCoverage && <p className="bus-simulation-message" role="status">Les horaires disponibles vont du {schedule.metadata.validFrom} au {schedule.metadata.validTo}. La date initiale choisie est dans cette période.</p>}
