@@ -60,3 +60,17 @@ export function variantActivity(data: SibraData, schedule: Schedule): VariantAct
   }
   return [...result.values()];
 }
+
+/** Longest single scheduled trip per route; not a vehicle duty or range guarantee. */
+export function variantLongestTrips(data: SibraData, schedule: Schedule): Map<string, number> {
+  const active = new Set(Object.values(schedule.serviceDates).flat());
+  const lengths = new Map(data.lines.flatMap((line) => line.variants.map((variant) => [variantModelKey(line.id, variant.id), lengthKm(variant.coordinates)] as const)));
+  const longest = new Map<string, number>();
+  for (const trip of schedule.trips) {
+    if (!active.has(trip.serviceId)) continue;
+    const key = variantModelKey(trip.lineId, trip.variantId), length = lengths.get(key), first = trip.stops[0], last = trip.stops.at(-1);
+    if (!length || !first || !last || last.progress < first.progress) continue;
+    longest.set(key, Math.max(longest.get(key) ?? 0, length * (last.progress - first.progress)));
+  }
+  return longest;
+}

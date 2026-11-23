@@ -10,6 +10,7 @@ import { departureRunsOnDate, readWeeklyTimetables, WEEKLY_TIMETABLES_KEY, type 
 import { serviceDayType } from "./service-day-type";
 import { LINE_REPLACEMENTS_KEY, readLineReplacements, type LineReplacementStore } from "./line-replacements";
 import { gtfsReferenceVersion, materialiseOverlay } from "./gtfs-overlay";
+import { verifiedGtfsNote, type VerifiedGtfsNote } from "./verified-gtfs-notes";
 
 type Props = { data: SibraData; stopId: string; preferredLineId?: string };
 
@@ -62,6 +63,16 @@ export function BusStopTimetable({ data, stopId, preferredLineId }: Props) {
     if (!schedule || !line || !selectedDirection || !inCoverage) return [];
     return stopDeparturesByHour(schedule, line.id, selectedDirection.variantIds, date, stopId);
   }, [schedule, line, selectedDirection, inCoverage, date, stopId]);
+  const notesByTime = useMemo(() => {
+    const result = new Map<number, (VerifiedGtfsNote | null)[]>();
+    if (!schedule || !line || !selectedDirection || !inCoverage) return result;
+    const active = new Set(schedule.serviceDates[date] ?? []);
+    for (const trip of schedule.trips) if (trip.lineId === line.id && active.has(trip.serviceId) && selectedDirection.variantIds.has(trip.variantId)) {
+      for (const stop of trip.stops) if (stop.stopId === stopId) result.set(stop.departure, [...(result.get(stop.departure) ?? []), verifiedGtfsNote(data, trip)]);
+    }
+    return result;
+  }, [schedule, data, line, selectedDirection, inCoverage, date, stopId]);
+  const verifiedNotes = [...notesByTime.values()].flat().filter((note): note is VerifiedGtfsNote => !!note);
   const dayType = serviceDayType(date);
   const replacement = links.replacements[lineId];
   const replaced = !scenarioError && !!replacement && (links.mode === "period" || scenario.some((entry) => entry.kind === "created" && entry.lineId === replacement && entry.date === date) || (!!dayType && weekly.some((table) => table.kind === "created" && table.lineId === replacement && date >= table.validFrom && date <= table.validTo)));
@@ -82,7 +93,8 @@ export function BusStopTimetable({ data, stopId, preferredLineId }: Props) {
         const overlay = materialiseOverlay(schedule, table, date, dayType, gtfsReferenceVersion(data));
         return [...overlay.warnings.map((warning) => <li key={`${table.id}-${warning}`}>À vérifier : {warning}.</li>), ...overlay.trips.flatMap((trip, index) => {
           const stop = trip.stops.find((item) => item.stopId === stopId);
-          return stop && selectedDirection?.variantIds.has(trip.variantId) ? [<li key={`${table.id}-${trip.id}-${index}`}>{formatServiceTime(stop.departure)} · scénario avec exceptions GTFS conservées</li>] : [];
+          const note = verifiedGtfsNote(data, trip);
+          return stop && selectedDirection?.variantIds.has(trip.variantId) ? [<li key={`${table.id}-${trip.id}-${index}`}>{formatServiceTime(stop.departure)} · scénario avec exceptions GTFS conservées{note && <> · {note.code} : {note.description} (<a href={note.source} target="_blank" rel="noreferrer">fiche SIBRA</a>)</>}</li>] : [];
         })];
       }
       const template = schedule?.trips.find((trip) => trip.id === table.tripId);
@@ -98,7 +110,8 @@ export function BusStopTimetable({ data, stopId, preferredLineId }: Props) {
     {!replaced && scenario.filter((entry) => entry.kind === "gtfs" && entry.date === date && entry.lineId === lineId && selectedDirection?.variantIds.has(entry.variantId) && entry.stops.some((stop) => stop.id === stopId)).length > 0 && <div><h3>Passages du scénario local</h3><p>Ces passages remplacent ou complètent les courses indiquées ; la grille de référence ci-dessous reste inchangée.</p><ul>{scenario.filter((entry) => entry.kind === "gtfs" && entry.date === date && entry.lineId === lineId && selectedDirection?.variantIds.has(entry.variantId)).flatMap((entry) => entry.stops.filter((stop) => stop.id === stopId).map((stop, index) => <li key={`${entry.id}-${index}`}>{formatServiceTime(entry.departure + stop.offset)} · {entry.id.startsWith("gtfs-new:") ? "course ajoutée" : "course modifiée"}{schedule && !matchesTripTemplate(schedule.trips.find((trip) => trip.id === entry.tripId), entry.stops) ? " · référence modifiée ou absente, à vérifier" : ""}</li>))}</ul></div>}
     {error ? <p className="bus-info-message" role="alert">{error}</p> : !schedule ? <p role="status">Chargement des horaires…</p> : !inCoverage ? <p className="bus-info-message">Horaires indisponibles pour cette date. Données du {schedule.metadata.validFrom} au {schedule.metadata.validTo}.</p> : !hours.length ? <p>Aucun départ pour cette direction et ce jour.</p> : <>
       <div className="timetable-heading">Départs du {new Intl.DateTimeFormat("fr-FR", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`))}</div>
-      <div className="timetable-scroll"><table className="timetable"><thead><tr>{hours.map(({ hour }) => <th key={hour} scope="col">{String(hour % 24).padStart(2, "0")}h{hour >= 24 ? <small> +1 j</small> : null}</th>)}</tr></thead><tbody><tr>{hours.map(({ hour, entries }) => <td key={hour}>{entries.map((seconds, index) => <span key={`${seconds}-${index}`}>{String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")}{seconds % 60 ? `:${String(seconds % 60).padStart(2, "0")}` : ""}</span>)}</td>)}</tr></tbody></table></div>
+      <div className="timetable-scroll"><table className="timetable"><thead><tr>{hours.map(({ hour }) => <th key={hour} scope="col">{String(hour % 24).padStart(2, "0")}h{hour >= 24 ? <small> +1 j</small> : null}</th>)}</tr></thead><tbody><tr>{hours.map(({ hour, entries }) => <td key={hour}>{entries.map((seconds, index) => { const occurrence = entries.slice(0, index).filter((time) => time === seconds).length; const note = notesByTime.get(seconds)?.[occurrence]; return <span key={`${seconds}-${index}`}>{String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")}{seconds % 60 ? `:${String(seconds % 60).padStart(2, "0")}` : ""}{note && <sup title={note.description}> {note.code}</sup>}</span>; })}</td>)}</tr></tbody></table></div>
+      {[...new Map(verifiedNotes.map((note) => [`${note.code}|${note.source}`, note])).values()].map((note) => <p key={`${note.code}|${note.source}`}>{note.code} : {note.description} · <a href={note.source} target="_blank" rel="noreferrer">Fiche SIBRA</a>.</p>)}
       <p className="bus-info-note">Horaires théoriques GTFS, sans temps réel. Les secondes sont affichées lorsqu’elles sont présentes dans les données.</p>
     </>}
   </div>;

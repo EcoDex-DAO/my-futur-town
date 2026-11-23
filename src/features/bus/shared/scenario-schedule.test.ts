@@ -15,11 +15,6 @@ describe("résolution des horaires de scénario", () => {
     expect(requireCompleteCalendar(schedule)).toBe(schedule);
     expect(() => requireCompleteCalendar({ ...schedule, serviceDates: { "2026-11-04": ["s"] } })).toThrow(/incomplet/);
   });
-  it("signale l'écart de la ligne 41 pour les samedis du GTFS épinglé", () => {
-    const saturday = { ...schedule, metadata: { ...schedule.metadata, validTo: "2026-12-20" }, serviceDates: { "2026-11-07": ["s"] }, trips: [{ ...schedule.trips[0], lineId: "41" }] };
-    const result = resolveScenario(saturday, { ...data, metadata: { ...data.metadata, sourceUrl: "https://example.test/20261106-075925/gtfs-sibra.zip" }, lines: [{ ...data.lines[0], id: "41" }] }, [], []);
-    expect(result.diagnostics.some((item) => item.lineId === "41" && item.date === "2026-11-07" && item.reason.includes("samedi"))).toBe(true);
-  });
   it("déplace une course après minuit sans changer la référence", () => {
     const result = resolveScenario(schedule, data, [], [entry]);
     expect(result.diagnostics).toEqual([]);

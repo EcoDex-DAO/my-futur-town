@@ -1,5 +1,21 @@
 import { expect, test } from "@playwright/test";
 
+test("note b vérifiée de la ligne 41 affichée avec sa source", async ({ page }) => {
+  test.setTimeout(90000);
+  await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
+  await page.route("**/data/sibra.json", (route) => route.fulfill({ json: { metadata: { sourceUrl: "https://static.data.gouv.fr/resources/offre-de-transports-sibra-a-annecy-gtfs/20261106-075925/gtfs-sibra.zip", attribution: "fixture", license: "fixture", validFrom: "2026-11-04", validTo: "2026-12-20", generatedAt: "2026-11-06" }, lines: [{ id: "41", shortName: "41", longName: "Test", color: "#004433", variants: [{ id: "41:d128510a2122bdf8", headsign: "Le Châtelard", coordinates: [[6.12, 45.9], [6.13, 45.9]], stops: [{ id: "0:GR11", name: "Annecy", coordinates: [6.12, 45.9] }, { id: "0:COLL", name: "Le Châtelard", coordinates: [6.13, 45.9] }] }] }] } }));
+  await page.route("**/data/sibra-schedule.json", (route) => route.fulfill({ json: { metadata: { validFrom: "2026-11-04", validTo: "2026-12-20", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-05": ["s"] }, trips: [{ id: "HORAIRES 1_LV_nov 26C556321", lineId: "41", variantId: "41:d128510a2122bdf8", directionId: "0", serviceId: "s", stops: [{ stopId: "0:GR11", arrival: 44400, departure: 44400, progress: 0 }, { stopId: "0:COLL", arrival: 47400, departure: 47400, progress: 1 }] }] } }));
+  await page.route("**/api/**", (route) => route.abort());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menu Bus" }).click();
+  await page.getByRole("button", { name: "Ouvrir le gestionnaire d’horaires" }).click();
+  const manager = page.getByRole("dialog", { name: "Gestion des horaires" });
+  await manager.getByText("Voir les départs GTFS de ce parcours").click();
+  await expect(manager.getByText("12:20 (b)")).toBeVisible();
+  await expect(manager.getByText("b : Ne dessert pas l'arrêt Les Balmettes")).toBeVisible();
+  await expect(manager.getByRole("link", { name: "Fiche SIBRA" })).toHaveAttribute("href", /DH_41_BD_31082026_web\.pdf$/);
+});
+
 for (const width of [1440, 390]) test(`modification GTFS avec exception conservée ${width}px`, async ({ page }) => {
   test.setTimeout(90000);
   await page.setViewportSize({ width, height: 844 });
@@ -132,6 +148,7 @@ for (const width of [1440, 390]) test(`une ligne créée avec horaire alimente s
     const entry = { id: "created:test", date: "2026-11-04", kind: "created", lineId: line.id, variantId: line.id, directionId: JSON.stringify([[a.id, a.coordinates], [b.id, b.coordinates]]), departure: 28800, stops: [{ id: "a", name: "A", offset: 0 }, { id: "b", name: "B", offset: 1200 }] };
     localStorage.setItem("yft.bus-created-lines.v1", JSON.stringify([line]));
     localStorage.setItem("yft.bus-terminus-schedules.v1", JSON.stringify({ version: 1, entries: [entry] }));
+    localStorage.setItem("yft.bus-report-v2.v1", JSON.stringify({ reference: {}, scenario: {}, scenarioVariants: { [JSON.stringify([line.id, line.id])]: "standard-electric" } }));
     if (!localStorage.getItem("yft.bus-weekly-timetables.v1")) localStorage.setItem("yft.bus-weekly-timetables.v1", JSON.stringify({ version: 1, tables: [{ id: "target", kind: "created", lineId: line.id, variantId: alternate.id, directionId: JSON.stringify([[a.id, a.coordinates], [c.id, c.coordinates]]), stops: [{ id: "a", name: "A", offset: 0 }, { id: "c", name: "C", offset: 600 }], validFrom: "2026-11-04", validTo: "2026-11-05", days: { weekday: [], saturday: [], "sunday-holiday": [] } }] }));
   });
   await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
@@ -187,6 +204,8 @@ for (const width of [1440, 390]) test(`une ligne créée avec horaire alimente s
   await simulation.getByLabel("Heure").fill("08:10:00");
   await simulation.getByRole("button", { name: "Démarrer" }).click();
   await expect(simulation.getByLabel("Bus simulés par ligne")).toContainText("Citoyenne test : 1");
+  await expect(simulation.getByRole("region", { name: "Modèles du parc simulés" })).toContainText("Électrique");
+  await expect(simulation.getByRole("region", { name: "Modèles du parc simulés" })).toContainText("non comparable");
   await page.getByRole("button", { name: "Menu Bilan" }).click();
   await page.getByLabel("Version et périmètre du bilan").selectOption("v2");
   const line = page.locator("details.bilan-line").filter({ has: page.locator("summary").filter({ hasText: /^Citoyenne test ·/ }) });

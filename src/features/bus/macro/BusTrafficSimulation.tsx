@@ -11,7 +11,9 @@ import { resolveScenario } from "../shared/scenario-schedule";
 import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "../shared/terminus-storage";
 import { LINE_REPLACEMENTS_KEY, readLineReplacements, type LineReplacementStore } from "../shared/line-replacements";
 import { WEEKLY_TIMETABLES_KEY, readWeeklyTimetables, type WeeklyTimetable } from "../shared/weekly-timetables";
-import { sourceDiscrepancies } from "../shared/source-discrepancies";
+import { discrepancySource, sourceDiscrepancies } from "../shared/source-discrepancies";
+import { FLEET_STORAGE_KEY, readFleet, type Model } from "../shared/BusFleetManager";
+import { activeFleetSummary, emptyAssignments, readModelAssignments, REPORT_V2_STORAGE_KEY } from "../shared/scenario-fleet";
 
 type Props = { map: MapLibreMap | null; mapReady: boolean; data: SibraData; createdLines: BusCreatedLine[]; visibleCreatedIds: string[] };
 const sourceId = "yft-traffic-vehicles";
@@ -27,6 +29,9 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibl
   const [scenario, setScenario] = useState(false);
   const [entries, setEntries] = useState<TerminusEntry[]>([]);
   const [scenarioError, setScenarioError] = useState("");
+  const [fleet, setFleet] = useState<Model[]>([]);
+  const [assignments, setAssignments] = useState(emptyAssignments);
+  const [fleetError, setFleetError] = useState("");
   const [links, setLinks] = useState<LineReplacementStore>({ replacements: {}, mode: "dates" });
   const [weekly, setWeekly] = useState<WeeklyTimetable[]>([]);
   const [date, setDate] = useState("");
@@ -39,6 +44,12 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibl
   const clock = useRef(8 * 3600);
   const markers = useRef<HTMLDivElement | null>(null);
   const displayingModels = useRef(false);
+
+  useEffect(() => {
+    const refresh = () => { try { setFleet(readFleet(localStorage.getItem(FLEET_STORAGE_KEY))); setAssignments(readModelAssignments(localStorage.getItem(REPORT_V2_STORAGE_KEY))); setFleetError(""); } catch { setFleetError("Parc ou affectations illisibles : les modèles de véhicules ne peuvent pas être comparés."); } };
+    refresh(); window.addEventListener("storage", refresh); window.addEventListener("yft:fleet-updated", refresh); window.addEventListener("yft:report-v2-updated", refresh);
+    return () => { window.removeEventListener("storage", refresh); window.removeEventListener("yft:fleet-updated", refresh); window.removeEventListener("yft:report-v2-updated", refresh); };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -91,6 +102,7 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibl
   const vehicles = useMemo(() => active && currentSchedule && currentData && date ? networkActiveVehicles(currentSchedule, currentData, date, second, { estimatedDwellSeconds: dwellSeconds }) : [], [active, currentSchedule, currentData, date, second, dwellSeconds]);
   const points = useMemo(() => networkVehiclePoints(vehicles, currentData ?? data), [vehicles, currentData, data]);
   const lineCounts = useMemo(() => (currentData ?? data).lines.map((line) => ({ line, count: vehicles.filter((vehicle) => vehicle.lineId === line.id).length })), [currentData, data, vehicles]);
+  const activeFleet = useMemo(() => activeFleetSummary(vehicles, fleet, assignments, scenario, date), [vehicles, fleet, assignments, scenario, date]);
 
   useEffect(() => {
     if (!active || !map || !mapReady) return;
@@ -157,7 +169,7 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibl
       <p className="caption">Horaires valides du {schedule.metadata.validFrom} au {schedule.metadata.validTo} · {schedule.metadata.timeZone}</p>
       <label>Horaires utilisés<select value={scenario ? "scenario" : "reference"} onChange={(event) => setScenario(event.target.value === "scenario")}><option value="reference">Référence GTFS</option><option value="scenario">Scénario local, lignes créées comprises</option></select></label>
       {scenario && scenarioError && <p role="alert">{scenarioError}</p>}
-      {!scenario && schedule && sourceDiscrepancies(schedule, data).some((warning) => warning.date === date) && <p role="alert">Ligne 41 : le GTFS prévoit des courses ce samedi, sans tableau du samedi dans la <a href="https://www.sibra.fr/app/uploads/2026/07/DH_41_BD_31082026_web.pdf" target="_blank" rel="noreferrer">fiche SIBRA consultée</a>. La simulation suit le GTFS ; cet écart reste à vérifier.</p>}
+      {!scenario && schedule && sourceDiscrepancies(schedule, data).filter((warning) => warning.date === date).map((warning) => <p role="alert" key={warning.entryId}>{warning.reason} (<a href={discrepancySource(warning.entryId) ?? "https://www.sibra.fr/"} target="_blank" rel="noreferrer">fiche SIBRA</a>). La simulation suit le GTFS ; cet écart reste à vérifier.</p>)}
       {scenario && resolved && resolved.diagnostics.length > 0 && <p role="alert">{resolved.diagnostics.length} avertissement(s) : {[...new Set(resolved.diagnostics.map((item) => item.reason))].join(" ; ")}. La simulation est partielle ; vérifiez les horaires et leurs sources.</p>}
       {scenario && Object.keys(links.replacements).length > 0 && <p className="caption">Les remplacements s’appliquent {links.mode === "dates" ? "aux jours avec horaires créés" : "à toute la période, même sans horaires créés"}. Les lignes de remplacement liées aux lignes cochées sont incluses.</p>}
       {scenario && weekly.length > 0 && <p className="caption">Les tableaux par type de jour sont appliqués ; les horaires particuliers par date restent prioritaires.</p>}
@@ -179,6 +191,7 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibl
       <p className="bus-simulation-clock"><strong>{formatTime(second)}</strong> · {vehicles.length} bus en circulation</p>
       <button type="button" className="bus-simulation-focus" disabled={!vehicles.length || !map} onClick={() => { if (vehicles[0] && map) map.flyTo({ center: vehicles[0].position, zoom: 18, pitch: 50, essential: true }); }}>Voir un bus de près</button>
       {active && lineCounts.length > 0 && <p className="caption" aria-label="Bus simulés par ligne">{lineCounts.map(({ line, count }) => `${line.shortName} : ${count}`).join(" · ")}</p>}
+      {active && <section aria-label="Modèles du parc simulés"><h3>Modèles supposés en circulation</h3><p>Selon les affectations du bilan ; il ne s'agit pas de véhicules réellement identifiés. Seules les lignes cochées sont comptées, sans trajets à vide ni disponibilité réelle.</p>{fleetError ? <p role="alert">{fleetError}</p> : <>{activeFleet.unknown > 0 && <p>{activeFleet.unknown} course(s) sans modèle connu.</p>}{activeFleet.models.length === 0 ? <p>Aucun modèle identifiable pour les courses affichées.</p> : <ul>{activeFleet.models.map(({ model, count, available }) => <li key={model.id}>{model.name} · {model.power} · {model.network} · parc {model.countYear || "année inconnue"} : {count} en circulation ; {available === null ? "disponibilité inconnue ou non comparable" : `${available} disponibles déclarés${count > available ? " — besoin supérieur à l'effectif déclaré" : ""}`}.</li>)}</ul>}</>}</section>}
       {!currentData?.lines.length && <p className="bus-simulation-message">Cochez au moins une ligne pour lancer la simulation.</p>}
       {!inCoverage && <p className="bus-simulation-message">Choisissez une date entre le {schedule.metadata.validFrom} et le {lastDate}.</p>}
       {inCoverage && date > schedule.metadata.validTo && <p className="bus-simulation-message">Après la fin du calendrier : seules les courses commencées pendant la période publiée sont visibles. Les autres services de cette date sont inconnus.</p>}
