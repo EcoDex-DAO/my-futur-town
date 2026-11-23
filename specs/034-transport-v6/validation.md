@@ -8,9 +8,13 @@
 - Tableaux de semaine, samedi et dimanche/jours fériés : tests unitaires de copie, calendrier, conservation des exceptions et application aux courses ; essais navigateur sur ordinateur et mobile, avec copie, annulation, sauvegarde, réouverture et prise en compte dans simulation et bilan.
 - Aperçu mobile à 390 px : hiérarchie, écart initial et états inconnus inspectés. L'aperçu n'est pas une validation exhaustive de l'accessibilité.
 
+- Fenêtre de gestion issue du prototype validé : tests du parcours ligne créée, copier/coller et annulation, enregistrement, rechargement, simulation et bilan à 1440 px et 390 px. 167 tests unitaires passent ; le build de production est réussi.
+- Les périodes non chevauchantes, notes et restrictions de date/jours sont conservées. Les notes sont visibles aux arrêts ; les calculs indiquent qu’elles ne sont pas encore appliquées. Les périodes hors GTFS sont signalées.
+
 ## Limites et travaux restants
 
 - Les paramètres V1 et facteurs V2 disposent d'une rubrique d'information et de saisie de provenance. Vérifier encore chaque résultat et chaque source ; la légende ne prouve pas la fiabilité d'une source.
+- Vérifier dans le navigateur les variantes et inversions réelles, plusieurs périodes, annotations, erreurs de saisie et conflits de sauvegarde dans la nouvelle fenêtre.
 - Étendre les essais aux conflits entre onglets de l'interface, aux horaires supprimés ou invalidés, aux modèles incompatibles, aux calendriers incomplets et aux variations de parcours dans le navigateur.
 - Vérifier les interactions clavier et lecteurs d'écran, les captures ordinateur/mobile, les performances et tous les cas sans API.
 - Le besoin simultané est une borne indicative : ni enchaînements géographiques, ni temps de dépôt, ni affectation de véhicules individuels ne sont calculés. Les hypothèses de disponibilité doivent rester visibles.

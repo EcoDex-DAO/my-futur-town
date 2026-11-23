@@ -67,6 +67,12 @@ describe("résolution des horaires de scénario", () => {
     expect(departures("2026-11-14")).toEqual([14400]);
     expect(reference.trips[0].stops[0].departure).toBe(3600);
   });
+  it("signale les options non appliquées et les périodes hors calendrier", () => {
+    const weekly: WeeklyTimetable = { id: "w", kind: "gtfs", lineId: "1", variantId: "v", directionId: "0", tripId: "t", stops: entry.stops, validFrom: "2026-11-04", validTo: "2026-11-06", days: { weekday: [7200], saturday: [], "sunday-holiday": [] }, notes: { weekday: { "7200": { code: "jvs", description: "jours limités", until: "2026-11-06", days: [4, 5, 6] } } } };
+    const result = resolveScenario(schedule, data, [], [], {}, "dates", [weekly]);
+    expect(result.diagnostics.map((item) => item.reason)).toContain("Options de départ non prises en compte dans le calcul");
+    expect(result.diagnostics.map((item) => item.reason)).toContain("Période partiellement ou entièrement hors calendrier de référence");
+  });
   it("propage un tableau créé après minuit et laisse l'exception de date prioritaire", () => {
     const a = { id: "a", name: "A", kind: "terminus" as const, coordinates: [6, 45] as [number, number] };
     const b = { id: "b", name: "B", kind: "terminus" as const, coordinates: [6.01, 45] as [number, number] };

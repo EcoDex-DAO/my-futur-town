@@ -14,6 +14,10 @@
 - [x] T014 [US1] Relier lignes créées et lignes de référence, gérer les deux modes de remplacement et leur persistance dans `src/features/bus/shared/`, puis vérifier leur effet commun sur simulation et bilan.
 - [x] T015 [US2] Concevoir et afficher les trois tableaux horaires, séparés par ligne, sens et variante, dans `src/features/bus/shared/WeeklyTimetableEditor.tsx`, sans assimiler calendrier GTFS et jours types.
 - [x] T016 [US2] Ajouter la copie d'un tableau vers un autre avec protection des horaires enregistrés dans `src/features/bus/shared/`, puis vérifier la persistance, les exceptions et les jours fériés.
+- [ ] T017 [US2] Faire évoluer le stockage dans `src/features/bus/shared/weekly-timetables.ts` pour plusieurs périodes non chevauchantes et des annotations, en conservant les données existantes et en refusant les versions illisibles.
+- [ ] T018 [US2] Remplacer l’éditeur par une fenêtre dédiée conforme au prototype validé dans `src/features/bus/shared/WeeklyTimetableEditor.tsx` et `src/main.tsx`, sans perte de données et avec une gestion explicite des variantes et des parcours de retour absents.
+- [ ] T019 [US2] Répercuter les périodes et signaler toute annotation non interprétée dans `src/features/bus/shared/scenario-schedule.ts`, les fiches d’arrêt, la simulation et le bilan ; tester dates, copies et cas après minuit.
+- [ ] T020 [US2] Vérifier le parcours complet sur ordinateur et mobile, la conservation des anciens horaires et les écritures concurrentes ; documenter la validation dans `specs/034-transport-v6/validation.md`.
 
 ## US2 : simulation
 

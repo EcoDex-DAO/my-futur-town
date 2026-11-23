@@ -4,10 +4,13 @@ import type { ServiceDayType } from "./service-day-type";
 
 export const WEEKLY_TIMETABLES_KEY = "yft.bus-weekly-timetables.v1";
 export const DAY_TYPES: readonly ServiceDayType[] = ["weekday", "saturday", "sunday-holiday"];
+export type DepartureNote = { code: string; description: string; until: string; days: number[] };
 export type WeeklyTimetable = {
   id: string; kind: "gtfs" | "created"; lineId: string; variantId: string; directionId: string; tripId?: string;
   stops: TerminusEntry["stops"]; validFrom: string; validTo: string;
   days: Record<ServiceDayType, number[]>;
+  periodName?: string;
+  notes?: Partial<Record<ServiceDayType, Record<string, DepartureNote>>>;
 };
 
 export function readWeeklyTimetables(raw: string | null): WeeklyTimetable[] {
@@ -18,12 +21,13 @@ export function readWeeklyTimetables(raw: string | null): WeeklyTimetable[] {
   if (!value || typeof value !== "object" || Array.isArray(value)) return fail();
   const store = value as { version?: unknown; tables?: unknown };
   if (store.version !== 1 || Object.keys(store).some((key) => key !== "version" && key !== "tables") || !Array.isArray(store.tables)) return fail();
-  const ids = new Set<string>(), routes = new Set<string>();
+  const ids = new Set<string>(), routes = new Map<string, { from: string; to: string }[]>();
   for (const table of store.tables as WeeklyTimetable[]) {
-    if (!table || typeof table !== "object" || Object.keys(table).some((key) => !["id", "kind", "lineId", "variantId", "directionId", "tripId", "stops", "validFrom", "validTo", "days"].includes(key)) || typeof table.id !== "string" || !table.id || typeof table.lineId !== "string" || !table.lineId || typeof table.variantId !== "string" || !table.variantId || !["gtfs", "created"].includes(table.kind) || typeof table.validFrom !== "string" || typeof table.validTo !== "string" || table.validFrom > table.validTo || !table.days || typeof table.days !== "object" || Array.isArray(table.days) || Object.keys(table.days).some((key) => !DAY_TYPES.includes(key as ServiceDayType))) return fail();
+    if (!table || typeof table !== "object" || Object.keys(table).some((key) => !["id", "kind", "lineId", "variantId", "directionId", "tripId", "stops", "validFrom", "validTo", "days", "periodName", "notes"].includes(key)) || (table.periodName !== undefined && (typeof table.periodName !== "string" || !table.periodName.trim())) || typeof table.id !== "string" || !table.id || typeof table.lineId !== "string" || !table.lineId || typeof table.variantId !== "string" || !table.variantId || !["gtfs", "created"].includes(table.kind) || typeof table.validFrom !== "string" || typeof table.validTo !== "string" || table.validFrom > table.validTo || !table.days || typeof table.days !== "object" || Array.isArray(table.days) || Object.keys(table.days).some((key) => !DAY_TYPES.includes(key as ServiceDayType))) return fail();
     const route = JSON.stringify([table.kind, table.lineId, table.variantId]);
-    if (ids.has(table.id) || routes.has(route)) return fail();
-    ids.add(table.id); routes.add(route);
+    const intervals = routes.get(route) ?? [];
+    if (ids.has(table.id) || intervals.some((item) => table.validFrom <= item.to && table.validTo >= item.from)) return fail();
+    ids.add(table.id); intervals.push({ from: table.validFrom, to: table.validTo }); routes.set(route, intervals);
     for (const date of [table.validFrom, table.validTo]) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return fail();
       const day = new Date(`${date}T00:00:00Z`);
@@ -34,12 +38,24 @@ export function readWeeklyTimetables(raw: string | null): WeeklyTimetable[] {
       const departures = table.days[type];
       if (!Array.isArray(departures) || departures.some((time) => !Number.isSafeInteger(time) || time < 0 || time >= 48 * 3600) || new Set(departures).size !== departures.length) return fail();
     }
+    if (table.notes !== undefined) {
+      if (!table.notes || typeof table.notes !== "object" || Array.isArray(table.notes) || Object.keys(table.notes).some((key) => !DAY_TYPES.includes(key as ServiceDayType))) return fail();
+      for (const day of DAY_TYPES) {
+        const notes = table.notes[day];
+        if (notes === undefined) continue;
+        if (!notes || typeof notes !== "object" || Array.isArray(notes)) return fail();
+        for (const [time, note] of Object.entries(notes)) {
+          if (!/^\d+$/.test(time) || !table.days[day].includes(Number(time)) || !note || typeof note !== "object" || Object.keys(note).some((key) => !["code", "description", "until", "days"].includes(key)) || typeof note.code !== "string" || !note.code.trim() || typeof note.description !== "string" || typeof note.until !== "string" || (note.until !== "" && (!/^\d{4}-\d{2}-\d{2}$/.test(note.until) || !Number.isFinite(Date.parse(`${note.until}T00:00:00Z`)) || new Date(`${note.until}T00:00:00Z`).toISOString().slice(0, 10) !== note.until)) || !Array.isArray(note.days) || note.days.some((value) => !Number.isInteger(value) || value < 0 || value > 6) || new Set(note.days).size !== note.days.length) return fail();
+        }
+      }
+    }
   }
   return store.tables as WeeklyTimetable[];
 }
 
 export function copyTimetableDay(table: WeeklyTimetable, source: ServiceDayType, target: ServiceDayType): WeeklyTimetable {
-  return { ...table, days: { ...table.days, [target]: [...table.days[source]] } };
+  const copiedNotes = Object.fromEntries(Object.entries(table.notes?.[source] ?? {}).map(([time, note]) => [time, { ...note, days: [...note.days] }]));
+  return { ...table, days: { ...table.days, [target]: [...table.days[source]] }, notes: { ...table.notes, [target]: copiedNotes } };
 }
 
 export function saveWeeklyTimetables(storage: Storage, snapshot: string | null, tables: WeeklyTimetable[]): string {

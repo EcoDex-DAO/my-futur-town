@@ -67,6 +67,10 @@ Une personne retrouve ses scénarios et identifie l'origine et les limites des v
 - **FR-016** : présenter trois tableaux d'horaires distincts : jours de semaine, samedi, dimanche et jours fériés. Les minutes sont regroupées par heure ; ligne, sens et variante restent identifiables.
 - **FR-017** : permettre de copier un tableau vers un autre pour faciliter l'édition, sans écraser silencieusement les horaires déjà enregistrés et en conservant les exceptions par date.
 - **FR-018** : appliquer les tableaux aux jours correspondants de leur période ; un parcours ayant déjà une modification propre à une date conserve ce jour ses horaires particuliers. Identifier la source des jours fériés et signaler toute année non couverte.
+- **FR-019** : ouvrir le gestionnaire d’horaires dans une fenêtre dédiée, avec sélection compacte des lignes, titres du sens et listes des terminus en dessous ; l’inversion recherche le parcours correspondant sans inventer un retour.
+- **FR-020** : présenter les périodes par onglets, avec nom et dates modifiables et ajout de périodes. Plusieurs périodes d’un parcours ne doivent pas se chevaucher. Les horaires précédemment enregistrés restent accessibles.
+- **FR-021** : présenter chaque type de jour sous forme d’un tableau de 24 colonnes horaires ; chaque case accepte une minute de 0 à 59, une case vide signifie aucun départ et l’utilisateur peut ajouter une ligne. Préserver les départs existants après minuit et à la seconde.
+- **FR-022** : permettre de préparer des annotations par départ, notamment terminus alternatif et restrictions de jours ou de date, sans annoncer comme calculés des effets qui ne sont pas pris en charge ; les limites doivent rester visibles dans la simulation et le bilan.
 
 ### Key Entities
 

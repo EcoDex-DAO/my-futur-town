@@ -23,4 +23,16 @@ describe("tableaux de jours types", () => {
     expect(storage.getItem(WEEKLY_TIMETABLES_KEY)).toBe(saved);
     expect(readWeeklyTimetables(saved)[0]).toEqual(table);
   });
+  it("accepte plusieurs périodes distinctes et refuse leur chevauchement", () => {
+    const summer = { ...table, id: "summer", periodName: "Été", validFrom: "2026-05-01", validTo: "2026-10-31" };
+    const winter = { ...table, id: "winter", periodName: "Hiver", validFrom: "2026-11-01", validTo: "2026-12-20" };
+    expect(readWeeklyTimetables(JSON.stringify({ version: 1, tables: [summer, winter] }))).toHaveLength(2);
+    expect(() => readWeeklyTimetables(JSON.stringify({ version: 1, tables: [summer, { ...winter, validFrom: "2026-10-31" }] }))).toThrow();
+  });
+  it("copie les annotations avec les départs sans partager les données", () => {
+    const annotated: WeeklyTimetable = { ...table, notes: { weekday: { "90000": { code: "jvs", description: "Jeudi à samedi", until: "2026-12-19", days: [4, 5, 6] } } } };
+    const copied = copyTimetableDay(annotated, "weekday", "saturday");
+    expect(copied.notes?.saturday?.["90000"].days).toEqual([4, 5, 6]);
+    expect(copied.notes?.saturday?.["90000"].days).not.toBe(annotated.notes?.weekday?.["90000"].days);
+  });
 });

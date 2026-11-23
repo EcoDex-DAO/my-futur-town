@@ -32,7 +32,7 @@ export function CreatedStopTimetable({ line, stopId }: { line: BusCreatedLine | 
       const signature = path ? JSON.stringify([path.termini[0], ...path.arrets, path.termini[1]].map((marker) => [marker.id, marker.coordinates])) : "";
       const stop = table.stops.find((item) => item.id === stopId)!;
       if (signature !== table.directionId) return [<li key={table.id}>Parcours modifié : tableau horaire à vérifier.</li>];
-      return table.days[dayType].map((departure) => <li key={`${table.id}-${departure}`}>{formatServiceTime(departure + stop.offset)} · tableau {path?.name ?? "parcours créé"}</li>);
+      return table.days[dayType].map((departure) => <li key={`${table.id}-${departure}`}>{formatServiceTime(departure + stop.offset)} · tableau {path?.name ?? "parcours créé"}{table.notes?.[dayType]?.[String(departure)] && <> · option {table.notes[dayType]![String(departure)].code} : {table.notes[dayType]![String(departure)].description || "à vérifier"} (non appliquée)</>}</li>);
     })}</ul></>}</>}
   </div>;
 }

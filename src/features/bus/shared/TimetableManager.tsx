@@ -1,0 +1,121 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { BusCreatedLine } from "../creator/bus-line";
+import { parseSchedule, type Schedule } from "./bus-simulation";
+import { contrastTextColor, type SibraData } from "./sibra";
+import { formatServiceTime } from "./terminus-schedule";
+import { emptyRow, fromTimetableGrid, toTimetableGrid, type TimetableCell, type TimetableGrid } from "./timetable-grid";
+import { DAY_TYPES, readWeeklyTimetables, saveWeeklyTimetables, WEEKLY_TIMETABLES_KEY, type DepartureNote, type WeeklyTimetable } from "./weekly-timetables";
+import { serviceDayType, type ServiceDayType } from "./service-day-type";
+
+const labels: Record<ServiceDayType, string> = { weekday: "Jours de semaine · lundi à vendredi", saturday: "Samedi", "sunday-holiday": "Dimanche et jours fériés" };
+type Choice = { id: string; direction: string; fromId: string; fromName: string; toId: string; toName: string };
+type Draft = { id: string; name: string; from: string; to: string; tripId: string; durations: Record<string, string>; grids: Record<ServiceDayType, TimetableGrid> };
+const blankGrids = (): Draft["grids"] => ({ weekday: toTimetableGrid([]), saturday: toTimetableGrid([]), "sunday-holiday": toTimetableGrid([]) });
+const blankDraft = (from: string, to: string): Draft => ({ id: `weekly:${crypto.randomUUID()}`, name: "Nouvelle période", from, to, tripId: "", durations: {}, grids: blankGrids() });
+const draftFromTable = (table: WeeklyTimetable): Draft => ({ id: table.id, name: table.periodName ?? "Période existante", from: table.validFrom, to: table.validTo, tripId: table.tripId ?? "", durations: Object.fromEntries(table.stops.slice(1).map((stop) => [stop.id, String(stop.offset / 60)])), grids: { weekday: toTimetableGrid(table.days.weekday, table.notes?.weekday), saturday: toTimetableGrid(table.days.saturday, table.notes?.saturday), "sunday-holiday": toTimetableGrid(table.days["sunday-holiday"], table.notes?.["sunday-holiday"]) } });
+
+export function TimetableManager({ data, createdLines }: { data: SibraData; createdLines: BusCreatedLine[] }) {
+  const [open, setOpen] = useState(false);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [tables, setTables] = useState<WeeklyTimetable[]>([]);
+  const [ready, setReady] = useState(false);
+  const [message, setMessage] = useState("");
+  const [kind, setKind] = useState<"gtfs" | "created">("gtfs");
+  const [lineId, setLineId] = useState(data.lines[0]?.id ?? "");
+  const [direction, setDirection] = useState("");
+  const [fromId, setFromId] = useState("");
+  const [toId, setToId] = useState("");
+  const [variantId, setVariantId] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [activeId, setActiveId] = useState("");
+  const [draftRoutes, setDraftRoutes] = useState<Record<string, string[]>>({});
+  const [undo, setUndo] = useState<{ id: string; day: ServiceDayType; grid: TimetableGrid } | null>(null);
+  const [referenceDates, setReferenceDates] = useState<Partial<Record<ServiceDayType, string>>>({});
+  const [clipboard, setClipboard] = useState<TimetableGrid | null>(null);
+  const [noteTarget, setNoteTarget] = useState<{ day: ServiceDayType; row: number; hour: number } | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  const snapshot = useRef<string | null>(null);
+  useEffect(() => { try { const raw = localStorage.getItem(WEEKLY_TIMETABLES_KEY); setTables(readWeeklyTimetables(raw)); snapshot.current = raw; setReady(true); } catch { setMessage("Tableaux illisibles ou stockage inaccessible : les données sont conservées."); } }, []);
+  useEffect(() => { if (!open || schedule) return; const controller = new AbortController(); fetch("/data/sibra-schedule.json", { signal: controller.signal }).then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(parseSchedule).then(setSchedule).catch(() => { if (!controller.signal.aborted) setMessage("Horaires GTFS indisponibles ; les lignes créées restent accessibles."); }); return () => controller.abort(); }, [open, schedule]);
+  useEffect(() => { if (open && dialog.current && !dialog.current.open) dialog.current.showModal(); else if (!open && dialog.current?.open) dialog.current.close(); }, [open]);
+  const line = data.lines.find((item) => item.id === lineId);
+  const created = createdLines.find((item) => item.id === lineId);
+  const choices = useMemo<Choice[]>(() => {
+    if (kind === "created") return (created ? [created, ...(created.variants ?? [])] : []).map((path) => ({ id: path.id, direction: `${path.termini[0].id}|${path.termini[1].id}`, fromId: path.termini[0].id, fromName: path.termini[0].name, toId: path.termini[1].id, toName: path.termini[1].name }));
+    return [...(line?.variants ?? [])].sort((a, b) => b.stops.length - a.stops.length).flatMap((variant) => {
+      const first = variant.stops[0], last = variant.stops.at(-1);
+      if (!first || !last || first.id === last.id) return [];
+      const trip = schedule?.trips.find((item) => item.lineId === lineId && item.variantId === variant.id);
+      return [{ id: variant.id, direction: trip?.directionId ?? `${first.id}|${last.id}`, fromId: first.id, fromName: first.name, toId: last.id, toName: last.name }];
+    });
+  }, [kind, created, line, lineId, schedule]);
+  useEffect(() => { const first = choices[0]; setDirection(first?.direction ?? ""); setFromId(first?.fromId ?? ""); setToId(first?.toId ?? ""); setVariantId(first?.id ?? ""); setActiveId(""); setNoteTarget(null); }, [choices]);
+  const directionChoices = choices.filter((item) => item.direction === direction);
+  const anchor = directionChoices[0];
+  const fromChoices = [...new Map(directionChoices.map((item) => [item.fromId, item.fromName])).entries()];
+  const toChoices = [...new Map(directionChoices.filter((item) => item.fromId === fromId).map((item) => [item.toId, item.toName])).entries()];
+  const matching = directionChoices.filter((item) => item.fromId === fromId && item.toId === toId);
+  const actualVariant = matching.some((item) => item.id === variantId) ? variantId : matching[0]?.id ?? "";
+  const routeKey = JSON.stringify([kind, lineId, actualVariant]);
+  const related = tables.filter((table) => table.kind === kind && table.lineId === lineId && table.variantId === actualVariant);
+  const saved = related.find((table) => table.id === activeId) ?? related[0];
+  const extraIds = (draftRoutes[routeKey] ?? []).filter((id) => !related.some((table) => table.id === id));
+  const selectedId = related.some((table) => table.id === activeId) || extraIds.includes(activeId) ? activeId : related[0]?.id ?? extraIds[0];
+  const selectedSaved = related.find((table) => table.id === selectedId);
+  const draft = selectedId ? drafts[selectedId] ?? (selectedSaved ? draftFromTable(selectedSaved) : undefined) : undefined;
+  const path = kind === "created" && created ? [created, ...(created.variants ?? [])].find((item) => item.id === actualVariant) : undefined;
+  const markers = path ? [path.termini[0], ...path.arrets, path.termini[1]] : [];
+  const trips = useMemo(() => schedule?.trips.filter((trip) => trip.lineId === lineId && trip.variantId === actualVariant) ?? [], [schedule, lineId, actualVariant]);
+  const setDraft = (next: Draft) => { setDrafts((current) => ({ ...current, [next.id]: next })); setActiveId(next.id); };
+  const chooseLine = (nextKind: "gtfs" | "created", id: string) => { setKind(nextKind); setLineId(id); setActiveId(""); };
+  const selectPair = (start: string, end: string) => { setFromId(start); setToId(end); setVariantId(directionChoices.find((item) => item.fromId === start && item.toId === end)?.id ?? ""); setActiveId(""); setNoteTarget(null); };
+  const swap = () => { const current = choices.find((item) => item.id === actualVariant); const norm = (name: string) => name.trim().toLocaleLowerCase("fr"); const reversed = choices.filter((item) => item.direction !== direction && current && norm(item.fromName) === norm(current.toName) && norm(item.toName) === norm(current.fromName)); const reverse = choices.find((item) => item.fromId === toId && item.toId === fromId) ?? (reversed.length === 1 ? reversed[0] : undefined); if (!reverse) { setMessage("Aucun parcours de retour correspondant n’est disponible. Créez-le ou choisissez une autre variante."); return; } setDirection(reverse.direction); setFromId(reverse.fromId); setToId(reverse.toId); setVariantId(reverse.id); setActiveId(""); setNoteTarget(null); setMessage(""); };
+  function newPeriod() { if (!actualVariant) return; const next = blankDraft(data.metadata.validFrom, data.metadata.validTo); setDraftRoutes((current) => ({ ...current, [routeKey]: [...(current[routeKey] ?? []), next.id] })); setDraft(next); }
+  function changeCell(day: ServiceDayType, row: number, hour: number, change: Partial<TimetableCell>) { if (!draft) return; const next = structuredClone(draft); next.grids[day].rows[row][hour] = { ...next.grids[day].rows[row][hour], ...change }; setDraft(next); }
+  function save() {
+    if (!draft || !actualVariant) return;
+    try {
+      if (!draft.name.trim()) throw new Error("Indiquez un nom pour la période.");
+      if (!draft.from || !draft.to || draft.from > draft.to) throw new Error("Vérifiez les dates de début et de fin.");
+      if (related.some((table) => table.id !== draft.id && draft.from <= table.validTo && draft.to >= table.validFrom)) throw new Error("Cette période chevauche une autre période du parcours.");
+      const converted = Object.fromEntries(DAY_TYPES.map((day) => [day, fromTimetableGrid(draft.grids[day])])) as Record<ServiceDayType, ReturnType<typeof fromTimetableGrid>>;
+      let directionId: string, tripId: string | undefined, stops: WeeklyTimetable["stops"];
+      if (kind === "gtfs") {
+        const trip = trips.find((item) => item.id === draft.tripId);
+        if (!trip) throw new Error("Choisissez une course GTFS pour ses temps de parcours.");
+        const first = trip.stops[0].departure;
+        if (DAY_TYPES.some((day) => converted[day].times.some((departure) => trip.stops.some((stop) => stop.arrival + departure - first < 0)))) throw new Error("Un départ placerait un passage avant le jour de service.");
+        const names = new Map(line?.variants.flatMap((variant) => variant.stops.map((stop) => [stop.id, stop.name] as const)) ?? []);
+        directionId = trip.directionId; tripId = trip.id; stops = trip.stops.map((stop) => ({ id: stop.stopId, name: names.get(stop.stopId) ?? stop.stopId, offset: stop.departure - first }));
+      } else {
+        if (!path || markers.length < 2) throw new Error("Parcours créé indisponible.");
+        const offsets = markers.map((marker, index) => index === 0 ? 0 : Number(draft.durations[marker.id]) * 60);
+        if (markers.slice(1).some((marker) => !draft.durations[marker.id]?.trim()) || offsets.some((value, index) => !Number.isSafeInteger(value) || (index > 0 && value <= offsets[index - 1]))) throw new Error("Saisissez des durées cumulées entières et croissantes jusqu’au terminus.");
+        directionId = JSON.stringify(markers.map((marker) => [marker.id, marker.coordinates])); stops = markers.map((marker, index) => ({ id: marker.id, name: marker.name, offset: offsets[index] }));
+      }
+      const next: WeeklyTimetable = { id: draft.id, periodName: draft.name, kind, lineId, variantId: actualVariant, directionId, ...(tripId ? { tripId } : {}), stops, validFrom: draft.from, validTo: draft.to, days: { weekday: converted.weekday.times, saturday: converted.saturday.times, "sunday-holiday": converted["sunday-holiday"].times }, notes: { weekday: converted.weekday.notes, saturday: converted.saturday.notes, "sunday-holiday": converted["sunday-holiday"].notes } };
+      const all = [...tables.filter((table) => table.id !== next.id), next];
+      snapshot.current = saveWeeklyTimetables(localStorage, snapshot.current, all); setTables(all); window.dispatchEvent(new Event("yft:weekly-timetables-updated")); setMessage("Horaires enregistrés dans ce navigateur.");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Enregistrement impossible."); }
+  }
+  const selectedCell = draft && noteTarget ? draft.grids[noteTarget.day].rows[noteTarget.row]?.[noteTarget.hour] : undefined;
+  return <section aria-label="Gestion des horaires">
+    {!open && <button type="button" className="bus-fleet-open" onClick={() => setOpen(true)}>Ouvrir le gestionnaire d’horaires</button>}
+    {open && <dialog ref={dialog} className="bus-fleet-panel timetable-manager" aria-labelledby="timetable-manager-title" onCancel={(event) => { event.preventDefault(); setOpen(false); }}>
+      <div className="bus-fleet-heading"><div><h3 id="timetable-manager-title">Gestion des horaires</h3><p>Choisissez une ligne et un sens, puis préparez les départs.</p></div><button type="button" onClick={() => setOpen(false)}>Fermer</button></div>
+      <p>Les horaires de scénario restent séparés de la référence GTFS.</p>
+      <div className="timetable-lines" aria-label="Lignes SIBRA">{data.lines.map((item) => <button type="button" key={item.id} aria-label={`Ligne ${item.shortName}`} aria-pressed={kind === "gtfs" && lineId === item.id} style={{ backgroundColor: item.color.startsWith("#") ? item.color : `#${item.color}`, color: contrastTextColor(item.color.startsWith("#") ? item.color : `#${item.color}`) }} onClick={() => chooseLine("gtfs", item.id)}>{item.shortName}</button>)}{createdLines.map((item) => <button type="button" key={item.id} aria-label={`Ligne créée ${item.name}`} aria-pressed={kind === "created" && lineId === item.id} onClick={() => chooseLine("created", item.id)}>{item.name}</button>)}</div>
+      <div className="timetable-route"><strong className="timetable-badge">{kind === "gtfs" ? line?.shortName : created?.name}</strong><div className="timetable-direction"><strong>{anchor?.fromName ?? "Départ inconnu"}</strong><button type="button" onClick={swap} aria-label="Inverser le sens du trajet">⇄</button><strong>{anchor?.toName ?? "Arrivée inconnue"}</strong></div><div className="timetable-terminals"><label>Terminus de départ<select value={fromId} onChange={(event) => { const start = event.target.value; const end = directionChoices.find((item) => item.fromId === start)?.toId ?? ""; selectPair(start, end); }}>{fromChoices.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label><label>Terminus d’arrivée<select value={toId} onChange={(event) => selectPair(fromId, event.target.value)}>{toChoices.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label></div>{matching.length > 1 && <label>Variante<select value={actualVariant} onChange={(event) => { setVariantId(event.target.value); setActiveId(""); }}>{matching.map((item) => <option key={item.id} value={item.id}>{item.id}</option>)}</select></label>}{!actualVariant && <p>Aucun parcours correspondant à ces terminus.</p>}</div>
+      {actualVariant && <><div className="timetable-period-heading"><h4>Périodes</h4><button type="button" onClick={newPeriod} aria-label="Ajouter une période">+</button></div><div className="timetable-period-tabs" role="tablist" aria-label="Période">{related.map((table) => <button type="button" role="tab" aria-selected={draft?.id === table.id} key={table.id} onClick={() => { setActiveId(table.id); setNoteTarget(null); }}>{table.periodName ?? "Période existante"}</button>)}{extraIds.map((id) => <button type="button" role="tab" key={id} aria-selected={draft?.id === id} onClick={() => setActiveId(id)}>{drafts[id]?.name || "Nouvelle période"}</button>)}</div>
+        {!draft ? <p>Aucune période enregistrée. Utilisez + pour en ajouter une.</p> : <><div className="timetable-period-fields"><label>Nom de la période<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label><label>Début<input type="date" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} /></label><label>Fin<input type="date" value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} /></label></div><p>Les horaires particuliers saisis pour une date restent prioritaires. Les périodes d’un même parcours ne peuvent pas se chevaucher. Hors du calendrier GTFS et des jours fériés disponibles, les calculs restent incomplets.</p>
+          {kind === "gtfs" ? <label>Course modèle pour les durées<select value={draft.tripId} onChange={(event) => setDraft({ ...draft, tripId: event.target.value })}><option value="">Choisir une course</option>{trips.map((trip) => <option key={trip.id} value={trip.id}>{formatServiceTime(trip.stops[0].departure)} · {trip.id}</option>)}</select></label> : <div><p>Durées cumulées depuis le départ, en minutes :</p>{markers.slice(1).map((marker) => <label key={marker.id}>{marker.name}<input type="number" min="1" step="1" value={draft.durations[marker.id] ?? ""} onChange={(event) => setDraft({ ...draft, durations: { ...draft.durations, [marker.id]: event.target.value } })} /></label>)}</div>}
+          {DAY_TYPES.map((day) => <section className="timetable-day" key={day} aria-label={`Tableau ${labels[day]}`}><div className="timetable-day-heading"><h4>{labels[day]}</h4><div><button type="button" onClick={() => { const next = structuredClone(draft); next.grids[day].rows.push(emptyRow()); setDraft(next); }}>+ Ajouter une ligne</button><button type="button" onClick={() => { setClipboard(structuredClone(draft.grids[day])); setMessage(`Tableau ${labels[day]} copié.`); }}>Copier</button><button type="button" disabled={!clipboard} onClick={() => { if (!clipboard) return; const next = structuredClone(draft); setUndo({ id: draft.id, day, grid: structuredClone(draft.grids[day]) }); next.grids[day] = structuredClone(clipboard); setDraft(next); setMessage("Tableau collé dans le brouillon. Vérifiez les annotations et durées avant enregistrement."); }}>Coller</button></div></div>{undo?.id === draft.id && undo.day === day && <button type="button" onClick={() => { const next = structuredClone(draft); next.grids[day] = structuredClone(undo.grid); setDraft(next); setUndo(null); }}>Annuler la dernière copie</button>}{kind === "gtfs" && schedule && (() => { const dates = Object.keys(schedule.serviceDates).filter((date) => serviceDayType(date) === day && date >= draft.from && date <= draft.to).sort(); const date = dates.includes(referenceDates[day] ?? "") ? referenceDates[day]! : dates[0] ?? ""; return <div><label>Date GTFS à copier pour {labels[day]}<select value={date} onChange={(event) => setReferenceDates((current) => ({ ...current, [day]: event.target.value }))}><option value="">Aucune date disponible</option>{dates.map((value) => <option key={value} value={value}>{value}</option>)}</select></label><button type="button" disabled={!date} onClick={() => { const services = new Set(schedule.serviceDates[date] ?? []); const departures = trips.filter((trip) => services.has(trip.serviceId)).map((trip) => trip.stops[0].departure); if (departures.some((time) => time >= 48 * 3600) || new Set(departures).size !== departures.length) { setMessage("Départs GTFS en double ou au-delà de 47 h : import manuel nécessaire."); return; } setUndo({ id: draft.id, day, grid: structuredClone(draft.grids[day]) }); const next = structuredClone(draft); next.grids[day] = toTimetableGrid(departures); setDraft(next); setMessage(`Départs GTFS du ${date} copiés. Les autres dates peuvent différer.`); }}>Copier les départs GTFS de cette date</button></div>; })()}<div className="timetable-grid-scroll" tabIndex={0} aria-label={`Faire défiler les heures : ${labels[day]}`}><table><thead><tr><th scope="col">Rang</th>{Array.from({ length: 24 }, (_, hour) => <th key={hour} scope="col">{String(hour).padStart(2, "0")} h</th>)}</tr></thead><tbody>{draft.grids[day].rows.map((row, rowIndex) => <tr key={rowIndex}><th scope="row">{rowIndex + 1}</th>{row.map((cell, hour) => <td key={hour}><input aria-label={`${labels[day]}, rang ${rowIndex + 1}, ${String(hour).padStart(2, "0")} heures, minute`} inputMode="numeric" maxLength={2} value={cell.minute} onChange={(event) => changeCell(day, rowIndex, hour, { minute: event.target.value.replace(/\D/g, "").slice(0, 2) })} onFocus={() => setNoteTarget({ day, row: rowIndex, hour })} aria-invalid={cell.minute !== "" && Number(cell.minute) > 59} />{cell.note && <small>{cell.note.code}</small>}{cell.second > 0 && <small>:{String(cell.second).padStart(2, "0")}</small>}</td>)}</tr>)}</tbody></table></div>{draft.grids[day].later.length > 0 && <p>Départs après minuit conservés : {draft.grids[day].later.map(formatServiceTime).join(" · ")}. Les secondes existantes restent conservées.</p>}</section>)}
+          {selectedCell && noteTarget && <div className="timetable-note"><p>Option pour {labels[noteTarget.day]}, {String(noteTarget.hour).padStart(2, "0")} h {selectedCell.minute || "…"}</p><label>Code<input value={selectedCell.note?.code ?? ""} placeholder="L, r, jvs…" onChange={(event) => changeCell(noteTarget.day, noteTarget.row, noteTarget.hour, { note: event.target.value ? { ...(selectedCell.note ?? { description: "", until: "", days: [] }), code: event.target.value } : undefined })} /></label><label>Explication<input value={selectedCell.note?.description ?? ""} disabled={!selectedCell.note} onChange={(event) => selectedCell.note && changeCell(noteTarget.day, noteTarget.row, noteTarget.hour, { note: { ...selectedCell.note, description: event.target.value } })} /></label><label>Jusqu’au<input type="date" value={selectedCell.note?.until ?? ""} disabled={!selectedCell.note} onChange={(event) => selectedCell.note && changeCell(noteTarget.day, noteTarget.row, noteTarget.hour, { note: { ...selectedCell.note, until: event.target.value } })} /></label><fieldset disabled={!selectedCell.note}><legend>Jours concernés (facultatif)</legend>{["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"].map((name, index) => <label key={name}><input type="checkbox" checked={selectedCell.note?.days.includes(index) ?? false} onChange={(event) => selectedCell.note && changeCell(noteTarget.day, noteTarget.row, noteTarget.hour, { note: { ...selectedCell.note, days: event.target.checked ? [...selectedCell.note.days, index].sort() : selectedCell.note.days.filter((day) => day !== index) } })} />{name}</label>)}</fieldset><p>Exemples : L ou r pour un terminus ; jvs pour jeudi, vendredi et samedi. Les options sont conservées mais ne modifient pas encore les calculs : ceux-ci seront signalés comme partiels.</p></div>}
+          <button type="button" disabled={!ready} onClick={save}>Enregistrer les horaires</button></>}
+      </>}
+      {message && <p role="status">{message}</p>}
+    </dialog>}
+  </section>;
+}

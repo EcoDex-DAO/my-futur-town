@@ -1212,3 +1212,35 @@ main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
 .bus-fleet-model { background: #fff; }
 .bus-fleet-model > summary b { font-size: 1.1rem; white-space: nowrap; }
 @media (max-width: 600px) { .bus-fleet-panel { inset: 0; transform: none; width: 100%; height: 100%; max-width: none; max-height: none; border-radius: 0; padding: max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom)); } .bus-fleet-icon { width: 52px; height: 34px; } }
+
+/* Fenêtre des horaires : les heures restent lisibles et défilent sur mobile. */
+.timetable-manager { width: min(1200px, calc(100vw - 2rem)); display: block; }
+.timetable-manager button, .timetable-manager input, .timetable-manager select { font: inherit; }
+.timetable-manager button { cursor: pointer; }
+.timetable-lines, .timetable-period-tabs, .timetable-day-heading, .timetable-period-heading { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.timetable-lines button { min-width: 2.8rem; min-height: 2.8rem; border: 2px solid #fff; border-radius: .6rem; font-weight: 700; color: #111; }
+.timetable-lines button[aria-pressed="true"] { outline: 3px solid #246849; }
+.timetable-route, .timetable-day, .timetable-note { margin: 1rem 0; padding: 1rem; border: 1px solid #c5d3ca; border-radius: .75rem; }
+.timetable-badge { display: block; margin-bottom: .75rem; font-size: 1.3rem; }
+.timetable-direction { display: flex; align-items: center; justify-content: center; gap: 1rem; text-align: center; font-size: 1.2rem; }
+.timetable-direction strong { flex: 1; }
+.timetable-direction button { font-size: 1.5rem; }
+.timetable-terminals, .timetable-period-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin-top: .75rem; }
+.timetable-manager label { display: grid; gap: .25rem; }
+.timetable-manager select, .timetable-manager input:not([type="checkbox"]) { min-width: 0; max-width: 100%; padding: .4rem; border: 1px solid #a8bdb1; border-radius: .35rem; background: white; color: #153d32; }
+.timetable-period-tabs [aria-selected="true"] { background: #216448; color: white; }
+.timetable-day-heading { justify-content: space-between; }
+.timetable-day-heading div { display: flex; flex-wrap: wrap; gap: .4rem; }
+.timetable-grid-scroll { max-width: 100%; overflow-x: auto; margin-top: .75rem; }
+.timetable-grid-scroll table { border-collapse: collapse; table-layout: fixed; }
+.timetable-grid-scroll th, .timetable-grid-scroll td { min-width: 3.5rem; padding: .2rem; text-align: center; border: 1px solid #d5e2d9; }
+.timetable-grid-scroll input { width: 3rem; text-align: center; }
+.timetable-grid-scroll small { display: block; }
+.timetable-note fieldset { display: flex; flex-wrap: wrap; gap: .7rem; }
+.timetable-note fieldset label { display: flex; align-items: center; }
+@media (max-width: 600px) { .timetable-manager { width: 100%; } .timetable-direction { font-size: 1rem; gap: .4rem; } .timetable-terminals, .timetable-period-fields { grid-template-columns: 1fr; } }
+.timetable-manager button:not(.timetable-lines button) { padding: .5rem .7rem; border: 1px solid #9ab4a4; border-radius: .45rem; background: #f2f8f4; color: #153d32; }
+.timetable-manager button:hover { filter: brightness(.95); }
+.timetable-manager button:focus-visible, .timetable-manager input:focus-visible, .timetable-manager select:focus-visible { outline: 3px solid #367652; outline-offset: 2px; }
+.timetable-manager .timetable-period-tabs [aria-selected="true"] { background: #216448; color: #fff; }
+.timetable-grid-scroll th { background: #eef6f0; color: #244d3b; }

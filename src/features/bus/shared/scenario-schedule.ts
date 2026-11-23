@@ -40,6 +40,7 @@ function stopProgress(coordinates: [number, number][], markers: BusLineMarker[])
 /** Materialise one service per date. The original reference and entries are never mutated. */
 export function resolveScenario(reference: Schedule, data: SibraData, created: readonly BusCreatedLine[], entries: readonly TerminusEntry[], replacements: LineReplacements = {}, replacementMode: "dates" | "period" = "dates", weeklyTables: readonly WeeklyTimetable[] = []): ResolvedScenario {
   const diagnostics: ScenarioDiagnostic[] = [];
+  for (const table of weeklyTables) if (table.validFrom < reference.metadata.validFrom || table.validTo > reference.metadata.validTo) diagnostics.push({ entryId: table.id, date: table.validFrom, lineId: table.lineId, reason: "Période partiellement ou entièrement hors calendrier de référence" });
   const trips: ScheduleTrip[] = [];
   const serviceDates: Record<string, string[]> = {};
   const templates = new Map(reference.trips.map((trip) => [trip.id, trip]));
@@ -86,6 +87,7 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
       } else trips.push({ ...trip, id: `${trip.id}@${date}`, serviceId });
     }
     if (dayType) for (const table of dailyTables) {
+      if (Object.keys(table.notes?.[dayType] ?? {}).length > 0) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Options de départ non prises en compte dans le calcul" });
       if (table.kind === "gtfs") {
         if (replaced.has(table.lineId)) continue;
         const template = templates.get(table.tripId ?? "");
