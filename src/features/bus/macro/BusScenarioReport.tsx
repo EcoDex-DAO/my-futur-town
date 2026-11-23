@@ -14,19 +14,21 @@ import { initialFactors, scenarioImpact, type ImpactFactors } from "./scenario-i
 
 const KEY = "yft.bus-report-v2.v1";
 type FactorKey = keyof ImpactFactors;
-type Settings = { reference: Record<string, string>; scenario: Record<string, string>; turnaround: string; factors: Record<FactorKey, string>; factorSources: Record<FactorKey, string> };
-const initial: Settings = { reference: {}, scenario: {}, turnaround: "0", factors: { dieselGhg: "3.16", electricGhg: "0.092", gasGhg: "", dieselNox: "1.85", gasNox: "0.713", pm10: "0.059", pm25: "0.0316" }, factorSources: { dieselGhg: "", electricGhg: "", gasGhg: "", dieselNox: "", gasNox: "", pm10: "", pm25: "" } };
+type Settings = { reference: Record<string, string>; scenario: Record<string, string>; turnaround: string; factors: Record<FactorKey, string>; factorSources: Record<FactorKey, string>; factorKinds: Record<FactorKey, string>; factorChecks: Record<FactorKey, string> };
+const emptyFactors: Record<FactorKey, string> = { dieselGhg: "", electricGhg: "", gasGhg: "", dieselNox: "", gasNox: "", pm10: "", pm25: "" };
+const initial: Settings = { reference: {}, scenario: {}, turnaround: "0", factors: { dieselGhg: "3.16", electricGhg: "0.092", gasGhg: "", dieselNox: "1.85", gasNox: "0.713", pm10: "0.059", pm25: "0.0316" }, factorSources: { ...emptyFactors }, factorKinds: { ...emptyFactors }, factorChecks: { ...emptyFactors } };
 function readSettings(raw: string | null): Settings {
   if (raw === null) return initial;
   const value: unknown = JSON.parse(raw);
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Bilan V2 illisible");
   const record = value as Settings;
   const validMap = (item: unknown) => item && typeof item === "object" && !Array.isArray(item) && Object.values(item).every((v) => typeof v === "string");
-  if (Object.keys(record).some((key) => !["reference", "scenario", "turnaround", "factors", "factorSources"].includes(key)) || ![record.reference, record.scenario].every(validMap) || (record.turnaround !== undefined && typeof record.turnaround !== "string") || (record.factors !== undefined && !validMap(record.factors)) || (record.factorSources !== undefined && !validMap(record.factorSources))) throw new Error("Bilan V2 illisible");
-  return { ...record, turnaround: record.turnaround ?? "0", factors: { ...initial.factors, ...record.factors }, factorSources: { ...initial.factorSources, ...record.factorSources } };
+  if (Object.keys(record).some((key) => !["reference", "scenario", "turnaround", "factors", "factorSources", "factorKinds", "factorChecks"].includes(key)) || ![record.reference, record.scenario].every(validMap) || (record.turnaround !== undefined && typeof record.turnaround !== "string") || [record.factors, record.factorSources, record.factorKinds, record.factorChecks].some((item) => item !== undefined && !validMap(item))) throw new Error("Bilan V2 illisible");
+  return { ...record, turnaround: record.turnaround ?? "0", factors: { ...initial.factors, ...record.factors }, factorSources: { ...initial.factorSources, ...record.factorSources }, factorKinds: { ...initial.factorKinds, ...record.factorKinds }, factorChecks: { ...initial.factorChecks, ...record.factorChecks } };
 }
 
 const format = (value: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 }).format(Math.abs(value) < 0.05 ? 0 : value);
+const originColors: Record<string, string> = { "Constructeur": "#174c83", "Rapport SIBRA ou Annecy": "#155b32", "Autre rapport": "#5d3f83", "Hypothèse comparable": "#7a4a00", "Saisie utilisateur": "#253d36" };
 function SourceInfo({ label, children }: { label: string; children: React.ReactNode }) {
   return <details><summary>Informations sur {label}</summary>{children}</details>;
 }
@@ -56,18 +58,21 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
   const resolved = useMemo(() => schedule ? resolveScenario(schedule, data, createdLines, entries) : null, [schedule, data, createdLines, entries]);
   const reference = useMemo(() => schedule ? lineActivity(data, schedule) : [], [schedule, data]);
   const adapted = useMemo(() => resolved ? lineActivity(resolved.data, resolved.schedule) : [], [resolved]);
-  const rows = adapted.filter((row) => selectedIds === null || selectedIds.includes(row.id));
+  const rows = useMemo(() => adapted.filter((row) => selectedIds === null || selectedIds.includes(row.id)), [adapted, selectedIds]);
   const referenceById = new Map(reference.map((row) => [row.id, row]));
-  const selected = new Set(rows.map((row) => row.id));
+  const selected = useMemo(() => new Set(rows.map((row) => row.id)), [rows]);
   const diagnostics = resolved?.diagnostics.filter((item) => selectedIds === null || entries.some((entry) => entry.id === item.entryId && selected.has(entry.lineId))) ?? [];
+  const demand = useMemo(() => {
+    const minutes = Number(settings.turnaround);
+    if (!resolved || settings.turnaround.trim() === "" || !Number.isSafeInteger(minutes) || minutes < 0 || minutes > 1440) return null;
+    const assignments = Object.fromEntries(rows.map((row) => [row.id, settings.scenario[row.id] ?? "standard-diesel"]));
+    return fleetDemand(resolved.schedule, assignments, selected, minutes * 60);
+  }, [resolved, rows, selected, settings.scenario, settings.turnaround]);
   const update = (side: "reference" | "scenario", lineId: string, value: string) => setSettings((current) => ({ ...current, [side]: { ...current[side], [lineId]: value } }));
   const save = () => { try { snapshot.current = writeSnapshot(localStorage, KEY, snapshot.current, JSON.stringify(settings)); setSaveMessage("Affectations et facteurs enregistrés dans ce navigateur."); } catch (reason) { setSaveMessage(reason instanceof Error && reason.message.includes("autre onglet") ? `${reason.message} Vos modifications restent affichées pour que vous puissiez les relever.` : "Affectations et facteurs non enregistrés. Vérifiez le stockage."); } };
   if (error || settingsError) return <p role="alert">{error || settingsError}</p>;
   if (!schedule || !resolved) return <p role="status">Chargement du bilan adapté…</p>;
   const assigned = (side: "reference" | "scenario", id: string) => settings[side][id] ?? "standard-diesel";
-  const scenarioAssignments = Object.fromEntries(rows.map((row) => [row.id, assigned("scenario", row.id)]));
-  const minutes = Number(settings.turnaround);
-  const demand = settings.turnaround.trim() !== "" && Number.isSafeInteger(minutes) && minutes >= 0 && minutes <= 1440 ? fleetDemand(resolved.schedule, scenarioAssignments, selected, minutes * 60) : null;
   const factors = Object.fromEntries((Object.keys(initialFactors) as FactorKey[]).map((key) => { const text = settings.factors[key].trim(); const value = Number(text); return [key, text && Number.isFinite(value) && value >= 0 ? value : null]; })) as ImpactFactors;
   const summarize = (side: "reference" | "scenario") => {
     let ghg = 0, diesel = 0, electric = 0, gas = 0, nox = 0, pm10 = 0, pm25 = 0, unknown = 0, covered = 0, ghgCovered = 0, unknownPollutants = 0;
@@ -112,7 +117,15 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
           ["gasNox", "NOx gaz naturel", "g/km", "ADEME HBEFA 4.1, parc français urbain 2026 ; moyenne prospective transférée aux bus à gaz.", "https://data.ademe.fr/datasets/etude-facteurs-d%27emissions-des-differents-modes-de-transport-routier"],
           ["pm10", "PM10 pneus et freins", "g/km", "EMEP/EEA 2024 tableau 3-1, poids lourds incluant les bus ; sans correction du freinage régénératif.", "https://copert.emisia.com/wp-content/uploads/2024/07/1.A.3.b.vi-vii-Road-tyre-and-brake-wear-2024.pdf"],
           ["pm25", "PM2,5 pneus et freins", "g/km", "EMEP/EEA 2024 tableau 3-1, poids lourds incluant les bus ; incluses dans PM10, ne pas additionner.", "https://copert.emisia.com/wp-content/uploads/2024/07/1.A.3.b.vi-vii-Road-tyre-and-brake-wear-2024.pdf"],
-        ] as [FactorKey, string, string, string, string][]).map(([key, label, unit, description, url]) => <div key={key} className="bilan-input"><label>{label} ({unit}) <input type="number" min="0" step="any" value={settings.factors[key]} onChange={(event) => setSettings((current) => ({ ...current, factors: { ...current.factors, [key]: event.target.value } }))} /></label><SourceInfo label={label}><p>{!settings.factors[key].trim() ? <>Valeur inconnue ; aucun facteur n’est appliqué.</> : Number(settings.factors[key]) === initialFactors[key] ? <><span style={{ color: "#7a4a00" }}>Hypothèse issue d’une source comparable</span> : <a href={url} target="_blank" rel="noreferrer">{description}</a> Vérification de l’actualité et incertitude chiffrée inconnues.</> : <>Valeur modifiée par l’utilisateur ; sa provenance initiale ne s’applique pas automatiquement. Vérification inconnue.</>}</p><label>Source, date, périmètre et limites saisis <input value={settings.factorSources[key]} onChange={(event) => setSettings((current) => ({ ...current, factorSources: { ...current.factorSources, [key]: event.target.value } }))} placeholder="Inconnus" /></label></SourceInfo></div>)}
+        ] as [FactorKey, string, string, string, string][]).map(([key, label, unit, description, url]) => <div key={key} className="bilan-input">
+          <label>{label} ({unit}) <input type="number" min="0" step="any" value={settings.factors[key]} onChange={(event) => setSettings((current) => ({ ...current, factors: { ...current.factors, [key]: event.target.value } }))} /></label>
+          <SourceInfo label={label}>
+            <p>{!settings.factors[key].trim() ? <>Valeur inconnue ; aucun facteur n’est appliqué.</> : Number(settings.factors[key]) === initialFactors[key] ? <><span style={{ color: "#7a4a00" }}>Hypothèse issue d’une source comparable</span> : <a href={url} target="_blank" rel="noreferrer">{description}</a> Vérification de l’actualité et incertitude chiffrée initiales inconnues.</> : <>Valeur modifiée par l’utilisateur ; sa provenance initiale ne s’applique pas automatiquement. Vérification initiale inconnue.</>}</p>
+            <label>Origine déclarée <select style={{ color: originColors[settings.factorKinds[key]] ?? "#253d36" }} value={settings.factorKinds[key]} onChange={(event) => setSettings((current) => ({ ...current, factorKinds: { ...current.factorKinds, [key]: event.target.value } }))}><option value="">Inconnue</option><option>Constructeur</option><option>Rapport SIBRA ou Annecy</option><option>Autre rapport</option><option>Hypothèse comparable</option><option>Saisie utilisateur</option></select></label>
+            <label>Vérification déclarée <select value={settings.factorChecks[key]} onChange={(event) => setSettings((current) => ({ ...current, factorChecks: { ...current.factorChecks, [key]: event.target.value } }))}><option value="">Inconnue</option><option>Vérifiée par l’utilisateur</option><option>À vérifier</option></select></label>
+            <label>Source, date, périmètre et limites saisis <input value={settings.factorSources[key]} onChange={(event) => setSettings((current) => ({ ...current, factorSources: { ...current.factorSources, [key]: event.target.value } }))} placeholder="Inconnus" /></label>
+          </SourceInfo>
+        </div>)}
         <p>Consommation électrique standard manquante : hypothèse 1,07 kWh/km estimée dans le <a href="https://www.annecy.fr/api/fileadmin/mediatheque_annecy/Deliberations/2025/20251215/D_CN_2025_390.pdf" target="_blank" rel="noreferrer">rapport SIBRA 2024, p. 67</a>. Consommation gaz manquante : hypothèse 0,53 kg/km issue d’une <a href="https://link.springer.com/article/10.1007/s11367-021-02013-w" target="_blank" rel="noreferrer">étude de cas européenne de 2021</a>, transférabilité incertaine. Modifiez ces consommations dans l’inventaire.</p><p>NOx à l’échappement d’un bus électrique : zéro par absence d’échappement. Les résultats excluent la fabrication et les particules à l’échappement. PM2,5 est incluse dans PM10.</p>
       </details>
       {rows.map((row) => {

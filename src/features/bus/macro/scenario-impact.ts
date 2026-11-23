@@ -19,7 +19,7 @@ export function scenarioImpact(km: number, model: Model | undefined, factors: Im
     const energy = km * rate / (diesel ? 100 : 1);
     const ghgFactor = diesel ? factors.dieselGhg : electric ? factors.electricGhg : factors.gasGhg;
     const noxFactor = diesel ? factors.dieselNox : factors.gasNox;
-    return { energy, unit: diesel ? "L" : electric ? "kWh" : "kg", ghgKg: ghgFactor === null ? null : energy * ghgFactor, noxKg: electric ? 0 : noxFactor === null ? null : km * noxFactor / 1000, pm10Kg: factors.pm10 === null ? null : km * factors.pm10 / 1000, pm25Kg: factors.pm25 === null ? null : km * factors.pm25 / 1000, source: `Consommation déclarée dans l’inventaire : ${model.consumption}. Source déclarée : ${model.source || "inconnue"} ; millésime : ${model.year || "inconnu"} ; périmètre : ${model.scope || "inconnu"}.` };
+    return { energy, unit: diesel ? "L" : electric ? "kWh" : "kg", ghgKg: ghgFactor === null ? null : energy * ghgFactor, noxKg: electric ? 0 : noxFactor === null ? null : km * noxFactor / 1000, pm10Kg: factors.pm10 === null ? null : km * factors.pm10 / 1000, pm25Kg: factors.pm25 === null ? null : km * factors.pm25 / 1000, source: `Consommation déclarée dans l’inventaire : ${model.consumption}. Origine déclarée du modèle : ${model.sourceType || "inconnue"} ; vérification déclarée : ${model.verification || "inconnue"} ; source : ${model.source || "inconnue"} ; millésime : ${model.year || "inconnu"} ; périmètre : ${model.scope || "inconnu"}. Cette provenance de modèle n’établit pas celle de chaque champ.` };
   }
   if (electric && model.size === "Standard" && model.consumption.trim() === "") {
     const energy = km * 1.07;
