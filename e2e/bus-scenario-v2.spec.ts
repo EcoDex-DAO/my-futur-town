@@ -1,5 +1,42 @@
 import { expect, test } from "@playwright/test";
 
+for (const width of [1440, 390]) test(`modification GTFS avec exception conservée ${width}px`, async ({ page }) => {
+  test.setTimeout(90000);
+  await page.setViewportSize({ width, height: 844 });
+  await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
+  await page.route("**/data/sibra.json", (route) => route.fulfill({ json: { metadata: { sourceUrl: "fixture", attribution: "fixture", license: "fixture", validFrom: "2026-11-04", validTo: "2026-11-08", generatedAt: "2026-11-01" }, lines: [{ id: "1", shortName: "1", longName: "Test", color: "#004433", variants: [{ id: "v", headsign: "B", coordinates: [[6.12, 45.9], [6.13, 45.9]], stops: [{ id: "a", name: "A", coordinates: [6.12, 45.9] }, { id: "b", name: "B", coordinates: [6.13, 45.9] }] }] }] } }));
+  const trip = (id: string, serviceId: string, departure: number) => ({ id, lineId: "1", variantId: "v", directionId: "0", serviceId, stops: [{ stopId: "a", arrival: departure, departure, progress: 0 }, { stopId: "b", arrival: departure + 600, departure: departure + 600, progress: 1 }] });
+  await page.route("**/data/sibra-schedule.json", (route) => route.fulfill({ json: { metadata: { validFrom: "2026-11-04", validTo: "2026-11-08", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-04": ["special"], "2026-11-05": ["normal"], "2026-11-06": ["normal"], "2026-11-07": ["sat"], "2026-11-08": ["sun"] }, trips: [trip("special8", "special", 28800), trip("special9", "special", 32400), trip("exception10", "special", 36000), trip("normal8", "normal", 28800), trip("normal9", "normal", 32400), trip("sat8", "sat", 28800), trip("sun8", "sun", 28800)] } }));
+  await page.route("**/api/**", (route) => route.abort());
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menu Bus" }).click();
+  await page.getByRole("button", { name: "Ouvrir le gestionnaire d’horaires" }).click();
+  const manager = page.getByRole("dialog", { name: "Gestion des horaires" });
+  await manager.getByRole("button", { name: "Ajouter une période" }).click();
+  await expect(manager.getByLabel("Dates particulières")).toHaveValue("overlay");
+  const weekday = manager.getByRole("region", { name: "Tableau Jours de semaine · lundi à vendredi" });
+  await weekday.getByLabel("Date GTFS à copier pour Jours de semaine · lundi à vendredi").selectOption("2026-11-05");
+  await weekday.getByRole("button", { name: "Copier les départs GTFS de cette date" }).click();
+  for (const label of ["Samedi", "Dimanche et jours fériés"]) await manager.getByRole("region", { name: `Tableau ${label}` }).getByRole("button", { name: "Copier les départs GTFS de cette date" }).click();
+  await manager.getByLabel("Course modèle pour les durées").selectOption("normal8");
+  await manager.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 09 heures, minute").fill("30");
+  await manager.getByRole("button", { name: "Enregistrer les horaires" }).click();
+  await expect(manager.getByRole("status")).toContainText("enregistrés");
+  await page.reload();
+  await page.getByRole("button", { name: "Menu Bus" }).click();
+  await page.getByRole("button", { name: "Ouvrir le gestionnaire d’horaires" }).click();
+  await expect(manager.getByLabel("Dates particulières")).toHaveValue("overlay");
+  await expect(manager.getByLabel("Jours de semaine · lundi à vendredi, rang 1, 09 heures, minute")).toHaveValue("30");
+  await manager.getByRole("button", { name: "Fermer" }).click();
+  await page.getByRole("button", { name: "Simuler les lignes cochées", exact: true }).click();
+  const simulation = page.getByRole("region", { name: "Simulation des lignes cochées" });
+  await simulation.getByLabel("Horaires utilisés").selectOption("scenario");
+  await simulation.getByLabel("Date").fill("2026-11-04");
+  await simulation.getByLabel("Heure").fill("10:05:00");
+  await simulation.getByRole("button", { name: "Démarrer" }).click();
+  await expect(simulation.getByLabel("Bus simulés par ligne")).toContainText("1 : 1");
+});
+
 for (const width of [1440, 390]) test(`un départ utilise un parcours alternatif GTFS ${width}px`, async ({ page }) => {
   test.setTimeout(90000);
   await page.setViewportSize({ width, height: 844 });

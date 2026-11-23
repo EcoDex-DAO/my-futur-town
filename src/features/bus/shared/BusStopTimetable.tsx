@@ -9,6 +9,7 @@ import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "./t
 import { departureRunsOnDate, readWeeklyTimetables, WEEKLY_TIMETABLES_KEY, type WeeklyTimetable } from "./weekly-timetables";
 import { serviceDayType } from "./service-day-type";
 import { LINE_REPLACEMENTS_KEY, readLineReplacements, type LineReplacementStore } from "./line-replacements";
+import { gtfsReferenceVersion, materialiseOverlay } from "./gtfs-overlay";
 
 type Props = { data: SibraData; stopId: string; preferredLineId?: string };
 
@@ -77,6 +78,13 @@ export function BusStopTimetable({ data, stopId, preferredLineId }: Props) {
     {scenarioError && <p role="alert">Les horaires du scénario sont illisibles.</p>}
     {replaced && <p role="status">Dans le scénario, cette ligne est remplacée ce jour. La grille ci-dessous reste la référence GTFS ; consultez la ligne créée pour ses passages.</p>}
     {weeklyForStop.length > 0 && <div><h3>Tableau du scénario local</h3>{!dayType ? <p role="alert">Jours fériés inconnus pour cette année : tableau non appliqué.</p> : <ul>{weeklyForStop.flatMap((table) => {
+      if (table.mode === "overlay" && schedule) {
+        const overlay = materialiseOverlay(schedule, table, date, dayType, gtfsReferenceVersion(data));
+        return [...overlay.warnings.map((warning) => <li key={`${table.id}-${warning}`}>À vérifier : {warning}.</li>), ...overlay.trips.flatMap((trip, index) => {
+          const stop = trip.stops.find((item) => item.stopId === stopId);
+          return stop && selectedDirection?.variantIds.has(trip.variantId) ? [<li key={`${table.id}-${trip.id}-${index}`}>{formatServiceTime(stop.departure)} · scénario avec exceptions GTFS conservées</li>] : [];
+        })];
+      }
       const template = schedule?.trips.find((trip) => trip.id === table.tripId);
       if (!matchesTripTemplate(template, table.stops) || template?.lineId !== table.lineId || template.variantId !== table.variantId || template.directionId !== table.directionId) return [<li key={table.id}>Modèle GTFS modifié ou absent : tableau à vérifier.</li>];
       return table.days[dayType].filter((departure) => departureRunsOnDate(table.notes?.[dayType]?.[String(departure)], date)).flatMap((departure) => {

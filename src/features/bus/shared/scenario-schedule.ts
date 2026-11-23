@@ -6,6 +6,7 @@ import type { TerminusEntry } from "./terminus-storage";
 import type { LineReplacements } from "./line-replacements";
 import { serviceDayType } from "./service-day-type";
 import { sourceDiscrepancies } from "./source-discrepancies";
+import { gtfsReferenceVersion, materialiseOverlay } from "./gtfs-overlay";
 import { departureRunsOnDate, selectedCreatedTable, type WeeklyTimetable } from "./weekly-timetables";
 
 export type ScenarioDiagnostic = { entryId: string; date: string; reason: string; lineId?: string };
@@ -88,9 +89,15 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
       } else trips.push({ ...trip, id: `${trip.id}@${date}`, serviceId });
     }
     if (dayType) for (const table of dailyTables) {
-      if (Object.values(table.notes?.[dayType] ?? {}).some((note) => !note.rule || (note.rule === "trip" && table.kind !== "gtfs") || (note.rule === "created" && table.kind !== "created"))) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Options de départ non prises en compte dans le calcul" });
+      if (table.mode !== "overlay" && Object.values(table.notes?.[dayType] ?? {}).some((note) => !note.rule || (note.rule === "trip" && table.kind !== "gtfs") || (note.rule === "created" && table.kind !== "created"))) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Options de départ non prises en compte dans le calcul" });
       if (table.kind === "gtfs") {
         if (replaced.has(table.lineId)) continue;
+        if (table.mode === "overlay") {
+          const overlay = materialiseOverlay(reference, table, date, dayType, gtfsReferenceVersion(data));
+          for (const reason of overlay.warnings) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason });
+          for (const trip of overlay.trips) trips.push({ ...trip, id: trip.id.startsWith("weekly:") ? trip.id : `${trip.id}@${date}`, serviceId });
+          continue;
+        }
         const template = templates.get(table.tripId ?? "");
         if (!template || template.lineId !== table.lineId || template.variantId !== table.variantId || template.directionId !== table.directionId || !matchesTripTemplate(template, table.stops)) {
           diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Modèle du tableau GTFS absent ou modifié" });

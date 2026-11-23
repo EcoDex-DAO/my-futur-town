@@ -4,6 +4,7 @@ import type { SibraData } from "./sibra";
 import type { TerminusEntry } from "./terminus-storage";
 import { resolveScenario } from "./scenario-schedule";
 import { createdTableSignature, type WeeklyTimetable } from "./weekly-timetables";
+import { gtfsReferenceVersion } from "./gtfs-overlay";
 
 const schedule: Schedule = { metadata: { validFrom: "2026-11-04", validTo: "2026-11-05", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-04": ["s"], "2026-11-05": [] }, trips: [{ id: "t", serviceId: "s", lineId: "1", variantId: "v", directionId: "0", stops: [{ stopId: "a", arrival: 3600, departure: 3600, progress: 0 }, { stopId: "b", arrival: 4200, departure: 4200, progress: 1 }] }] };
 const data = { metadata: {}, lines: [{ id: "1", shortName: "1", longName: "1", color: "#000000", variants: [{ id: "v", headsign: "B", coordinates: [[6, 45], [6.01, 45]], stops: [] }] }] } as unknown as SibraData;
@@ -70,6 +71,14 @@ describe("résolution des horaires de scénario", () => {
     expect(departures("2026-11-10")).toEqual([21600]);
     expect(departures("2026-11-11")).toEqual([18000]);
     expect(departures("2026-11-14")).toEqual([14400]);
+    expect(reference.trips[0].stops[0].departure).toBe(3600);
+  });
+  it("propage les changements sans effacer les courses GTFS particulières", () => {
+    const reference: Schedule = { ...schedule, metadata: { ...schedule.metadata, validTo: "2026-11-14" }, serviceDates: { "2026-11-04": ["s"], "2026-11-05": ["s", "extra"], "2026-11-11": [], "2026-11-14": [] }, trips: [...schedule.trips, { ...schedule.trips[0], id: "extra", serviceId: "extra", stops: schedule.trips[0].stops.map((stop) => ({ ...stop, arrival: stop.arrival + 7200, departure: stop.departure + 7200 })) }] };
+    const table: WeeklyTimetable = { id: "w", kind: "gtfs", lineId: "1", variantId: "v", directionId: "0", tripId: "t", stops: entry.stops, validFrom: "2026-11-04", validTo: "2026-11-14", mode: "overlay", referenceVersion: gtfsReferenceVersion(data), referenceDates: { weekday: "2026-11-04", saturday: "2026-11-14", "sunday-holiday": "2026-11-11" }, referenceDays: { weekday: [3600], saturday: [], "sunday-holiday": [] }, days: { weekday: [7200], saturday: [], "sunday-holiday": [] } };
+    const result = resolveScenario(reference, data, [], [], {}, "dates", [table]);
+    expect(result.diagnostics).toEqual([]);
+    expect(result.schedule.trips.filter((trip) => trip.serviceId === "scenario:2026-11-05").map((trip) => trip.stops[0].departure).sort((a, b) => a - b)).toEqual([7200, 10800]);
     expect(reference.trips[0].stops[0].departure).toBe(3600);
   });
   it("signale les options non appliquées et les périodes hors calendrier", () => {

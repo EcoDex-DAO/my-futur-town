@@ -18,6 +18,11 @@ export type WeeklyTimetable = {
   days: Record<ServiceDayType, number[]>;
   periodName?: string;
   notes?: Partial<Record<ServiceDayType, Record<string, DepartureNote>>>;
+  /** Apply edits to the dated reference instead of replacing its exceptions. */
+  mode?: "overlay";
+  referenceDays?: Record<ServiceDayType, number[]>;
+  referenceDates?: Record<ServiceDayType, string>;
+  referenceVersion?: string;
 };
 
 /** Snapshot the declared path and durations so later edits do not silently change a departure. */
@@ -41,7 +46,7 @@ export function readWeeklyTimetables(raw: string | null): WeeklyTimetable[] {
   if (store.version !== 1 || Object.keys(store).some((key) => key !== "version" && key !== "tables") || !Array.isArray(store.tables)) return fail();
   const ids = new Set<string>(), routes = new Map<string, { from: string; to: string }[]>();
   for (const table of store.tables as WeeklyTimetable[]) {
-    if (!table || typeof table !== "object" || Object.keys(table).some((key) => !["id", "kind", "lineId", "variantId", "directionId", "tripId", "stops", "validFrom", "validTo", "days", "periodName", "notes"].includes(key)) || (table.periodName !== undefined && (typeof table.periodName !== "string" || !table.periodName.trim())) || typeof table.id !== "string" || !table.id || typeof table.lineId !== "string" || !table.lineId || typeof table.variantId !== "string" || !table.variantId || !["gtfs", "created"].includes(table.kind) || typeof table.validFrom !== "string" || typeof table.validTo !== "string" || table.validFrom > table.validTo || !table.days || typeof table.days !== "object" || Array.isArray(table.days) || Object.keys(table.days).some((key) => !DAY_TYPES.includes(key as ServiceDayType))) return fail();
+    if (!table || typeof table !== "object" || Object.keys(table).some((key) => !["id", "kind", "lineId", "variantId", "directionId", "tripId", "stops", "validFrom", "validTo", "days", "periodName", "notes", "mode", "referenceDays", "referenceDates", "referenceVersion"].includes(key)) || (table.mode !== undefined && (table.mode !== "overlay" || table.kind !== "gtfs")) || (table.mode !== "overlay" && (table.referenceDays !== undefined || table.referenceDates !== undefined || table.referenceVersion !== undefined)) || (table.periodName !== undefined && (typeof table.periodName !== "string" || !table.periodName.trim())) || typeof table.id !== "string" || !table.id || typeof table.lineId !== "string" || !table.lineId || typeof table.variantId !== "string" || !table.variantId || !["gtfs", "created"].includes(table.kind) || typeof table.validFrom !== "string" || typeof table.validTo !== "string" || table.validFrom > table.validTo || !table.days || typeof table.days !== "object" || Array.isArray(table.days) || Object.keys(table.days).some((key) => !DAY_TYPES.includes(key as ServiceDayType))) return fail();
     const route = JSON.stringify([table.kind, table.lineId, table.variantId]);
     const intervals = routes.get(route) ?? [];
     if (ids.has(table.id) || intervals.some((item) => table.validFrom <= item.to && table.validTo >= item.from)) return fail();
@@ -55,6 +60,13 @@ export function readWeeklyTimetables(raw: string | null): WeeklyTimetable[] {
     for (const type of DAY_TYPES) {
       const departures = table.days[type];
       if (!Array.isArray(departures) || departures.some((time) => !Number.isSafeInteger(time) || time < 0 || time >= 48 * 3600) || new Set(departures).size !== departures.length) return fail();
+    }
+    if (table.mode === "overlay") {
+      if (typeof table.referenceVersion !== "string" || !table.referenceVersion || !table.referenceDays || !table.referenceDates || typeof table.referenceDays !== "object" || typeof table.referenceDates !== "object" || Array.isArray(table.referenceDays) || Array.isArray(table.referenceDates) || Object.keys(table.referenceDays).some((key) => !DAY_TYPES.includes(key as ServiceDayType)) || Object.keys(table.referenceDates).some((key) => !DAY_TYPES.includes(key as ServiceDayType))) return fail();
+      for (const day of DAY_TYPES) {
+        const times = table.referenceDays[day], date = table.referenceDates[day];
+        if (!Array.isArray(times) || times.some((time) => !Number.isSafeInteger(time) || time < 0 || time >= 48 * 3600) || new Set(times).size !== times.length || typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(`${date}T00:00:00Z`)) || new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) !== date) return fail();
+      }
     }
     if (table.notes !== undefined) {
       if (!table.notes || typeof table.notes !== "object" || Array.isArray(table.notes) || Object.keys(table.notes).some((key) => !DAY_TYPES.includes(key as ServiceDayType))) return fail();

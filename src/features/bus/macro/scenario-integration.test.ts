@@ -8,6 +8,7 @@ import type { SibraData } from "../shared/sibra";
 import type { TerminusEntry } from "../shared/terminus-storage";
 import type { WeeklyTimetable } from "../shared/weekly-timetables";
 import { tripSignature } from "../shared/terminus-schedule";
+import { gtfsReferenceVersion } from "../shared/gtfs-overlay";
 
 const schedule: Schedule = { metadata: { validFrom: "2026-11-04", validTo: "2026-11-04", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-04": ["s"] }, trips: [{ id: "t", serviceId: "s", lineId: "1", variantId: "v", directionId: "0", stops: [{ stopId: "a", arrival: 3600, departure: 3600, progress: 0 }, { stopId: "b", arrival: 4200, departure: 4200, progress: 1 }] }] };
 const data = { metadata: {}, lines: [{ id: "1", shortName: "1", longName: "1", color: "#000000", variants: [{ id: "v", headsign: "B", coordinates: [[6, 45], [6.01, 45]], stops: [] }] }] } as unknown as SibraData;
@@ -77,5 +78,17 @@ describe("intégration du bilan sur période commune", () => {
     const mixedGhg = scenarioImpact(variants[0].km, diesel)!.ghgKg! + scenarioImpact(variants[1].km, electric)!.ghgKg!;
     const allDieselGhg = scenarioImpact(variants[0].km + variants[1].km, diesel)!.ghgKg!;
     expect(mixedGhg).toBeLessThan(allDieselGhg);
+  });
+  it("compte une course exceptionnelle conservée dans l'énergie du scénario", () => {
+    const extra = { ...schedule.trips[0], id: "extra", serviceId: "special", stops: schedule.trips[0].stops.map((stop) => ({ ...stop, arrival: stop.arrival + 7200, departure: stop.departure + 7200 })) };
+    const reference: Schedule = { ...schedule, metadata: { ...schedule.metadata, validTo: "2026-11-14" }, serviceDates: { "2026-11-04": ["s"], "2026-11-05": ["s", "special"], "2026-11-11": [], "2026-11-14": [] }, trips: [...schedule.trips, extra] };
+    const weekly: WeeklyTimetable = { id: "w", kind: "gtfs", lineId: "1", variantId: "v", directionId: "0", tripId: "t", stops: copy.stops, validFrom: "2026-11-04", validTo: "2026-11-14", mode: "overlay", referenceVersion: gtfsReferenceVersion(data), referenceDates: { weekday: "2026-11-04", saturday: "2026-11-14", "sunday-holiday": "2026-11-11" }, referenceDays: { weekday: [3600], saturday: [], "sunday-holiday": [] }, days: { weekday: [7200], saturday: [], "sunday-holiday": [] } };
+    const resolved = resolveScenario(reference, data, [], [], {}, "dates", [weekly]);
+    expect(resolved.diagnostics).toEqual([]);
+    const before = lineActivity(data, reference)[0];
+    const after = lineActivity(resolved.data, resolved.schedule)[0];
+    expect(after.trips).toBe(3);
+    expect(after.km).toBeCloseTo(before.km, 10);
+    expect(scenarioImpact(after.km, diesel)!.energy).toBeCloseTo(scenarioImpact(before.km, diesel)!.energy, 10);
   });
 });

@@ -57,4 +57,9 @@ describe("tableaux de jours types", () => {
     const created = { ...note, rule: "created", targetTableId: "autre-tableau", targetSignature: "signature" };
     expect(readWeeklyTimetables(JSON.stringify({ version: 1, tables: [{ ...table, notes: { weekday: { "90000": created } } }] }))[0].notes?.weekday?.["90000"]).toEqual(created);
   });
+  it("conserve la référence d'un tableau GTFS et refuse une base incomplète", () => {
+    const gtfs: WeeklyTimetable = { ...table, kind: "gtfs", tripId: "t", mode: "overlay", referenceVersion: "fixture-v1", referenceDates: { weekday: "2026-11-05", saturday: "2026-11-07", "sunday-holiday": "2026-11-11" }, referenceDays: { weekday: [90000], saturday: [], "sunday-holiday": [] } };
+    expect(readWeeklyTimetables(JSON.stringify({ version: 1, tables: [gtfs] }))[0]).toEqual(gtfs);
+    expect(() => readWeeklyTimetables(JSON.stringify({ version: 1, tables: [{ ...gtfs, referenceDays: { weekday: [90000] } }] }))).toThrow();
+  });
 });
