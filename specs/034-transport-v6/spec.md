@@ -97,3 +97,5 @@ Une personne retrouve ses scénarios et identifie l'origine et les limites des v
 ## Complément : spécificités des lignes SIBRA
 
 Le scénario doit pouvoir conserver et modifier les services par date, les variantes et terminus, les horaires propres aux courses et les conditions documentées par les fiches officielles. L'inventaire doit lier chaque règle vérifiée à sa source et sa période, distinguer l'offre GTFS planifiée des perturbations réelles et signaler explicitement les cas non interprétés. Une copie d'horaire ne doit pas masquer les différences entre dates sans avertissement.
+
+Les affectations de modèles de véhicules peuvent différer par parcours, indépendamment en référence et dans le scénario. Les kilomètres et le besoin horaire doivent utiliser les mêmes affectations ; les modèles, caractéristiques et compatibilités inconnus ne sont pas inventés. Les effectifs ne sont comparés qu'à réseau et année compatibles.

@@ -43,6 +43,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await line.locator("summary").first().click();
     await line.getByLabel("Modèle supposé en référence").selectOption("standard-diesel");
     await line.getByLabel("Modèle supposé en scénario").selectOption("standard-electric");
+    const scenarioTotal = page.locator(".bilan-report > p").filter({ hasText: /^Scénario :/ }).first();
+    const beforeVariant = await scenarioTotal.innerText();
+    await line.getByText("Modèles par parcours", { exact: true }).click();
+    await line.getByLabel(/^Modèle scénario pour /).first().selectOption("standard-diesel");
+    await expect(scenarioTotal).not.toHaveText(beforeVariant);
     await page.getByText("Facteurs modifiables et provenance").click();
     await page.getByRole("spinbutton", { name: /GES gazole/ }).fill("3.2");
     const factor = page.locator("details").filter({ has: page.locator("summary").filter({ hasText: /^Informations sur GES gazole$/ }) }).last();
@@ -59,6 +64,8 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await reopened.locator("summary").first().click();
     await expect(reopened.getByLabel("Modèle supposé en référence")).toHaveValue("standard-diesel");
     await expect(reopened.getByLabel("Modèle supposé en scénario")).toHaveValue("standard-electric");
+    await reopened.getByText("Modèles par parcours", { exact: true }).click();
+    await expect(reopened.getByLabel(/^Modèle scénario pour /).first()).toHaveValue("standard-diesel");
     await page.getByText("Facteurs modifiables et provenance").click();
     const reopenedFactor = page.locator("details").filter({ has: page.locator("summary").filter({ hasText: /^Informations sur GES gazole$/ }) }).last();
     await reopenedFactor.locator("summary").first().click();

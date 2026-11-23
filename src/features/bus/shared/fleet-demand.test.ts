@@ -16,4 +16,10 @@ describe("besoin de flotte agrégé", () => {
     expect(fleetDemand(schedule, { "1": "m" }, new Set(["1", "2"]), 0).unassigned).toBe(1);
     expect(fleetDemand(schedule, { "1": "m", "2": "n" }, new Set(["1", "2"]), 0).models).toHaveLength(2);
   });
+  it("utilise le modèle du parcours lorsqu'il est renseigné", () => {
+    const key = JSON.stringify(["1", "v"]);
+    const result = fleetDemand(schedule, { "1": "gazole", "2": "gazole" }, new Set(["1", "2"]), 60, { [key]: "électrique" });
+    expect(result.models.map((model) => model.modelId).sort()).toEqual(["gazole", "électrique"]);
+    expect(fleetDemand(schedule, { "1": "gazole" }, new Set(["1"]), 0, { [key]: "" }).unassigned).toBe(1);
+  });
 });

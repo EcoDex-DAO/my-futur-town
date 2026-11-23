@@ -3,7 +3,7 @@ import type { Schedule } from "./bus-simulation";
 export type FleetDemand = { modelId: string; peak: number; peakAt: string };
 
 /** Peak simultaneous trips plus a fixed post-trip buffer. No individual vehicle allocation is implied. */
-export function fleetDemand(schedule: Schedule, assignments: Record<string, string>, selected: ReadonlySet<string>, bufferSeconds: number): { models: FleetDemand[]; unassigned: number } {
+export function fleetDemand(schedule: Schedule, assignments: Record<string, string>, selected: ReadonlySet<string>, bufferSeconds: number, variantAssignments: Record<string, string> = {}): { models: FleetDemand[]; unassigned: number } {
   if (!Number.isSafeInteger(bufferSeconds) || bufferSeconds < 0) throw new Error("Temps de retournement invalide.");
   const serviceDays = new Map<string, string[]>();
   for (const [date, services] of Object.entries(schedule.serviceDates)) for (const service of services) serviceDays.set(service, [...(serviceDays.get(service) ?? []), date]);
@@ -12,7 +12,7 @@ export function fleetDemand(schedule: Schedule, assignments: Record<string, stri
   for (const trip of schedule.trips) {
     if (!selected.has(trip.lineId)) continue;
     const dates = serviceDays.get(trip.serviceId) ?? [];
-    const model = assignments[trip.lineId];
+    const model = variantAssignments[JSON.stringify([trip.lineId, trip.variantId])] ?? assignments[trip.lineId];
     if (!model) { unassigned += dates.length; continue; }
     let byTime = events.get(model);
     if (!byTime) { byTime = new Map(); events.set(model, byTime); }

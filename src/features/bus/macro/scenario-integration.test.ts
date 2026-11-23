@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lineActivity } from "./bus-report";
+import { lineActivity, variantActivity, variantModelKey } from "./bus-report";
 import { scenarioImpact } from "./scenario-impact";
 import type { Model } from "../shared/BusFleetManager";
 import type { Schedule } from "../shared/bus-simulation";
@@ -65,5 +65,17 @@ describe("intégration du bilan sur période commune", () => {
     const invalid = resolveScenario(changed, network, [], [], {}, "dates", [weekly]);
     expect(invalid.diagnostics.some((item) => item.reason.includes("alternatif"))).toBe(true);
     expect(invalid.schedule.trips).toHaveLength(0);
+  });
+  it("répartit la distance par parcours pour appliquer des motorisations différentes", () => {
+    const second = { ...schedule.trips[0], id: "electric", variantId: "short" };
+    const network = { ...data, lines: [{ ...data.lines[0], variants: [...data.lines[0].variants, { ...data.lines[0].variants[0], id: "short", coordinates: [[6, 45], [6.005, 45]] as [number, number][] }] }] };
+    const variants = variantActivity(network, { ...schedule, trips: [schedule.trips[0], second] });
+    expect(variants.reduce((sum, row) => sum + row.km, 0)).toBeCloseTo(lineActivity(network, { ...schedule, trips: [schedule.trips[0], second] })[0].km, 10);
+    expect(variants.map((row) => variantModelKey(row.lineId, row.variantId))).toEqual([variantModelKey("1", "v"), variantModelKey("1", "short")]);
+    expect(variants[1].km).toBeCloseTo(variants[0].km / 2, 6);
+    const electric = { ...diesel, power: "Électrique", consumption: "1 kWh/km" };
+    const mixedGhg = scenarioImpact(variants[0].km, diesel)!.ghgKg! + scenarioImpact(variants[1].km, electric)!.ghgKg!;
+    const allDieselGhg = scenarioImpact(variants[0].km + variants[1].km, diesel)!.ghgKg!;
+    expect(mixedGhg).toBeLessThan(allDieselGhg);
   });
 });

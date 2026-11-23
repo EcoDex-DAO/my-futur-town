@@ -17,4 +17,9 @@ describe("impacts des affectations", () => {
     expect(scenarioImpact(100, { ...model, power: "Gaz", consumption: "" })).toMatchObject({ energy: 53, unit: "kg", ghgKg: null });
     expect(scenarioImpact(100, model, { ...initialFactors, dieselGhg: null })?.ghgKg).toBeNull();
   });
+  it("calcule l'AdBlue déclaré sans deviner les valeurs manquantes", () => {
+    expect(scenarioImpact(200, { ...model, adblue: "1,5 L/100 km" })?.adblueL).toBe(3);
+    expect(scenarioImpact(200, { ...model, adblue: "1,5" })?.adblueL).toBeNull();
+    expect(scenarioImpact(200, { ...model, power: "Électrique", consumption: "1 kWh/km" })?.adblueL).toBe(0);
+  });
 });
