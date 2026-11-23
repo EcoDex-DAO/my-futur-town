@@ -49,7 +49,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
   });
 }
 
-test("une ligne créée avec horaire alimente simulation et bilan", async ({ page }) => {
+for (const width of [1440, 390]) test(`une ligne créée avec horaire alimente simulation et bilan ${width}px`, async ({ page }) => {
+  test.setTimeout(60000);
+  await page.setViewportSize({ width, height: 844 });
   await page.addInitScript(() => {
     const a = { id: "a", kind: "terminus", name: "A", coordinates: [6.12, 45.9] };
     const b = { id: "b", kind: "terminus", name: "B", coordinates: [6.13, 45.9] };
@@ -58,13 +60,47 @@ test("une ligne créée avec horaire alimente simulation et bilan", async ({ pag
     localStorage.setItem("yft.bus-created-lines.v1", JSON.stringify([line]));
     localStorage.setItem("yft.bus-terminus-schedules.v1", JSON.stringify({ version: 1, entries: [entry] }));
   });
+  await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
+  await page.route("**/data/sibra.json", (route) => route.fulfill({ json: { metadata: { sourceUrl: "fixture", attribution: "fixture", license: "fixture", validFrom: "2026-11-04", validTo: "2026-11-05", generatedAt: "2026-11-01" }, lines: [{ id: "1", shortName: "1", longName: "Référence test", color: "#004433", variants: [{ id: "v", headsign: "B", coordinates: [[6.12, 45.9], [6.13, 45.9]], stops: [{ id: "a", name: "A", coordinates: [6.12, 45.9] }, { id: "b", name: "B", coordinates: [6.13, 45.9] }] }] }] } }));
+  await page.route("**/data/sibra-schedule.json", (route) => route.fulfill({ json: { metadata: { validFrom: "2026-11-04", validTo: "2026-11-05", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-04": ["s"], "2026-11-05": ["s"] }, trips: [{ id: "t", lineId: "1", variantId: "v", directionId: "0", serviceId: "s", stops: [{ stopId: "a", arrival: 28800, departure: 28800, progress: 0 }, { stopId: "b", arrival: 30000, departure: 30000, progress: 1 }] }] } }));
   await page.route("**/api/**", (route) => route.abort());
   await page.goto("/");
   await page.getByRole("button", { name: "Menu Bus" }).click();
+  await page.getByText("Relier une ligne créée à une ligne SIBRA", { exact: true }).first().click();
+  const replacements = page.getByRole("region", { name: "Liens entre lignes de scénario" });
+  await replacements.getByRole("combobox", { name: "Ligne 1", exact: true }).selectOption("test-created");
+  await replacements.getByRole("button", { name: "Enregistrer les liens" }).click();
+  await expect(replacements.getByRole("status")).toContainText("enregistrés");
+  await page.getByText("Tableaux horaires par type de jour", { exact: true }).click();
+  const weekly = page.getByRole("region", { name: "Tableaux horaires par type de jour" });
+  await weekly.getByRole("combobox", { name: "Origine", exact: true }).selectOption("created");
+  await weekly.getByRole("combobox", { name: "Ligne", exact: true }).selectOption("test-created");
+  await weekly.getByRole("combobox", { name: "Parcours et sens", exact: true }).selectOption("test-created");
+  await weekly.getByLabel("B · minutes depuis le départ").fill("20");
+  await weekly.getByLabel("Départs Semaine").fill("08:00 09:00");
+  await weekly.getByRole("button", { name: "Copier Semaine vers Samedi" }).click();
+  await expect(weekly.getByLabel("Départs Samedi")).toHaveValue("08:00 09:00");
+  await weekly.getByRole("region", { name: "Tableau Semaine" }).getByRole("button", { name: "Copier ce tableau" }).click();
+  const sunday = weekly.getByRole("region", { name: "Tableau Dimanche et jours fériés" });
+  await sunday.getByRole("button", { name: /Coller .* ici/ }).click();
+  await expect(weekly.getByLabel("Départs Dimanche et jours fériés")).toHaveValue("08:00 09:00");
+  await sunday.getByRole("button", { name: "Annuler la dernière copie" }).click();
+  await expect(weekly.getByLabel("Départs Dimanche et jours fériés")).toHaveValue("");
+  await weekly.getByRole("button", { name: "Enregistrer les tableaux" }).click();
+  await expect(weekly.getByRole("status")).toContainText("enregistrés");
+  await page.screenshot({ path: `test-results/weekly-timetables-${width}.png` });
+  await weekly.getByRole("region", { name: "Tableau Semaine" }).screenshot({ path: `test-results/weekly-weekday-${width}.png` });
+  await page.reload();
+  await page.getByRole("button", { name: "Menu Bus" }).click();
+  await page.getByText("Tableaux horaires par type de jour", { exact: true }).click();
+  await weekly.getByRole("combobox", { name: "Origine", exact: true }).selectOption("created");
+  await weekly.getByRole("combobox", { name: "Ligne", exact: true }).selectOption("test-created");
+  await weekly.getByRole("combobox", { name: "Parcours et sens", exact: true }).selectOption("test-created");
+  await expect(weekly.getByLabel("Départs Samedi")).toHaveValue("08:00 09:00");
   await page.getByRole("button", { name: "Simuler les lignes cochées", exact: true }).click();
   const simulation = page.getByRole("region", { name: "Simulation des lignes cochées" });
   await simulation.getByLabel("Horaires utilisés").selectOption("scenario");
-  await simulation.getByLabel("Date").fill("2026-11-04");
+  await simulation.getByLabel("Date").fill("2026-11-05");
   await simulation.getByLabel("Heure").fill("08:10:00");
   await simulation.getByRole("button", { name: "Démarrer" }).click();
   await expect(simulation.getByLabel("Bus simulés par ligne")).toContainText("Citoyenne test : 1");
@@ -73,5 +109,9 @@ test("une ligne créée avec horaire alimente simulation et bilan", async ({ pag
   const line = page.locator("details.bilan-line").filter({ has: page.locator("summary").filter({ hasText: /^Citoyenne test ·/ }) });
   await expect(line).toBeVisible();
   await line.locator("summary").first().click();
-  await expect(line).toContainText("1 courses");
+  await expect(line).toContainText("Référence : 0 km");
+  const original = page.locator("details.bilan-line").filter({ has: page.locator("summary").filter({ hasText: /^1 ·/ }) }).first();
+  await original.locator("summary").first().click();
+  await expect(page.getByText(/uniquement les jours où elles ont des horaires/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

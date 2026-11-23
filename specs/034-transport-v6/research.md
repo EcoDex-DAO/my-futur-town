@@ -21,3 +21,7 @@ Les facteurs du bilan sont historiques. Les facteurs [ADEME HBEFA](https://data.
 ## Persistance
 
 Les horaires refusent les écritures concurrentes. Le bilan écrase actuellement un JSON illisible et la flotte ne vérifie pas les modifications d'un autre onglet. Bloquer les écritures à la lecture invalide et comparer la version lue avant toute écriture ou restauration.
+
+## Jours types
+
+La fiche photographiée est décrite dans la spécification V4 : grille par heure, minutes, sens et catégories de jours. Le propriétaire demande trois tableaux : semaine, samedi et dimanche/jours fériés, copiables entre eux et applicables à toutes les dates correspondantes, en préservant les exceptions par date. Un parcours avec un horaire particulier à une date conserve ses horaires particuliers ce jour-là. Les jours fériés métropolitains 2026 proviennent de [calendrier.api.gouv.fr](https://calendrier.api.gouv.fr/jours-feries/metropole/2026.json), consulté le 23 novembre 2026. Les autres années ne sont pas déduites. La copie transfère les départs ; les durées du parcours destinataire restent à vérifier.

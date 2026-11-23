@@ -13,8 +13,9 @@ describe("hypothèses du bilan", () => {
     expect(raw).toBe(saved);
   });
   it("conserve les sources saisies avec les hypothèses", () => {
-    const raw = JSON.stringify({ parameters: { standard: "42" }, sources: { standard: "Source utilisateur, 2026" } });
+    const raw = JSON.stringify({ parameters: { standard: "42" }, sources: { standard: "Source utilisateur, 2026" }, sourceKinds: { standard: "Autre rapport" }, sourceChecks: { standard: "À vérifier" } });
     expect(readReportSnapshot(raw).sources?.standard).toBe("Source utilisateur, 2026");
+    expect(readReportSnapshot(raw).sourceChecks?.standard).toBe("À vérifier");
     expect(() => readReportSnapshot('{"sources":{"standard":42}}')).toThrow(/illisibles/);
   });
 });

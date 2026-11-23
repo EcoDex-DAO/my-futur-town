@@ -3,8 +3,11 @@ import type { Schedule, ScheduleTrip } from "./bus-simulation";
 import type { SibraData, SibraStop, SibraVariant } from "./sibra";
 import { matchesTripTemplate, shiftTrip } from "./terminus-schedule";
 import type { TerminusEntry } from "./terminus-storage";
+import type { LineReplacements } from "./line-replacements";
+import { serviceDayType } from "./service-day-type";
+import type { WeeklyTimetable } from "./weekly-timetables";
 
-export type ScenarioDiagnostic = { entryId: string; date: string; reason: string };
+export type ScenarioDiagnostic = { entryId: string; date: string; reason: string; lineId?: string };
 export type ResolvedScenario = { schedule: Schedule; data: SibraData; diagnostics: ScenarioDiagnostic[] };
 
 /** Approximate distance along the stored route, preserving its direction and stop order. */
@@ -35,11 +38,15 @@ function stopProgress(coordinates: [number, number][], markers: BusLineMarker[])
 }
 
 /** Materialise one service per date. The original reference and entries are never mutated. */
-export function resolveScenario(reference: Schedule, data: SibraData, created: readonly BusCreatedLine[], entries: readonly TerminusEntry[]): ResolvedScenario {
+export function resolveScenario(reference: Schedule, data: SibraData, created: readonly BusCreatedLine[], entries: readonly TerminusEntry[], replacements: LineReplacements = {}, replacementMode: "dates" | "period" = "dates", weeklyTables: readonly WeeklyTimetable[] = []): ResolvedScenario {
   const diagnostics: ScenarioDiagnostic[] = [];
   const trips: ScheduleTrip[] = [];
   const serviceDates: Record<string, string[]> = {};
   const templates = new Map(reference.trips.map((trip) => [trip.id, trip]));
+  for (const [referenceId, createdId] of Object.entries(replacements)) {
+    if (!data.lines.some((line) => line.id === referenceId)) diagnostics.push({ entryId: `link:${referenceId}`, date: reference.metadata.validFrom, lineId: referenceId, reason: "Ligne SIBRA de référence introuvable" });
+    if (!created.some((line) => line.id === createdId)) diagnostics.push({ entryId: `link:${referenceId}`, date: reference.metadata.validFrom, lineId: referenceId, reason: "Ligne de remplacement introuvable" });
+  }
   const generatedLines: SibraData["lines"] = [];
   const createdPaths = new Map<string, { markers: BusLineMarker[]; progress: number[] | null; signature: string }>();
   for (const line of created) {
@@ -59,9 +66,15 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
     serviceDates[date] = [serviceId];
     const active = new Set(services);
     const dayEntries = entries.filter((entry) => entry.date === date);
+    const dayType = serviceDayType(date);
+    const inPeriod = weeklyTables.filter((table) => date >= table.validFrom && date <= table.validTo);
+    if (!dayType) for (const table of inPeriod) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Jours fériés inconnus pour cette année" });
+    const dailyTables = dayType ? inPeriod.filter((table) => !dayEntries.some((entry) => entry.kind === table.kind && entry.lineId === table.lineId && entry.variantId === table.variantId)) : [];
+    const replaced = new Set(Object.entries(replacements).filter(([, createdId]) => replacementMode === "period" || dayEntries.some((entry) => entry.kind === "created" && entry.lineId === createdId) || dailyTables.some((table) => table.kind === "created" && table.lineId === createdId)).map(([referenceId]) => referenceId));
+    const weeklyGtfsRoutes = new Set(dailyTables.filter((table) => table.kind === "gtfs").map((table) => JSON.stringify([table.lineId, table.variantId])));
     const byId = new Map(dayEntries.filter((entry) => entry.kind === "gtfs").map((entry) => [entry.id, entry]));
     for (const trip of reference.trips) {
-      if (!active.has(trip.serviceId)) continue;
+      if (!active.has(trip.serviceId) || replaced.has(trip.lineId) || weeklyGtfsRoutes.has(JSON.stringify([trip.lineId, trip.variantId]))) continue;
       const entry = byId.get(`gtfs:${date}:${trip.id}`);
       if (entry) {
         if (entry.tripId !== trip.id || entry.lineId !== trip.lineId || entry.variantId !== trip.variantId || entry.directionId !== trip.directionId || !matchesTripTemplate(trip, entry.stops)) {
@@ -72,8 +85,30 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
         catch { diagnostics.push({ entryId: entry.id, date, reason: "Départ invalide" }); }
       } else trips.push({ ...trip, id: `${trip.id}@${date}`, serviceId });
     }
+    if (dayType) for (const table of dailyTables) {
+      if (table.kind === "gtfs") {
+        if (replaced.has(table.lineId)) continue;
+        const template = templates.get(table.tripId ?? "");
+        if (!template || template.lineId !== table.lineId || template.variantId !== table.variantId || template.directionId !== table.directionId || !matchesTripTemplate(template, table.stops)) {
+          diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Modèle du tableau GTFS absent ou modifié" });
+          continue;
+        }
+        for (const departure of table.days[dayType]) {
+          try { trips.push({ ...shiftTrip(template, departure), id: `weekly:${table.id}:${date}:${departure}`, serviceId }); }
+          catch { diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Départ du tableau invalide" }); }
+        }
+      } else {
+        const path = createdPaths.get(JSON.stringify([table.lineId, table.variantId]));
+        if (!path || path.signature !== table.directionId || !path.progress || path.markers.length !== table.stops.length || path.markers.some((marker, index) => marker.id !== table.stops[index].id) || table.stops.some((stop, index) => index > 0 && stop.offset <= table.stops[index - 1].offset)) {
+          diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Parcours du tableau créé absent ou modifié" });
+          continue;
+        }
+        for (const departure of table.days[dayType]) trips.push({ id: `weekly:${table.id}:${date}:${departure}`, serviceId, lineId: table.lineId, variantId: table.variantId, directionId: table.directionId, stops: table.stops.map((stop, index) => ({ stopId: stop.id, arrival: departure + stop.offset, departure: departure + stop.offset, progress: path.progress![index] })) });
+      }
+    }
     for (const entry of dayEntries) {
       if (entry.kind === "gtfs") {
+        if (replaced.has(entry.lineId)) continue;
         const template = templates.get(entry.tripId ?? "");
         const replacementId = `gtfs:${date}:${entry.tripId}`;
         if (entry.id === replacementId && template && active.has(template.serviceId)) continue;

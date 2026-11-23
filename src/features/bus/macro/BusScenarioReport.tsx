@@ -5,6 +5,8 @@ import type { BusCreatedLine } from "../creator/bus-line";
 import { parseSchedule, requireCompleteCalendar, type Schedule } from "../shared/bus-simulation";
 import { FLEET_STORAGE_KEY, readFleet, type Model } from "../shared/BusFleetManager";
 import { fleetDemand } from "../shared/fleet-demand";
+import { LINE_REPLACEMENTS_KEY, readLineReplacements, type LineReplacementStore } from "../shared/line-replacements";
+import { WEEKLY_TIMETABLES_KEY, readWeeklyTimetables, type WeeklyTimetable } from "../shared/weekly-timetables";
 import { resolveScenario } from "../shared/scenario-schedule";
 import type { SibraData } from "../shared/sibra";
 import { writeSnapshot } from "../shared/snapshot-storage";
@@ -37,6 +39,8 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [entries, setEntries] = useState<TerminusEntry[]>([]);
   const [fleet, setFleet] = useState<Model[]>([]);
+  const [links, setLinks] = useState<LineReplacementStore>({ replacements: {}, mode: "dates" });
+  const [weekly, setWeekly] = useState<WeeklyTimetable[]>([]);
   const [settings, setSettings] = useState<Settings>(initial);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
@@ -45,23 +49,23 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
   const snapshot = useRef<string | null>(null);
   useEffect(() => {
     const refresh = () => {
-      try { setEntries(readTerminusStore(localStorage.getItem(TERMINUS_STORAGE_KEY)).entries); setFleet(readFleet(localStorage.getItem(FLEET_STORAGE_KEY))); setError(""); }
-      catch { setError("Horaires ou flotte illisibles. Les données n’ont pas été modifiées ; le bilan adapté est indisponible."); }
+      try { setEntries(readTerminusStore(localStorage.getItem(TERMINUS_STORAGE_KEY)).entries); setFleet(readFleet(localStorage.getItem(FLEET_STORAGE_KEY))); setLinks(readLineReplacements(localStorage.getItem(LINE_REPLACEMENTS_KEY))); setWeekly(readWeeklyTimetables(localStorage.getItem(WEEKLY_TIMETABLES_KEY))); setError(""); }
+      catch { setError("Horaires, tableaux, flotte ou liens entre lignes illisibles. Les données n’ont pas été modifiées ; le bilan adapté est indisponible."); }
     };
     try { const raw = localStorage.getItem(KEY); setSettings(readSettings(raw)); snapshot.current = raw; setReady(true); } catch { setSettingsError("Affectations du bilan illisibles. Les données n’ont pas été modifiées."); }
     refresh();
     const controller = new AbortController();
     fetch("/data/sibra-schedule.json", { signal: controller.signal }).then((r) => { if (!r.ok) throw new Error(); return r.json(); }).then(parseSchedule).then(requireCompleteCalendar).then(setSchedule).catch(() => { if (!controller.signal.aborted) setError("Horaires de référence indisponibles ou calendrier incomplet."); });
-    window.addEventListener("storage", refresh); window.addEventListener("yft:terminus-updated", refresh); window.addEventListener("yft:fleet-updated", refresh);
-    return () => { controller.abort(); window.removeEventListener("storage", refresh); window.removeEventListener("yft:terminus-updated", refresh); window.removeEventListener("yft:fleet-updated", refresh); };
+    window.addEventListener("storage", refresh); window.addEventListener("yft:terminus-updated", refresh); window.addEventListener("yft:fleet-updated", refresh); window.addEventListener("yft:line-replacements-updated", refresh); window.addEventListener("yft:weekly-timetables-updated", refresh);
+    return () => { controller.abort(); window.removeEventListener("storage", refresh); window.removeEventListener("yft:terminus-updated", refresh); window.removeEventListener("yft:fleet-updated", refresh); window.removeEventListener("yft:line-replacements-updated", refresh); window.removeEventListener("yft:weekly-timetables-updated", refresh); };
   }, []);
-  const resolved = useMemo(() => schedule ? resolveScenario(schedule, data, createdLines, entries) : null, [schedule, data, createdLines, entries]);
+  const resolved = useMemo(() => schedule ? resolveScenario(schedule, data, createdLines, entries, links.replacements, links.mode, weekly) : null, [schedule, data, createdLines, entries, links, weekly]);
   const reference = useMemo(() => schedule ? lineActivity(data, schedule) : [], [schedule, data]);
   const adapted = useMemo(() => resolved ? lineActivity(resolved.data, resolved.schedule) : [], [resolved]);
-  const rows = useMemo(() => adapted.filter((row) => selectedIds === null || selectedIds.includes(row.id)), [adapted, selectedIds]);
+  const rows = useMemo(() => adapted.filter((row) => selectedIds === null || selectedIds.includes(row.id) || Object.entries(links.replacements).some(([referenceId, createdId]) => (selectedIds.includes(referenceId) && row.id === createdId) || (selectedIds.includes(createdId) && row.id === referenceId))), [adapted, selectedIds, links]);
   const referenceById = new Map(reference.map((row) => [row.id, row]));
   const selected = useMemo(() => new Set(rows.map((row) => row.id)), [rows]);
-  const diagnostics = resolved?.diagnostics.filter((item) => selectedIds === null || entries.some((entry) => entry.id === item.entryId && selected.has(entry.lineId))) ?? [];
+  const diagnostics = resolved?.diagnostics.filter((item) => selectedIds === null || (!!item.lineId && selected.has(item.lineId)) || entries.some((entry) => entry.id === item.entryId && selected.has(entry.lineId))) ?? [];
   const demand = useMemo(() => {
     const minutes = Number(settings.turnaround);
     if (!resolved || settings.turnaround.trim() === "" || !Number.isSafeInteger(minutes) || minutes < 0 || minutes > 1440) return null;
@@ -94,6 +98,8 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
   return <div className="bilan-report">
     <h3>Bilan V2 · {selectedIds === null ? "toutes les lignes" : "lignes sélectionnées"}</h3>
     <p>Référence GTFS et scénario comparés du {schedule.metadata.validFrom} au {schedule.metadata.validTo}, sur les mêmes jours de service. Les lignes créées n’existent que dans le scénario. Courses planifiées et tracés indicatifs : ce ne sont pas des mesures. Les trajets à vide et les annulations sont inconnus.</p>
+    {Object.keys(links.replacements).length > 0 && <p>Les lignes créées liées remplacent leurs lignes SIBRA {links.mode === "dates" ? "uniquement les jours où elles ont des horaires ; les autres jours restent en référence" : "sur toute la période ; les jours sans horaires créés sont sans service"}. Une ligne liée à une ligne sélectionnée est incluse dans son périmètre.</p>}
+    {weekly.length > 0 && <p>Les tableaux par type de jour s’appliquent à leur période. Les horaires particuliers enregistrés pour une date et un parcours restent prioritaires.</p>}
     <details><summary>Légende des provenances et de leur vérification</summary><p><span style={{ color: "#155b32" }}>Rapport SIBRA ou Annecy</span> · <span style={{ color: "#174c83" }}>Constructeur</span> · <span style={{ color: "#5d3f83" }}>Autre rapport</span> · <span style={{ color: "#7a4a00" }}>Hypothèse issue d’une source comparable</span> · <span>Origine déclarée ou inconnue</span>.</p><p>Ces catégories décrivent l’origine, pas la fiabilité. La vérification est indiquée séparément ; si elle n’est pas documentée, elle reste inconnue. Les valeurs saisies sont déclaratives et conservent la source inscrite dans l’inventaire.</p></details>
     {diagnostics.length > 0 && <p role="alert">{diagnostics.length} horaire(s) de scénario exclus : parcours ou modèle invalide, modifié, absent ou hors calendrier. La comparaison est partielle.</p>}
     {!rows.length ? <p>Aucune ligne dans le périmètre choisi.</p> : <>

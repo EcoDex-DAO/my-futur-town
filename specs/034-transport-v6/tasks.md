@@ -11,6 +11,9 @@
 - [ ] T004 [US1] Relier modèles, affectations hypothétiques et facteurs aux impacts dans `src/features/bus/macro/BusReport.tsx`, avec tests motorisation, inconnues et couverture.
 - [ ] T005 [US1] Présenter comparaison, écarts, période et limites dans `src/features/bus/macro/BusReport.tsx`.
 - [ ] T013 [US1] Distinguer dans `src/features/bus/macro/BusReport.tsx` les vues V1 théorique toutes lignes, V2 adaptée toutes lignes et V2 adaptée lignes sélectionnées, y compris lignes créées et horaires attribués.
+- [x] T014 [US1] Relier lignes créées et lignes de référence, gérer les deux modes de remplacement et leur persistance dans `src/features/bus/shared/`, puis vérifier leur effet commun sur simulation et bilan.
+- [x] T015 [US2] Concevoir et afficher les trois tableaux horaires, séparés par ligne, sens et variante, dans `src/features/bus/shared/WeeklyTimetableEditor.tsx`, sans assimiler calendrier GTFS et jours types.
+- [x] T016 [US2] Ajouter la copie d'un tableau vers un autre avec protection des horaires enregistrés dans `src/features/bus/shared/`, puis vérifier la persistance, les exceptions et les jours fériés.
 
 ## US2 : simulation
 

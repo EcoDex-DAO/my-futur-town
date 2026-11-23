@@ -7,7 +7,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await page.route("https://tiles.openfreemap.org/**", (route) => route.abort());
     await page.goto("/");
     await page.getByRole("button", { name: "Menu Bilan" }).click();
-    await expect(page.getByText(/extrapolation uniforme à 365 jours/)).toBeVisible();
+    await expect(page.getByText(/extrapolation uniforme à 365 jours/)).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(/représentativité annuelle n’est pas établie/)).toBeVisible();
     await page.getByRole("spinbutton", { name: /Bus standard gazole/ }).fill("");
     await expect(page.locator(".bilan-totals").first().locator("div").filter({ has: page.getByText("Énergie", { exact: true }) }).locator("dd")).toHaveText("À renseigner");

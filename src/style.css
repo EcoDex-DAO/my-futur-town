@@ -1153,6 +1153,20 @@ main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
 .bilan-line ul { padding-left: 20px; }
 .bilan-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .bilan-input span { font-size: .8em; }
+.weekly-editor, .weekly-day { display: grid; gap: 10px; }
+.weekly-editor label, .weekly-day label { display: grid; gap: 4px; }
+.weekly-editor input, .weekly-editor select, .weekly-editor textarea { width: 100%; min-width: 0; }
+.weekly-editor input, .weekly-editor select, .weekly-editor textarea { box-sizing: border-box; padding: 8px; border: 1px solid #a8bdb1; border-radius: 6px; background: #fff; color: #153d32; font: inherit; }
+.weekly-editor textarea { min-height: 64px; resize: vertical; }
+.weekly-editor button { padding: 8px 10px; border: 1px solid #a8bdb1; border-radius: 6px; background: #f3f8f4; color: #153d32; font: inherit; cursor: pointer; }
+.weekly-editor button:hover { background: #e3f0e7; }
+.weekly-editor button:focus-visible, .weekly-editor input:focus-visible, .weekly-editor select:focus-visible, .weekly-editor textarea:focus-visible { outline: 3px solid #367652; outline-offset: 2px; }
+.weekly-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.weekly-actions button { flex: 1 1 140px; text-align: left; }
+.weekly-day { padding-top: 12px; border-top: 1px solid #cbd8d0; }
+.weekly-day table { width: 100%; border-collapse: collapse; text-align: left; }
+.weekly-day th, .weekly-day td { padding: 6px; border-bottom: 1px solid #dce6df; vertical-align: top; }
+.weekly-day caption { text-align: left; font-weight: 600; }
 .bilan-report a { text-decoration: underline; text-underline-offset: 2px; }
 
 .bilan-subgroup { margin-left: 16px; }

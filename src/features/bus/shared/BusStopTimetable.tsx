@@ -4,8 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { parseSchedule, type Schedule } from "./bus-simulation";
 import { stopDeparturesByHour } from "./bus-stop-timetable";
 import type { SibraData } from "./sibra";
-import { formatServiceTime, matchesTripTemplate } from "./terminus-schedule";
+import { formatServiceTime, matchesTripTemplate, shiftTrip } from "./terminus-schedule";
 import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "./terminus-storage";
+import { readWeeklyTimetables, WEEKLY_TIMETABLES_KEY, type WeeklyTimetable } from "./weekly-timetables";
+import { serviceDayType } from "./service-day-type";
+import { LINE_REPLACEMENTS_KEY, readLineReplacements, type LineReplacementStore } from "./line-replacements";
 
 type Props = { data: SibraData; stopId: string; preferredLineId?: string };
 
@@ -18,11 +21,13 @@ export function BusStopTimetable({ data, stopId, preferredLineId }: Props) {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [error, setError] = useState("");
   const [scenario, setScenario] = useState<TerminusEntry[]>([]);
+  const [weekly, setWeekly] = useState<WeeklyTimetable[]>([]);
+  const [links, setLinks] = useState<LineReplacementStore>({ replacements: {}, mode: "dates" });
   const [scenarioError, setScenarioError] = useState(false);
   useEffect(() => {
-    const refresh = () => { try { setScenario(readTerminusStore(localStorage.getItem(TERMINUS_STORAGE_KEY)).entries); setScenarioError(false); } catch { setScenario([]); setScenarioError(true); } };
-    refresh(); window.addEventListener("yft:terminus-updated", refresh); window.addEventListener("storage", refresh);
-    return () => { window.removeEventListener("yft:terminus-updated", refresh); window.removeEventListener("storage", refresh); };
+    const refresh = () => { try { setScenario(readTerminusStore(localStorage.getItem(TERMINUS_STORAGE_KEY)).entries); setWeekly(readWeeklyTimetables(localStorage.getItem(WEEKLY_TIMETABLES_KEY))); setLinks(readLineReplacements(localStorage.getItem(LINE_REPLACEMENTS_KEY))); setScenarioError(false); } catch { setScenario([]); setWeekly([]); setScenarioError(true); } };
+    refresh(); window.addEventListener("yft:terminus-updated", refresh); window.addEventListener("yft:weekly-timetables-updated", refresh); window.addEventListener("yft:line-replacements-updated", refresh); window.addEventListener("storage", refresh);
+    return () => { window.removeEventListener("yft:terminus-updated", refresh); window.removeEventListener("yft:weekly-timetables-updated", refresh); window.removeEventListener("yft:line-replacements-updated", refresh); window.removeEventListener("storage", refresh); };
   }, []);
 
   useEffect(() => {
@@ -56,6 +61,10 @@ export function BusStopTimetable({ data, stopId, preferredLineId }: Props) {
     if (!schedule || !line || !selectedDirection || !inCoverage) return [];
     return stopDeparturesByHour(schedule, line.id, selectedDirection.variantIds, date, stopId);
   }, [schedule, line, selectedDirection, inCoverage, date, stopId]);
+  const dayType = serviceDayType(date);
+  const replacement = links.replacements[lineId];
+  const replaced = !scenarioError && !!replacement && (links.mode === "period" || scenario.some((entry) => entry.kind === "created" && entry.lineId === replacement && entry.date === date) || (!!dayType && weekly.some((table) => table.kind === "created" && table.lineId === replacement && date >= table.validFrom && date <= table.validTo)));
+  const weeklyForStop = replaced ? [] : weekly.filter((table) => table.kind === "gtfs" && table.lineId === lineId && selectedDirection?.variantIds.has(table.variantId) && date >= table.validFrom && date <= table.validTo && table.stops.some((stop) => stop.id === stopId) && !scenario.some((entry) => entry.kind === "gtfs" && entry.lineId === lineId && entry.variantId === table.variantId && entry.date === date));
 
   if (!lines.length) return <p>Aucune ligne SIBRA ne dessert cet arrêt dans les données chargées.</p>;
   return <div className="stop-timetable">
@@ -66,7 +75,14 @@ export function BusStopTimetable({ data, stopId, preferredLineId }: Props) {
       <label>Jour de service<input type="date" value={date} min={schedule?.metadata.validFrom} max={schedule?.metadata.validTo} onChange={(event) => setDate(event.target.value)} /></label>
     </div>
     {scenarioError && <p role="alert">Les horaires du scénario sont illisibles.</p>}
-    {scenario.filter((entry) => entry.kind === "gtfs" && entry.date === date && entry.lineId === lineId && selectedDirection?.variantIds.has(entry.variantId) && entry.stops.some((stop) => stop.id === stopId)).length > 0 && <div><h3>Passages du scénario local</h3><p>Ces passages remplacent ou complètent les courses indiquées ; la grille de référence ci-dessous reste inchangée.</p><ul>{scenario.filter((entry) => entry.kind === "gtfs" && entry.date === date && entry.lineId === lineId && selectedDirection?.variantIds.has(entry.variantId)).flatMap((entry) => entry.stops.filter((stop) => stop.id === stopId).map((stop, index) => <li key={`${entry.id}-${index}`}>{formatServiceTime(entry.departure + stop.offset)} · {entry.id.startsWith("gtfs-new:") ? "course ajoutée" : "course modifiée"}{schedule && !matchesTripTemplate(schedule.trips.find((trip) => trip.id === entry.tripId), entry.stops) ? " · référence modifiée ou absente, à vérifier" : ""}</li>))}</ul></div>}
+    {replaced && <p role="status">Dans le scénario, cette ligne est remplacée ce jour. La grille ci-dessous reste la référence GTFS ; consultez la ligne créée pour ses passages.</p>}
+    {weeklyForStop.length > 0 && <div><h3>Tableau du scénario local</h3>{!dayType ? <p role="alert">Jours fériés inconnus pour cette année : tableau non appliqué.</p> : <ul>{weeklyForStop.flatMap((table) => {
+      const template = schedule?.trips.find((trip) => trip.id === table.tripId);
+      if (!matchesTripTemplate(template, table.stops) || template?.lineId !== table.lineId || template.variantId !== table.variantId || template.directionId !== table.directionId) return [<li key={table.id}>Modèle GTFS modifié ou absent : tableau à vérifier.</li>];
+      const stop = table.stops.find((item) => item.id === stopId)!;
+      return table.days[dayType].map((departure) => { try { shiftTrip(template, departure); return <li key={`${table.id}-${departure}`}>{formatServiceTime(departure + stop.offset)} · tableau théorique</li>; } catch { return <li key={`${table.id}-${departure}`}>Départ invalide : tableau à vérifier.</li>; } });
+    })}</ul>}<p>La grille GTFS ci-dessous est la référence inchangée. Un tableau vide ne prévoit aucun départ pour ce type de jour.</p></div>}
+    {!replaced && scenario.filter((entry) => entry.kind === "gtfs" && entry.date === date && entry.lineId === lineId && selectedDirection?.variantIds.has(entry.variantId) && entry.stops.some((stop) => stop.id === stopId)).length > 0 && <div><h3>Passages du scénario local</h3><p>Ces passages remplacent ou complètent les courses indiquées ; la grille de référence ci-dessous reste inchangée.</p><ul>{scenario.filter((entry) => entry.kind === "gtfs" && entry.date === date && entry.lineId === lineId && selectedDirection?.variantIds.has(entry.variantId)).flatMap((entry) => entry.stops.filter((stop) => stop.id === stopId).map((stop, index) => <li key={`${entry.id}-${index}`}>{formatServiceTime(entry.departure + stop.offset)} · {entry.id.startsWith("gtfs-new:") ? "course ajoutée" : "course modifiée"}{schedule && !matchesTripTemplate(schedule.trips.find((trip) => trip.id === entry.tripId), entry.stops) ? " · référence modifiée ou absente, à vérifier" : ""}</li>))}</ul></div>}
     {error ? <p className="bus-info-message" role="alert">{error}</p> : !schedule ? <p role="status">Chargement des horaires…</p> : !inCoverage ? <p className="bus-info-message">Horaires indisponibles pour cette date. Données du {schedule.metadata.validFrom} au {schedule.metadata.validTo}.</p> : !hours.length ? <p>Aucun départ pour cette direction et ce jour.</p> : <>
       <div className="timetable-heading">Départs du {new Intl.DateTimeFormat("fr-FR", { dateStyle: "full", timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`))}</div>
       <div className="timetable-scroll"><table className="timetable"><thead><tr>{hours.map(({ hour }) => <th key={hour} scope="col">{String(hour % 24).padStart(2, "0")}h{hour >= 24 ? <small> +1 j</small> : null}</th>)}</tr></thead><tbody><tr>{hours.map(({ hour, entries }) => <td key={hour}>{entries.map((seconds, index) => <span key={`${seconds}-${index}`}>{String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")}{seconds % 60 ? `:${String(seconds % 60).padStart(2, "0")}` : ""}</span>)}</td>)}</tr></tbody></table></div>

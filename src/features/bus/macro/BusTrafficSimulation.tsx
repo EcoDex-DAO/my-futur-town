@@ -4,13 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { SibraData } from "../shared/sibra";
 import { DEFAULT_ESTIMATED_DWELL_SECONDS, parseSchedule, requireCompleteCalendar, type Schedule } from "../shared/bus-simulation";
-import { networkActiveVehicles, networkVehiclePoints } from "./bus-traffic";
+import { lastSimulationDate, networkActiveVehicles, networkVehiclePoints } from "./bus-traffic";
 import { busDisplayFeatures } from "../micro/bus-models";
 import type { BusCreatedLine } from "../creator/bus-line";
 import { resolveScenario } from "../shared/scenario-schedule";
 import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "../shared/terminus-storage";
+import { LINE_REPLACEMENTS_KEY, readLineReplacements, type LineReplacementStore } from "../shared/line-replacements";
+import { WEEKLY_TIMETABLES_KEY, readWeeklyTimetables, type WeeklyTimetable } from "../shared/weekly-timetables";
 
-type Props = { map: MapLibreMap | null; mapReady: boolean; data: SibraData; createdLines: BusCreatedLine[] };
+type Props = { map: MapLibreMap | null; mapReady: boolean; data: SibraData; createdLines: BusCreatedLine[]; visibleCreatedIds: string[] };
 const sourceId = "yft-traffic-vehicles";
 const layerId = "yft-traffic-points";
 const modelsLayerId = "yft-traffic-models";
@@ -18,12 +20,14 @@ const speeds = [1, 5, 10, 60] as const;
 const maxSecond = 86_399;
 const formatTime = (value: number) => { const seconds = Math.max(0, Math.min(maxSecond, Math.floor(value))); return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; };
 
-export function BusTrafficSimulation({ map, mapReady, data, createdLines }: Props) {
+export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibleCreatedIds }: Props) {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [error, setError] = useState("");
   const [scenario, setScenario] = useState(false);
   const [entries, setEntries] = useState<TerminusEntry[]>([]);
   const [scenarioError, setScenarioError] = useState("");
+  const [links, setLinks] = useState<LineReplacementStore>({ replacements: {}, mode: "dates" });
+  const [weekly, setWeekly] = useState<WeeklyTimetable[]>([]);
   const [date, setDate] = useState("");
   const [second, setSecond] = useState(8 * 3600);
   const [speed, setSpeed] = useState<(typeof speeds)[number]>(1);
@@ -50,11 +54,13 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines }: Prop
   }, []);
 
   useEffect(() => {
-    const refresh = () => { try { setEntries(readTerminusStore(localStorage.getItem(TERMINUS_STORAGE_KEY)).entries); setScenarioError(""); } catch { setScenarioError("Horaires du scénario illisibles. La simulation du scénario est indisponible ; les données n’ont pas été modifiées."); } };
+    const refresh = () => { try { setEntries(readTerminusStore(localStorage.getItem(TERMINUS_STORAGE_KEY)).entries); setLinks(readLineReplacements(localStorage.getItem(LINE_REPLACEMENTS_KEY))); setWeekly(readWeeklyTimetables(localStorage.getItem(WEEKLY_TIMETABLES_KEY))); setScenarioError(""); } catch { setScenarioError("Horaires, tableaux ou liens du scénario illisibles. La simulation du scénario est indisponible ; les données n’ont pas été modifiées."); } };
     refresh();
     window.addEventListener("storage", refresh);
     window.addEventListener("yft:terminus-updated", refresh);
-    return () => { window.removeEventListener("storage", refresh); window.removeEventListener("yft:terminus-updated", refresh); };
+    window.addEventListener("yft:line-replacements-updated", refresh);
+    window.addEventListener("yft:weekly-timetables-updated", refresh);
+    return () => { window.removeEventListener("storage", refresh); window.removeEventListener("yft:terminus-updated", refresh); window.removeEventListener("yft:line-replacements-updated", refresh); window.removeEventListener("yft:weekly-timetables-updated", refresh); };
   }, []);
 
   useEffect(() => {
@@ -72,9 +78,13 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines }: Prop
 
   const resolved = useMemo(() => {
     if (!schedule || !scenario || scenarioError) return null;
-    const selectedIds = new Set([...data.lines.map((line) => line.id), ...createdLines.map((line) => line.id)]);
-    return resolveScenario(schedule, data, createdLines, entries.filter((entry) => selectedIds.has(entry.lineId)));
-  }, [schedule, scenario, scenarioError, data, createdLines, entries]);
+    const referenceIds = new Set(data.lines.map((line) => line.id));
+    const selectedLinks = Object.fromEntries(Object.entries(links.replacements).filter(([id]) => referenceIds.has(id)));
+    const selectedCreated = new Set([...visibleCreatedIds, ...Object.values(selectedLinks)]);
+    const included = createdLines.filter((line) => selectedCreated.has(line.id));
+    const selectedIds = new Set([...referenceIds, ...selectedCreated]);
+    return resolveScenario(schedule, data, included, entries.filter((entry) => selectedIds.has(entry.lineId)), selectedLinks, links.mode, weekly.filter((table) => selectedIds.has(table.lineId)));
+  }, [schedule, scenario, scenarioError, data, createdLines, visibleCreatedIds, entries, links, weekly]);
   const currentSchedule = scenario ? resolved?.schedule : schedule;
   const currentData = scenario ? resolved?.data : data;
   const vehicles = useMemo(() => active && currentSchedule && currentData && date ? networkActiveVehicles(currentSchedule, currentData, date, second, { estimatedDwellSeconds: dwellSeconds }) : [], [active, currentSchedule, currentData, date, second, dwellSeconds]);
@@ -132,7 +142,8 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines }: Prop
     }
   }, [active, map, mapReady, points, vehicles, viewVersion]);
 
-  const inCoverage = !!schedule && date >= schedule.metadata.validFrom && date <= schedule.metadata.validTo;
+  const lastDate = currentSchedule ? lastSimulationDate(currentSchedule) : schedule ? lastSimulationDate(schedule) : "";
+  const inCoverage = !!schedule && date >= schedule.metadata.validFrom && date <= lastDate;
   const today = schedule ? new Intl.DateTimeFormat("en-CA", { timeZone: schedule.metadata.timeZone }).format(new Date()) : "";
   const todayOutsideCoverage = !!schedule && (today < schedule.metadata.validFrom || today > schedule.metadata.validTo);
   const setTime = (value: string) => { const parts = value.split(":").map(Number); if (parts.length < 2 || parts.some((part) => !Number.isFinite(part))) return; clock.current = Math.max(0, Math.min(maxSecond, parts[0] * 3600 + parts[1] * 60 + (parts[2] ?? 0))); setSecond(clock.current); };
@@ -146,9 +157,11 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines }: Prop
       <label>Horaires utilisés<select value={scenario ? "scenario" : "reference"} onChange={(event) => setScenario(event.target.value === "scenario")}><option value="reference">Référence GTFS</option><option value="scenario">Scénario local, lignes créées comprises</option></select></label>
       {scenario && scenarioError && <p role="alert">{scenarioError}</p>}
       {scenario && resolved && resolved.diagnostics.length > 0 && <p role="alert">{resolved.diagnostics.length} horaire(s) de scénario exclus : parcours ou modèle modifié, absent, invalide ou hors calendrier. Vérifiez les horaires enregistrés.</p>}
+      {scenario && Object.keys(links.replacements).length > 0 && <p className="caption">Les remplacements s’appliquent {links.mode === "dates" ? "aux jours avec horaires créés" : "à toute la période, même sans horaires créés"}. Les lignes de remplacement liées aux lignes cochées sont incluses.</p>}
+      {scenario && weekly.length > 0 && <p className="caption">Les tableaux par type de jour sont appliqués ; les horaires particuliers par date restent prioritaires.</p>}
       {todayOutsideCoverage && <p className="bus-simulation-message" role="status">Les horaires disponibles vont du {schedule.metadata.validFrom} au {schedule.metadata.validTo}. La date initiale choisie est dans cette période.</p>}
       <div className="bus-simulation-fields">
-        <label htmlFor="traffic-date">Date<input id="traffic-date" type="date" min={schedule.metadata.validFrom} max={schedule.metadata.validTo} value={date} onChange={(event) => setDate(event.target.value)} /></label>
+        <label htmlFor="traffic-date">Date<input id="traffic-date" type="date" min={schedule.metadata.validFrom} max={lastDate} value={date} onChange={(event) => setDate(event.target.value)} /></label>
         <label htmlFor="traffic-time">Heure<input id="traffic-time" type="time" step="1" value={formatTime(second)} onChange={(event) => setTime(event.target.value)} /></label>
       </div>
       <div className="bus-simulation-controls">
@@ -165,9 +178,10 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines }: Prop
       <button type="button" className="bus-simulation-focus" disabled={!vehicles.length || !map} onClick={() => { if (vehicles[0] && map) map.flyTo({ center: vehicles[0].position, zoom: 18, pitch: 50, essential: true }); }}>Voir un bus de près</button>
       {active && lineCounts.length > 0 && <p className="caption" aria-label="Bus simulés par ligne">{lineCounts.map(({ line, count }) => `${line.shortName} : ${count}`).join(" · ")}</p>}
       {!currentData?.lines.length && <p className="bus-simulation-message">Cochez au moins une ligne pour lancer la simulation.</p>}
-      {!inCoverage && <p className="bus-simulation-message">Choisissez une date entre le {schedule.metadata.validFrom} et le {schedule.metadata.validTo}.</p>}
-      {inCoverage && active && !vehicles.length && <p className="bus-simulation-message">Aucun bus des lignes cochées à cette date et cette heure.</p>}
-      {!scenario && createdLines.length > 0 && <p className="bus-simulation-message">Choisissez le scénario local pour simuler les horaires des lignes créées.</p>}
+      {!inCoverage && <p className="bus-simulation-message">Choisissez une date entre le {schedule.metadata.validFrom} et le {lastDate}.</p>}
+      {inCoverage && date > schedule.metadata.validTo && <p className="bus-simulation-message">Après la fin du calendrier : seules les courses commencées pendant la période publiée sont visibles. Les autres services de cette date sont inconnus.</p>}
+      {inCoverage && active && !vehicles.length && <p className="bus-simulation-message">{date > schedule.metadata.validTo ? "Aucun bus issu de la période publiée à cette heure ; les autres services sont inconnus." : "Aucun bus des lignes cochées à cette date et cette heure."}</p>}
+      {!scenario && visibleCreatedIds.length > 0 && <p className="bus-simulation-message">Choisissez le scénario local pour simuler les horaires des lignes créées.</p>}
       <p className="bus-simulation-disclaimer">Arrêt estimé : {dwellSeconds} secondes lorsque les horaires le permettent, réduit si nécessaire sans modifier les horaires publiés. Les positions sont calculées ; les véhicules 3D sont schématiques.</p>
     </>}
   </section>;

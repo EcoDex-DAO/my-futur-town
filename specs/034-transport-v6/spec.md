@@ -63,6 +63,10 @@ Une personne retrouve ses scénarios et identifie l'origine et les limites des v
 - **FR-012** : une légende et des libellés accompagnent un code couleur pour distinguer source constructeur, rapport SIBRA/Annecy, autre rapport, hypothèse transférée et donnée vérifiée ; l'origine et le degré de vérification restent deux informations distinctes et ne présument pas la fiabilité.
 - **FR-013** : préserver et afficher la provenance propre aux saisies utilisateur ; les éléments non documentés restent inconnus.
 - **FR-014** : proposer trois vues : bilan V1 théorique sur toutes les lignes, bilan V2 adapté sur toutes les lignes et bilan V2 sur les lignes sélectionnées ; les deux vues V2 incluent les lignes créées et leurs horaires attribués.
+- **FR-015** : permettre de lier une ligne créée à une ligne SIBRA pour l'étudier comme remplacement ; expliquer et permettre les deux modes : seulement les dates munies d'horaires créés, ou toute la période avec absence de service les jours sans horaires. Un lien ne change jamais la référence.
+- **FR-016** : présenter trois tableaux d'horaires distincts : jours de semaine, samedi, dimanche et jours fériés. Les minutes sont regroupées par heure ; ligne, sens et variante restent identifiables.
+- **FR-017** : permettre de copier un tableau vers un autre pour faciliter l'édition, sans écraser silencieusement les horaires déjà enregistrés et en conservant les exceptions par date.
+- **FR-018** : appliquer les tableaux aux jours correspondants de leur période ; un parcours ayant déjà une modification propre à une date conserve ce jour ses horaires particuliers. Identifier la source des jours fériés et signaler toute année non couverte.
 
 ### Key Entities
 

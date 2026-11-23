@@ -43,6 +43,14 @@ describe("simulation réseau", () => {
     expect(networkActiveVehicles(night, data([first]), "2026-11-14", 600)).toHaveLength(0);
     expect(networkActiveVehicles(night, data([first]), "2026-11-15", 300)).toHaveLength(0);
   });
+  it("conserve les courses du dernier jour au-delà de la validité GTFS", () => {
+    const night: Schedule = { ...schedule, metadata: { ...schedule.metadata, validTo: "2026-11-13" }, trips: [{ ...schedule.trips[0], stops: [
+      { stopId: "a", arrival: 86340, departure: 86340, progress: 0 },
+      { stopId: "b", arrival: 87000, departure: 87000, progress: 1 },
+    ] }] };
+    expect(networkActiveVehicles(night, data([first]), "2026-11-14", 300)).toHaveLength(1);
+    expect(networkActiveVehicles(night, data([first]), "2026-11-15", 300)).toHaveLength(0);
+  });
   it("relie chaque course du jeu publié à une variante de son réseau", () => {
     const network = JSON.parse(readFileSync("public/data/sibra.json", "utf8")) as SibraData;
     const fullSchedule = JSON.parse(readFileSync("public/data/sibra-schedule.json", "utf8")) as Schedule;
