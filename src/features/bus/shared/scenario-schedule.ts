@@ -86,7 +86,7 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
         }
         try { trips.push({ ...shiftTrip(trip, entry.departure), id: `${trip.id}@${date}`, serviceId }); }
         catch { diagnostics.push({ entryId: entry.id, date, reason: "Départ invalide" }); }
-      } else trips.push({ ...trip, id: `${trip.id}@${date}`, serviceId });
+      } else trips.push({ ...trip, id: `${trip.id}@${date}`, sourceTripId: trip.sourceTripId ?? trip.id, serviceId });
     }
     if (dayType) for (const table of dailyTables) {
       if (table.mode !== "overlay" && Object.values(table.notes?.[dayType] ?? {}).some((note) => !note.rule || (note.rule === "trip" && table.kind !== "gtfs") || (note.rule === "created" && table.kind !== "created"))) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Options de départ non prises en compte dans le calcul" });
@@ -95,7 +95,7 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
         if (table.mode === "overlay") {
           const overlay = materialiseOverlay(reference, table, date, dayType, gtfsReferenceVersion(data));
           for (const reason of overlay.warnings) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason });
-          for (const trip of overlay.trips) trips.push({ ...trip, id: trip.id.startsWith("weekly:") ? trip.id : `${trip.id}@${date}`, serviceId });
+          for (const [index, trip] of overlay.trips.entries()) trips.push({ ...trip, id: `overlay:${JSON.stringify([table.id, date, index, trip.id])}`, sourceTripId: trip.sourceTripId ?? trip.id, serviceId });
           continue;
         }
         const template = templates.get(table.tripId ?? "");

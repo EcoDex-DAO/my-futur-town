@@ -15,5 +15,8 @@ export function verifiedGtfsNote(data: SibraData, trip: ScheduleTrip): VerifiedG
   if (trip.lineId === "15" && ["HORAIRES 1_LV_nov 26C554641", "HORAIRES 1_Me_nov 26C558291"].includes(trip.id) && trip.variantId === "15:a34fd44715dad525" && trip.stops[0]?.stopId === "0:2COLL" && trip.stops[0]?.departure === 24900 && trip.stops.some((stop) => stop.stopId === "0:1ZAC" && stop.departure === 25094) && trip.stops.at(-1)?.stopId === "0:GES2" && trip.stops.at(-1)?.arrival === 26449) {
     return { code: "Semaine scolaire", description: "15B : uniquement du lundi au vendredi en période scolaire", source: line15Source };
   }
+  if (trip.lineId === "21" && ["HORAIRES 1_LV_nov 26C554725", "HORAIRES 1_Me_nov 26C554725"].includes(trip.id) && trip.variantId === "21:feb977f8c5b2ccbc" && trip.stops[0]?.stopId === "0:MHV4" && trip.stops[0]?.departure === 26400 && trip.stops.some((stop) => stop.stopId === "0:1PDB" && stop.departure === 28328) && trip.stops.at(-1)?.stopId === "0:2PRG" && trip.stops.at(-1)?.arrival === 29340) {
+    return { code: "Pont de Brogny", description: "Passage à 7 h 52 indiqué sur la fiche scolaire", source: "https://www.sibra.fr/app/uploads/2026/07/DH_21_BD_31082026_web.pdf" };
+  }
   return null;
 }

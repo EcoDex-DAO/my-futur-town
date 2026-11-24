@@ -67,6 +67,19 @@ jour de service. Elles peuvent dépasser 86 400 : les heures après minuit reste
 rattachées au jour GTFS d’origine. Les dates expriment l’activité des services,
 pas l’activation d’une course particulière hors de son service GTFS.
 
+Pour contrôler indépendamment les données locales déjà produites, sans les
+modifier : `python3 scripts/verify_sibra_reference.py /tmp/gtfs-sibra.zip`.
+Le contrôle vérifie le SHA-256, les dates, courses, arrêts, horaires, variantes
+et géométries. Il mesure aussi l'écart entre arrêts et points projetés, sans
+prétendre valider toutes les branches possibles ni les légendes des fiches PDF.
+
+Les modalités de montée, de descente et la précision des horaires sont placées
+dans un fichier complémentaire, sans modifier les données de référence. Pour
+le reproduire depuis cette même archive : `python3 scripts/importers/sibra_constraints.py /tmp/gtfs-sibra.zip public/data/sibra-stop-constraints.json`.
+Le contrôle indépendant vérifie aussi ce complément : 443 passages interdisent
+la montée et 94 221 passages ont un horaire estimé ou interpolé. La précision
+réelle et les conditions d'exploitation ne sont pas connues.
+
 Les `variantId` sont calculés avec le même identifiant de contenu que dans
 `sibra.json`, depuis la ligne, la forme, la destination et la séquence d’arrêts.
 `progress` est un nombre entre 0 et 1. L’importeur projette les coordonnées de

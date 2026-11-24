@@ -6,6 +6,7 @@ import type { SibraData } from "../shared/sibra";
 import { annualLineActivity } from "./bus-report";
 import { readReportSnapshot, REPORT_STORAGE_KEY, saveReportSnapshot } from "./report-storage";
 import { discrepancySource, sourceDiscrepancies } from "../shared/source-discrepancies";
+import { supportsStopConstraints } from "../shared/gtfs-stop-constraints";
 
 const defaults = { standard: 38.4, articulated: 55.5, electric: 1.07, gas: 0.53, density: 0.84, dieselGhg: 3.16, electricGhg: 0.092, gasGhg: "", dieselNox: 1.85, gasNox: 0.713, pm10: 0.059, pm25: 0.0316, tyreLife: 85000, tyresStandard: 6, tyresArticulated: 10, occupancy: 20, capacityStandard: 100, capacityArticulated: 150, dwell: 12 };
 const sourceColors: Record<string, string> = { "Constructeur": "#174c83", "Rapport SIBRA ou Annecy": "#155b32", "Autre rapport": "#5d3f83", "Hypothèse comparable": "#7a4a00", "Saisie utilisateur": "#253d36" };
@@ -61,6 +62,7 @@ export function BusReport({ data, groups, selectedIds }: { data: SibraData; grou
     {error && <p role="alert">{error}</p>}
     {!schedule && !error && <p role="status">Chargement des horaires…</p>}
     {schedule && <><p className="bilan-note">Horaires du {schedule.metadata.validFrom} au {schedule.metadata.validTo} : extrapolation uniforme à 365 jours à partir de cette seule période. Sa représentativité annuelle n’est pas établie : vacances et variations saisonnières restent inconnues. Les kilomètres sont estimés depuis les tracés et horaires, sans trajets à vide.</p>
+      {supportsStopConstraints(data) && <p>Certains passages GTFS sont estimés ou interpolés : horaires et positions restent théoriques.</p>}
       {Object.values(Object.fromEntries(sourceDiscrepancies(schedule, data).filter((warning) => rows.some((row) => row.id === warning.lineId)).map((warning) => [warning.entryId, warning]))).map((warning) => <p role="alert" key={warning.entryId}>Données à vérifier : {warning.reason} (<a href={discrepancySource(warning.entryId) ?? "https://www.sibra.fr/"} target="_blank" rel="noreferrer">fiche SIBRA</a>). Les chiffres suivent le GTFS et restent incertains.</p>)}
       <label className="bilan-scenario">Motorisation du scénario<select value={scenario} onChange={(e) => setScenario(e.target.value as Scenario)}><option value="diesel">100 % gazole</option><option value="electric">100 % électrique</option><option value="gas">100 % biométhane</option></select></label>
       <p className="caption">Scénarios hypothétiques, pas affectation réelle de la flotte. Par défaut, chaque ligne utilise un bus standard ; ajustez son gabarit ci-dessous.</p>

@@ -27,7 +27,10 @@ describe("variantes GTFS SIBRA réelles", () => {
     const schoolTrip = schedule.trips.find((item) => item.id === "HORAIRES 1_LV_nov 26C554641")!;
     expect(verifiedGtfsNote(data, schoolTrip)).toMatchObject({ code: "Semaine scolaire" });
     expect(verifiedGtfsNote(data, { ...schoolTrip, id: "HORAIRES 1_LV_nov 26C556366" })).toBeNull();
+    const brogny = schedule.trips.find((item) => item.id === "HORAIRES 1_Me_nov 26C554725")!;
+    expect(verifiedGtfsNote(data, brogny)).toMatchObject({ code: "Pont de Brogny" });
     expect(sourceDiscrepancies(schedule, data).some((item) => item.entryId === "source:15" && item.date === "2026-11-04" && item.reason.includes("12 h 45"))).toBe(true);
+    expect(sourceDiscrepancies(schedule, data).some((item) => item.entryId === "source:21" && item.date === "2026-11-04" && item.reason.includes("17 h 07"))).toBe(true);
     expect(sourceDiscrepancies(schedule, data).some((item) => item.entryId === "source:41")).toBe(false);
   });
 });

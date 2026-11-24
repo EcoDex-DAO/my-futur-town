@@ -22,7 +22,7 @@ export function shiftTrip(trip: ScheduleTrip, departure: number): ScheduleTrip {
   const delta = departure - trip.stops[0].departure;
   const stops = trip.stops.map((stop) => ({ ...stop, arrival: stop.arrival + delta, departure: stop.departure + delta }));
   if (stops.some((stop) => stop.arrival < 0)) throw new Error("Le départ placerait un passage avant le jour de service.");
-  return { ...trip, stops };
+  return { ...trip, sourceTripId: trip.sourceTripId ?? trip.id, stops };
 }
 
 /** Detect a changed alternative, including its shape, direction and travel times. */

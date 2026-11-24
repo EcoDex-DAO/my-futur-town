@@ -18,6 +18,7 @@ describe("résolution des horaires de scénario", () => {
   it("déplace une course après minuit sans changer la référence", () => {
     const result = resolveScenario(schedule, data, [], [entry]);
     expect(result.diagnostics).toEqual([]);
+    expect(result.schedule.trips[0].sourceTripId).toBe("t");
     expect(getActiveVehicles(result.schedule, data, "2026-11-05", 3700, "1")).toHaveLength(1);
     expect(getActiveVehicles(result.schedule, data, "2026-11-04", 3700, "1")).toHaveLength(0);
     expect(schedule.trips[0].stops[0].departure).toBe(3600);
@@ -74,6 +75,7 @@ describe("résolution des horaires de scénario", () => {
     const result = resolveScenario(reference, data, [], [], {}, "dates", [table]);
     expect(result.diagnostics).toEqual([]);
     expect(result.schedule.trips.filter((trip) => trip.serviceId === "scenario:2026-11-05").map((trip) => trip.stops[0].departure).sort((a, b) => a - b)).toEqual([7200, 10800]);
+    expect(result.schedule.trips.filter((trip) => trip.serviceId === "scenario:2026-11-05").map((trip) => trip.sourceTripId).sort()).toEqual(["extra", "t"]);
     expect(reference.trips[0].stops[0].departure).toBe(3600);
   });
   it("signale les options non appliquées et les périodes hors calendrier", () => {

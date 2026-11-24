@@ -91,6 +91,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(version).toHaveValue("v1");
     await version.selectOption("v2");
     await expect(page.getByRole("heading", { name: "Bilan V2 · toutes les lignes" })).toBeVisible({ timeout: 30000 });
+    await expect(page.getByRole("alert").filter({ hasText: /Ligne 15B.*12 h 45.*12 h 43/ })).toBeVisible();
     await expect(page.getByText("Écart de kilomètres").locator("+ dd")).toHaveText("0 km");
     const line = page.locator("details.bilan-line").filter({ has: page.locator("summary").filter({ hasText: /^1 ·/ }) }).first();
     await line.locator("summary").first().click();

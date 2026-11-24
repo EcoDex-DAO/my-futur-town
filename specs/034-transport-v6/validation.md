@@ -2,6 +2,8 @@
 
 ## Vérifications réalisées
 
+- L'archive GTFS officielle du 6 novembre 2026 a été contrôlée par SHA-256 puis comparée indépendamment aux données locales avec `scripts/verify_sibra_reference.py` : 27 lignes, 113 variantes, 5 309 courses, 157 153 passages et 47 dates concordent pour leurs identifiants, arrêts, horaires, services et géométries. Le contrôle indicatif des projections d'arrêts donne un écart maximal de 49,0 m ; aucun arrêt de variante ne dépasse 100 m. Il ne prouve pas que chaque branche projetée est correcte et ne valide pas les légendes PDF.
+- Le fichier complémentaire des arrêts a été comparé à la même archive : 443 passages sans montée et 94 221 horaires estimés ou interpolés. Un test vérifie leur conservation pour une course modifiée ; les fiches d'arrêt affichent ces modalités sans modifier le GTFS. Leur affichage navigateur reste à vérifier sur des arrêts réels.
 - L'affectation de modèle peut être précisée par variante en référence et en scénario. Les distances, les consommations et le pic horaire utilisent cette affectation ; les valeurs inconnues et les modèles supprimés restent non affectés. Les consommations, énergies, effectifs et provenance restent ceux de l'inventaire déclaré. Une consommation AdBlue exprimée en L/100 km est calculée séparément ; son impact de fabrication n'est pas inclus dans les GES.
 - La simulation affiche les modèles supposés actifs selon ces mêmes affectations. Elle ne compare un effectif qu'en présence d'un réseau, d'un périmètre, d'une année et d'un nombre d'indisponibles compatibles ; ce décompte des lignes cochées n'est pas une affectation réelle des véhicules.
 - Pour les modèles électriques affectés, la plus longue course calculée est comparée à l'autonomie déclarée uniquement si celle-ci est exprimée en kilomètres. Cela ne vérifie pas les enchaînements, recharges, trajets à vide ou conditions réelles et ne garantit pas la faisabilité d'une journée.
@@ -18,7 +20,7 @@
 - Aperçu mobile à 390 px : hiérarchie, écart initial et états inconnus inspectés. L'aperçu n'est pas une validation exhaustive de l'accessibilité.
 
 - Fenêtre de gestion issue du prototype validé : tests du parcours ligne créée, copier/coller et annulation, enregistrement, rechargement, simulation et bilan à 1440 px et 390 px. 167 tests unitaires passent ; le build de production est réussi.
-- Les périodes non chevauchantes, notes et restrictions de date/jours sont conservées. Les notes sont visibles aux arrêts ; les calculs indiquent qu’elles ne sont pas encore appliquées. Les périodes hors GTFS sont signalées.
+- Les périodes non chevauchantes, notes et restrictions de date/jours sont conservées. Les règles de calendrier et parcours explicitement associées aux notes sont appliquées ; les autres notes restent signalées comme non appliquées. Les périodes hors GTFS sont signalées.
 
 ## Limites et travaux restants
 
@@ -28,6 +30,6 @@
 - Vérifier les interactions clavier et lecteurs d'écran, les captures ordinateur/mobile, les performances et tous les cas sans API.
 - Le besoin simultané est une borne indicative : ni enchaînements géographiques, ni temps de dépôt, ni affectation de véhicules individuels ne sont calculés. Les hypothèses de disponibilité doivent rester visibles.
 - Les horaires GTFS couvrent uniquement la période indiquée. Le V1 extrapole uniformément ; le V2 conserve la période observée. Aucun résultat n'est une mesure d'exploitation réelle.
-- Les jours fériés fournis couvrent la France métropolitaine en 2026 ; une autre année n'est pas classée automatiquement. Les temps d'un tableau SIBRA utilisent la course modèle choisie et ne reproduisent pas nécessairement les variations entre courses GTFS.
+- Les jours fériés fournis couvrent la France métropolitaine en 2026 ; une autre année n'est pas classée automatiquement. En mode remplacement, les temps d'un tableau SIBRA utilisent la course modèle choisie et ne reproduisent pas nécessairement les variations entre courses GTFS.
 - Les facteurs transférés ont des millésimes et périmètres différents ; leur actualité et leur incertitude restent à vérifier. Les motorisations sans facteur comparable restent inconnues.
 - Le projet ne doit pas être considéré terminé ou intégré tant que ces vérifications et la revue ne sont pas achevées.

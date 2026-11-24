@@ -3,6 +3,8 @@ import type { SibraData } from "./sibra";
 export type ScheduleStop = { stopId: string; arrival: number; departure: number; progress: number };
 export type ScheduleTrip = {
   id: string; lineId: string; variantId: string; directionId: string; serviceId: string;
+  /** Identifiant de la course modèle lorsque le scénario lui donne un nouvel identifiant. */
+  sourceTripId?: string;
   stops: ScheduleStop[];
 };
 export type Schedule = {
@@ -60,7 +62,7 @@ export function parseSchedule(value: unknown): Schedule {
   }
   const ids = new Set<string>();
   for (const trip of schedule.trips) {
-    if (!trip || [trip.id, trip.lineId, trip.variantId, trip.directionId, trip.serviceId].some((id) => typeof id !== "string" || !id) ||
+    if (!trip || (trip.sourceTripId !== undefined && (typeof trip.sourceTripId !== "string" || !trip.sourceTripId)) || [trip.id, trip.lineId, trip.variantId, trip.directionId, trip.serviceId].some((id) => typeof id !== "string" || !id) ||
       ids.has(trip.id) || !serviceIds.has(trip.serviceId) || !Array.isArray(trip.stops) || trip.stops.length < 2) return fail();
     ids.add(trip.id);
     let previous: ScheduleStop | undefined;

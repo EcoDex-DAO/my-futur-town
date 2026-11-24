@@ -56,7 +56,7 @@ export function materialiseOverlay(schedule: Schedule, table: WeeklyTimetable, d
     if (!departureRunsOnDate(note, date)) continue;
     const selected = selectedDepartureTrip(trip, note, schedule.trips);
     if (!selected) { warnings.push("Parcours alternatif absent, modifié ou incompatible"); continue; }
-    try { result.push(note.rule === "trip" ? shiftTrip(selected, time) : trip); }
+    try { result.push(note.rule === "trip" ? { ...shiftTrip(selected, time), id: `weekly:${table.id}:${date}:${time}` } : trip); }
     catch { warnings.push("Départ du tableau invalide"); }
   }
   for (const time of edited) {

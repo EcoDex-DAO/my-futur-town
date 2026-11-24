@@ -13,6 +13,7 @@ import { writeSnapshot } from "../shared/snapshot-storage";
 import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "../shared/terminus-storage";
 import { lineActivity, variantActivity, variantLongestTrips, variantModelKey } from "./bus-report";
 import { archivedSourceUrl, discrepancySource } from "../shared/source-discrepancies";
+import { supportsStopConstraints } from "../shared/gtfs-stop-constraints";
 import { declaredRangeKm } from "../shared/fleet-range";
 import { REPORT_V2_STORAGE_KEY } from "../shared/scenario-fleet";
 import { initialFactors, scenarioImpact, type ImpactFactors } from "./scenario-impact";
@@ -123,6 +124,7 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
   return <div className="bilan-report">
     <h3>Bilan V2 · {selectedIds === null ? "toutes les lignes" : "lignes sélectionnées"}</h3>
     <p>Référence GTFS et scénario comparés du {schedule.metadata.validFrom} au {schedule.metadata.validTo}, sur les mêmes jours de service. Les lignes créées n’existent que dans le scénario. Courses planifiées et tracés indicatifs : ce ne sont pas des mesures. Les trajets à vide et les annulations sont inconnus.</p>
+    {supportsStopConstraints(data) && <p>Certains passages GTFS sont estimés ou interpolés : horaires et positions restent théoriques.</p>}
     {Object.keys(links.replacements).length > 0 && <p>Les lignes créées liées remplacent leurs lignes SIBRA {links.mode === "dates" ? "uniquement les jours où elles ont des horaires ; les autres jours restent en référence" : "sur toute la période ; les jours sans horaires créés sont sans service"}. Une ligne liée à une ligne sélectionnée est incluse dans son périmètre.</p>}
     {weekly.length > 0 && <p>Les tableaux par type de jour s’appliquent à leur période. Le mode de conservation maintient les différences du GTFS sauf conflit signalé ; les horaires particuliers enregistrés pour une date et un parcours restent prioritaires.</p>}
     <details><summary>Légende des provenances et de leur vérification</summary><p><span style={{ color: "#155b32" }}>Rapport SIBRA ou Annecy</span> · <span style={{ color: "#174c83" }}>Constructeur</span> · <span style={{ color: "#5d3f83" }}>Autre rapport</span> · <span style={{ color: "#7a4a00" }}>Hypothèse issue d’une source comparable</span> · <span>Origine déclarée ou inconnue</span>.</p><p>Ces catégories décrivent l’origine, pas la fiabilité. La vérification est indiquée séparément ; si elle n’est pas documentée, elle reste inconnue. Les valeurs saisies sont déclaratives et conservent la source inscrite dans l’inventaire.</p></details>

@@ -12,6 +12,7 @@ import { readTerminusStore, TERMINUS_STORAGE_KEY, type TerminusEntry } from "../
 import { LINE_REPLACEMENTS_KEY, readLineReplacements, type LineReplacementStore } from "../shared/line-replacements";
 import { WEEKLY_TIMETABLES_KEY, readWeeklyTimetables, type WeeklyTimetable } from "../shared/weekly-timetables";
 import { discrepancySource, sourceDiscrepancies } from "../shared/source-discrepancies";
+import { supportsStopConstraints } from "../shared/gtfs-stop-constraints";
 import { FLEET_STORAGE_KEY, readFleet, type Model } from "../shared/BusFleetManager";
 import { activeFleetSummary, emptyAssignments, readModelAssignments, REPORT_V2_STORAGE_KEY } from "../shared/scenario-fleet";
 
@@ -168,6 +169,7 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibl
     {error ? <p className="bus-simulation-message" role="alert">{error}</p> : !schedule ? <p role="status">Chargement des horaires…</p> : <>
       <p className="caption">Horaires valides du {schedule.metadata.validFrom} au {schedule.metadata.validTo} · {schedule.metadata.timeZone}</p>
       <label>Horaires utilisés<select value={scenario ? "scenario" : "reference"} onChange={(event) => setScenario(event.target.value === "scenario")}><option value="reference">Référence GTFS</option><option value="scenario">Scénario local, lignes créées comprises</option></select></label>
+      {supportsStopConstraints(data) && <p>Certains passages GTFS sont estimés ou interpolés : horaires et positions restent théoriques.</p>}
       {scenario && scenarioError && <p role="alert">{scenarioError}</p>}
       {!scenario && schedule && sourceDiscrepancies(schedule, data).filter((warning) => warning.date === date).map((warning) => <p role="alert" key={warning.entryId}>{warning.reason} (<a href={discrepancySource(warning.entryId) ?? "https://www.sibra.fr/"} target="_blank" rel="noreferrer">fiche SIBRA</a>). La simulation suit le GTFS ; cet écart reste à vérifier.</p>)}
       {scenario && resolved && resolved.diagnostics.length > 0 && <p role="alert">{resolved.diagnostics.length} avertissement(s) : {[...new Set(resolved.diagnostics.map((item) => item.reason))].join(" ; ")}. La simulation est partielle ; vérifiez les horaires et leurs sources.</p>}

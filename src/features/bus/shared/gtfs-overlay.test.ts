@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Schedule, ScheduleTrip } from "./bus-simulation";
 import type { WeeklyTimetable } from "./weekly-timetables";
 import { materialiseOverlay } from "./gtfs-overlay";
+import { tripSignature } from "./terminus-schedule";
 
 const trip = (id: string, serviceId: string, time: number): ScheduleTrip => ({ id, serviceId, lineId: "1", variantId: "v", directionId: "0", stops: [{ stopId: "a", arrival: time, departure: time, progress: 0 }, { stopId: "b", arrival: time + 600, departure: time + 600, progress: 1 }] });
 const schedule: Schedule = { metadata: { validFrom: "2026-11-04", validTo: "2026-11-14", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-04": ["special"], "2026-11-05": ["normal"], "2026-11-11": ["holiday"], "2026-11-14": ["saturday"] }, trips: [trip("m8", "special", 28800), trip("m9", "special", 32400), trip("exception", "special", 36000), trip("t8", "normal", 28800), trip("t9", "normal", 32400), trip("sat", "saturday", 30000), trip("sun", "holiday", 31000)] };
@@ -41,5 +42,13 @@ describe("modifications GTFS sans effacer les exceptions", () => {
     const note = { code: "j", description: "jeudi", until: "", days: [4], rule: "calendar" as const };
     const result = materialiseOverlay(schedule, { ...table, notes: { weekday: { "28800": note } } }, "2026-11-04", "weekday", "fixture-v1");
     expect(result.trips.map((item) => item.stops[0].departure).sort((a, b) => a - b)).toEqual([34200, 36000]);
+  });
+  it("attribue un identifiant distinct à une course détournée du modèle réutilisé", () => {
+    const alternative = { ...trip("alt", "special", 30000), variantId: "alt" };
+    const updated = { ...schedule, trips: [...schedule.trips, alternative] };
+    const note = { code: "r", description: "autre trajet", until: "", days: [], rule: "trip" as const, targetTripId: alternative.id, targetSignature: tripSignature(alternative) };
+    const result = materialiseOverlay(updated, { ...table, notes: { weekday: { "28800": note } } }, "2026-11-04", "weekday", "fixture-v1");
+    expect(result.warnings).toEqual([]);
+    expect(result.trips.find((item) => item.variantId === "alt")?.id).toBe("weekly:w:2026-11-04:28800");
   });
 });
