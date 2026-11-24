@@ -5,7 +5,7 @@
 ## Exigence commune à toutes les versions
 
 - Permettre, pour chaque bilan V1, V2 et version ultérieure, une projection de flotte **100 % électrique** et une projection **100 % biogaz**, sur le même périmètre et la même période que la référence. Garder accessibles les hypothèses, sources, unités, années et incertitudes ; ne pas écraser la flotte ou les affectations de l'utilisateur. Vérifier la compatibilité des modèles et signaler les données manquantes.
-- État actuel : le V1 propose déjà des motorisations uniformes électrique et biométhane, avec des facteurs et consommations modifiables ; les GES gaz sont inconnus tant qu'un facteur n'est pas renseigné. Le V2 permet d'affecter des modèles par ligne et par variante, mais ne propose pas encore de commande globale dédiée qui transforme toute la flotte en électrique ou biogaz. Distinguer biogaz, biométhane et gaz naturel selon la source et le facteur.
+- État actuel : le V1 propose des motorisations uniformes électrique et biométhane, avec des facteurs et consommations modifiables. Le V2 présente les deux projections uniformes du scénario, avec des consommations standard hypothétiques ; elles ne changent pas les affectations. Les GES gaz sont inconnus tant qu'un facteur adapté n'est pas renseigné. Cette exigence s'applique aussi à toutes les futures versions. Distinguer biogaz, biométhane et gaz naturel selon la source et le facteur.
 
 ## Données et horaires
 

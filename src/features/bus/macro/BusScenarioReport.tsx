@@ -18,6 +18,7 @@ import { declaredRangeKm } from "../shared/fleet-range";
 import { REPORT_V2_STORAGE_KEY } from "../shared/scenario-fleet";
 import { initialFactors, scenarioImpact, type ImpactFactors } from "./scenario-impact";
 import { annualScenario } from "./annual-scenario";
+import { homogeneousProjection } from "./fleet-projections";
 
 const KEY = REPORT_V2_STORAGE_KEY;
 type FactorKey = keyof ImpactFactors;
@@ -111,6 +112,8 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
     return { ghg, diesel, electric, gas, adblue, unknownAdblue, adblueCovered, nox, pm10, pm25, unknown, missing, warnings: side === "scenario" ? diagnostics.length : 0, covered, ghgCovered, unknownPollutants };
   };
   const beforeTotal = summarize("reference"), afterTotal = summarize("scenario");
+  const scenarioKm = rows.reduce((sum, row) => sum + row.km, 0);
+  const homogeneous = (["electric", "biogas"] as const).map((power) => ({ power, impact: homogeneousProjection(scenarioKm, power, factors) }));
   const electricRanges = new Map<string, { model: Model; longest: number | null; missing: number }>();
   for (const item of scenarioVariants) {
     if (!selected.has(item.lineId)) continue;
@@ -145,6 +148,7 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
       {!beforeTotal.unknown && !beforeTotal.missing && !afterTotal.unknown && !afterTotal.missing && !afterTotal.warnings && <p>Écart estimé de GES : {format(afterTotal.ghg - beforeTotal.ghg)} kg CO₂e.</p>}
       {[{ label: "Référence", value: beforeTotal }, { label: "Scénario", value: afterTotal }].map(({ label, value }) => <p key={`pollutants-${label}`}>{label}, polluants estimés : {value.unknownPollutants ? `incomplets : ${value.unknownPollutants} parcours sans facteur ou modèle` : `NOx ${format(value.nox)} kg · PM10 ${format(value.pm10)} kg · PM2,5 ${format(value.pm25)} kg`}{value.missing || value.warnings ? ` — ${value.missing} course(s) non résolues, ${value.warnings} avertissement(s)` : ""}. PM2,5 incluses dans PM10.</p>)}
       {!beforeTotal.unknownPollutants && !beforeTotal.missing && !afterTotal.unknownPollutants && !afterTotal.missing && !afterTotal.warnings && <p>Écarts estimés : NOx {format(afterTotal.nox - beforeTotal.nox)} kg · PM10 {format(afterTotal.pm10 - beforeTotal.pm10)} kg · PM2,5 {format(afterTotal.pm25 - beforeTotal.pm25)} kg.</p>}
+      <section aria-label="Projections de flotte uniformes"><h4>Projections de flotte 100 % électrique ou biogaz</h4><p>Pour les mêmes lignes et kilomètres du scénario, chaque projection suppose un modèle standard hypothétique sur tous les parcours. Elle ne modifie pas les affectations enregistrées et ne vérifie pas la compatibilité des gabarits, l’autonomie, les recharges ou la disponibilité.</p>{homogeneous.map(({ power, impact }) => <p key={power}>{power === "electric" ? "100 % électrique" : "100 % biogaz"} : {impact ? `${format(impact.energy)} ${impact.unit} · ${impact.ghgKg === null ? "GES inconnus : renseigner un facteur adapté" : `${format(impact.ghgKg)} kg CO₂e estimés`} · NOx ${impact.noxKg === null ? "inconnus" : `${format(impact.noxKg)} kg`} · PM10 ${impact.pm10Kg === null ? "inconnues" : `${format(impact.pm10Kg)} kg`} · PM2,5 ${impact.pm25Kg === null ? "inconnues" : `${format(impact.pm25Kg)} kg`}` : "Énergie et GES inconnus"}{afterTotal.missing || afterTotal.warnings ? " — résultat partiel : courses ou particularités à vérifier" : ""}.</p>)}<p>Électrique : 1,07 kWh/km, estimation SIBRA 2024 pour un standard. Biogaz : 0,53 kg/km, consommation transférée d’une étude européenne de bus au gaz ; sa représentativité est inconnue. Le facteur GES biogaz est à renseigner selon la filière ; sans lui, les émissions restent inconnues. Les NOx gaz utilisent par défaut un facteur gaz naturel transféré, non une mesure locale. PM2,5 est incluse dans PM10. Sources détaillées dans les facteurs ci-dessous.</p></section>
       <p>Par défaut, toutes les lignes utilisent à titre d’hypothèse le modèle standard gazole historique : ce choix uniforme ne décrit pas le parc ni les affectations réelles en 2026. Modifiez chaque affectation ou choisissez « Modèle inconnu ». Sa consommation historique est transférée faute de donnée par ligne ; son incertitude n’est pas quantifiée. Les consommations doivent préciser leur unité dans l’inventaire. Les valeurs manquantes restent inconnues. Les totaux ci-dessus sont partiels si des courses ne sont pas résolues.</p>
       <details><summary>Facteurs modifiables et provenance</summary><p>Ces facteurs sont des hypothèses appliquées aux deux côtés de la comparaison. Un champ vide signifie inconnu. Indiquez source, date, périmètre et limites pour toute modification.</p>
         {([

@@ -97,6 +97,9 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(page.getByText("Kilomètres de référence", { exact: true }).locator("+ dd")).toHaveText(annualReference);
     await expect(page.getByText("Bilan annuel estimé", { exact: false })).toBeVisible();
     await expect(page.getByText("Bilan annuel estimé", { exact: false })).toContainText("2027-11-03");
+    const projections = page.getByRole("region", { name: "Projections de flotte uniformes" });
+    await expect(projections.locator("p").filter({ hasText: /^100 % électrique :/ })).toContainText("kWh");
+    await expect(projections.locator("p").filter({ hasText: /^100 % biogaz :/ })).toContainText("GES inconnus");
     await expect(page.getByRole("alert").filter({ hasText: /Ligne 15B.*12 h 45.*12 h 43/ })).toBeVisible();
     await expect(page.getByText("Écart de kilomètres").locator("+ dd")).toContainText("km");
     const line = page.locator("details.bilan-line").filter({ has: page.locator("summary").filter({ hasText: /^1 ·/ }) }).first();
