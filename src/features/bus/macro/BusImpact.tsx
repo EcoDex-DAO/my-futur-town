@@ -9,6 +9,7 @@ import { impactStorageKey, readImpactSnapshot, type FactorKey, type FactorFields
 import { summarizeNetwork } from "./bus-impact-network";
 import { ADEME_BUS_NOX_2026 } from "./bus-impact-ademe";
 import { BusPublicReferences } from "./BusPublicReferences";
+import { archivedSourceUrl } from "../shared/source-discrepancies";
 
 type Props = { lineId: string; lineName: string; scenarioName: string | null; scenarioId: string | null; hasReference: boolean };
 const factorLabels = {
@@ -90,7 +91,7 @@ function FleetEditor({ title, rows, setRows, lineId, allowGtfs }: { title: strin
       const data = parseSibraData(network); const timetable = parseSchedule(schedule);
       const result = coveredGtfsActivity(data, timetable, lineId, serviceDate);
       setGtfsMessage(result.message);
-      if (result.vehicleKm !== null) update(id, { coveredKm: String(result.vehicleKm), gtfsDate: serviceDate, coverage: `Jour de service ${serviceDate} · ${result.tripCount} courses · ${timetable.metadata.timeZone}`, activitySource: { name: `${data.metadata.attribution} — ${data.metadata.sourceUrl}`, version: data.metadata.generatedAt, scope: `Ligne ${lineId}, jour de service ${serviceDate}, ${result.tripCount} courses ; géométrie GTFS théorique` } });
+      if (result.vehicleKm !== null) update(id, { coveredKm: String(result.vehicleKm), gtfsDate: serviceDate, coverage: `Jour de service ${serviceDate} · ${result.tripCount} courses · ${timetable.metadata.timeZone}`, activitySource: { name: `${data.metadata.attribution} — ${archivedSourceUrl(data.metadata.sourceUrl)}`, version: data.metadata.generatedAt, scope: `Ligne ${lineId}, jour de service ${serviceDate}, ${result.tripCount} courses ; géométrie GTFS théorique` } });
     } catch { setGtfsMessage("Calcul GTFS indisponible : vérifiez les données locales et réessayez."); }
   };
   return <fieldset><legend>{title}</legend>

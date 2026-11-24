@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import Any
 
 SOURCE_URL = (
-    "https://static.data.gouv.fr/resources/offre-de-transports-sibra-a-annecy-gtfs/"
-    "20261106-075925/gtfs-sibra.zip"
+    "https://transport-data-gouv-fr-resource-history-prod.cellar-c2.services.clever-cloud.com/"
+    "80100/80100.20261106.081009.206313.zip"
 )
 SOURCE_SHA256 = "13948ea007139e52708bd3ebc90c5eff481e091f13d28c98db2dccc90b67da51"
 ATTRIBUTION = "SIBRA, Grand Annecy — Offre de transports SIBRA (GTFS)"

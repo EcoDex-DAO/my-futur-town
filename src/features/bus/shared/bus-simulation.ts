@@ -3,6 +3,8 @@ import type { SibraData } from "./sibra";
 export type ScheduleStop = { stopId: string; arrival: number; departure: number; progress: number };
 export type ScheduleTrip = {
   id: string; lineId: string; variantId: string; directionId: string; serviceId: string;
+  /** Identifiant de la course modèle lorsque le scénario lui donne un nouvel identifiant. */
+  sourceTripId?: string;
   stops: ScheduleStop[];
 };
 export type Schedule = {
@@ -60,7 +62,7 @@ export function parseSchedule(value: unknown): Schedule {
   }
   const ids = new Set<string>();
   for (const trip of schedule.trips) {
-    if (!trip || [trip.id, trip.lineId, trip.variantId, trip.directionId, trip.serviceId].some((id) => typeof id !== "string" || !id) ||
+    if (!trip || (trip.sourceTripId !== undefined && (typeof trip.sourceTripId !== "string" || !trip.sourceTripId)) || [trip.id, trip.lineId, trip.variantId, trip.directionId, trip.serviceId].some((id) => typeof id !== "string" || !id) ||
       ids.has(trip.id) || !serviceIds.has(trip.serviceId) || !Array.isArray(trip.stops) || trip.stops.length < 2) return fail();
     ids.add(trip.id);
     let previous: ScheduleStop | undefined;
@@ -72,6 +74,16 @@ export function parseSchedule(value: unknown): Schedule {
       previous = stop;
     }
     if (trip.stops.at(-1)!.arrival <= trip.stops[0].departure) return fail();
+  }
+  return schedule;
+}
+
+/** Missing calendar dates cannot be interpreted as days without service. */
+export function requireCompleteCalendar(schedule: Schedule): Schedule {
+  const first = dateDay(schedule.metadata.validFrom), last = dateDay(schedule.metadata.validTo);
+  for (let day = first; day <= last; day++) {
+    const date = new Date(day * 86400000).toISOString().slice(0, 10);
+    if (!Object.hasOwn(schedule.serviceDates, date)) throw new Error("Calendrier incomplet : certains jours sont inconnus.");
   }
   return schedule;
 }

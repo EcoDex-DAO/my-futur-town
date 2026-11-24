@@ -11,7 +11,7 @@ GTFS. Ils ne contiennent pas de positions de véhicules en temps réel.
 
 ## Édition source
 
-- Téléchargement : [GTFS SIBRA, édition publiée le 6 novembre 2026](https://static.data.gouv.fr/resources/offre-de-transports-sibra-a-annecy-gtfs/20261106-075925/gtfs-sibra.zip)
+- Téléchargement : [GTFS SIBRA, édition publiée le 6 novembre 2026](https://transport-data-gouv-fr-resource-history-prod.cellar-c2.services.clever-cloud.com/80100/80100.20261106.081009.206313.zip)
 - SHA-256 de l’archive : `13948ea007139e52708bd3ebc90c5eff481e091f13d28c98db2dccc90b67da51`
 - Fiche du jeu de données : [Réseau urbain Sibra](https://transport.data.gouv.fr/datasets/offre-de-transports-sibra-a-annecy-gtfs)
 - Publication : 2026-11-06
@@ -52,7 +52,7 @@ dont le contenu diffère de cette édition :
 
 ```sh
 curl -fL -o /tmp/gtfs-sibra.zip \
-  https://static.data.gouv.fr/resources/offre-de-transports-sibra-a-annecy-gtfs/20261106-075925/gtfs-sibra.zip
+  https://transport-data-gouv-fr-resource-history-prod.cellar-c2.services.clever-cloud.com/80100/80100.20261106.081009.206313.zip
 python3 scripts/importers/sibra_gtfs.py /tmp/gtfs-sibra.zip public/data/sibra.json \
   --generated-at 2026-11-06T20:17:00Z
 ```
@@ -66,6 +66,19 @@ ordonnés. `arrival` et `departure` sont des secondes depuis minuit au début du
 jour de service. Elles peuvent dépasser 86 400 : les heures après minuit restent
 rattachées au jour GTFS d’origine. Les dates expriment l’activité des services,
 pas l’activation d’une course particulière hors de son service GTFS.
+
+Pour contrôler indépendamment les données locales déjà produites, sans les
+modifier : `python3 scripts/verify_sibra_reference.py /tmp/gtfs-sibra.zip`.
+Le contrôle vérifie le SHA-256, les dates, courses, arrêts, horaires, variantes
+et géométries. Il mesure aussi l'écart entre arrêts et points projetés, sans
+prétendre valider toutes les branches possibles ni les légendes des fiches PDF.
+
+Les modalités de montée, de descente et la précision des horaires sont placées
+dans un fichier complémentaire, sans modifier les données de référence. Pour
+le reproduire depuis cette même archive : `python3 scripts/importers/sibra_constraints.py /tmp/gtfs-sibra.zip public/data/sibra-stop-constraints.json`.
+Le contrôle indépendant vérifie aussi ce complément : 443 passages interdisent
+la montée et 94 221 passages ont un horaire estimé ou interpolé. La précision
+réelle et les conditions d'exploitation ne sont pas connues.
 
 Les `variantId` sont calculés avec le même identifiant de contenu que dans
 `sibra.json`, depuis la ligne, la forme, la destination et la séquence d’arrêts.
