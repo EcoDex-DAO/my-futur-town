@@ -80,14 +80,16 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
     for (const trip of reference.trips) {
       if (!active.has(trip.serviceId) || replaced.has(trip.lineId) || weeklyGtfsRoutes.has(JSON.stringify([trip.lineId, trip.variantId]))) continue;
       const entry = byId.get(`gtfs:${date}:${trip.id}`);
+      const keepReference = () => trips.push({ ...trip, id: `${trip.id}@${date}`, sourceTripId: trip.sourceTripId ?? trip.id, serviceId });
       if (entry) {
         if (entry.tripId !== trip.id || entry.lineId !== trip.lineId || entry.variantId !== trip.variantId || entry.directionId !== trip.directionId || !matchesTripTemplate(trip, entry.stops)) {
-          diagnostics.push({ entryId: entry.id, date, reason: "Course de référence modifiée ou incohérente" });
+          diagnostics.push({ entryId: entry.id, date, lineId: trip.lineId, reason: "Course de référence modifiée ou incohérente ; référence conservée" });
+          keepReference();
           continue;
         }
         try { trips.push({ ...shiftTrip(trip, entry.departure), id: `${trip.id}@${date}`, serviceId }); }
-        catch { diagnostics.push({ entryId: entry.id, date, reason: "Départ invalide" }); }
-      } else trips.push({ ...trip, id: `${trip.id}@${date}`, sourceTripId: trip.sourceTripId ?? trip.id, serviceId });
+        catch { diagnostics.push({ entryId: entry.id, date, lineId: trip.lineId, reason: "Départ invalide ; référence conservée" }); keepReference(); }
+      } else keepReference();
     }
     if (dayType) for (const table of dailyTables) {
       if (table.mode !== "overlay" && Object.values(table.notes?.[dayType] ?? {}).some((note) => !note.rule || (note.rule === "trip" && table.kind !== "gtfs") || (note.rule === "created" && table.kind !== "created"))) diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Options de départ non prises en compte dans le calcul" });
@@ -100,21 +102,26 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
           continue;
         }
         const template = templates.get(table.tripId ?? "");
+        const keepRoute = () => { for (const trip of reference.trips) if (active.has(trip.serviceId) && trip.lineId === table.lineId && trip.variantId === table.variantId) trips.push({ ...trip, id: `${trip.id}@${date}`, sourceTripId: trip.sourceTripId ?? trip.id, serviceId }); };
         if (!template || template.lineId !== table.lineId || template.variantId !== table.variantId || template.directionId !== table.directionId || !matchesTripTemplate(template, table.stops)) {
-          diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Modèle du tableau GTFS absent ou modifié" });
+          diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Modèle du tableau GTFS absent ou modifié ; référence conservée" });
+          keepRoute();
           continue;
         }
+        const pending: ScheduleTrip[] = [];
+        let invalid = false;
         for (const departure of table.days[dayType]) {
           const note = table.notes?.[dayType]?.[String(departure)];
           if (!departureRunsOnDate(note, date)) continue;
           const selected = selectedDepartureTrip(template, note, reference.trips);
           if (!selected) {
             diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Parcours alternatif absent, modifié ou incompatible" });
-            continue;
+            invalid = true; break;
           }
-          try { trips.push({ ...shiftTrip(selected, departure), id: `weekly:${table.id}:${date}:${departure}`, serviceId }); }
-          catch { diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Départ du tableau invalide" }); }
+          try { pending.push({ ...shiftTrip(selected, departure), id: `weekly:${table.id}:${date}:${departure}`, serviceId }); }
+          catch { diagnostics.push({ entryId: table.id, date, lineId: table.lineId, reason: "Départ du tableau invalide ; référence conservée" }); invalid = true; break; }
         }
+        if (invalid) keepRoute(); else trips.push(...pending);
       } else {
         const path = createdPaths.get(JSON.stringify([table.lineId, table.variantId]));
         if (!path || path.signature !== table.directionId || !path.progress || path.markers.length !== table.stops.length || path.markers.some((marker, index) => marker.id !== table.stops[index].id) || table.stops.some((stop, index) => index > 0 && stop.offset <= table.stops[index - 1].offset)) {

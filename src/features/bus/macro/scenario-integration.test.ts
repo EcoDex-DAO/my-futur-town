@@ -65,7 +65,10 @@ describe("intégration du bilan sur période commune", () => {
     const changed = { ...reference, trips: reference.trips.map((trip) => trip.id === "short" ? { ...trip, variantId: "changed" } : trip) };
     const invalid = resolveScenario(changed, network, [], [], {}, "dates", [weekly]);
     expect(invalid.diagnostics.some((item) => item.reason.includes("alternatif"))).toBe(true);
-    expect(invalid.schedule.trips).toHaveLength(0);
+    expect(invalid.schedule.trips).toHaveLength(1);
+    expect(invalid.schedule.trips[0].variantId).toBe("v");
+    expect(lineActivity(invalid.data, invalid.schedule)[0].km).toBeCloseTo(before, 6);
+    expect(scenarioImpact(lineActivity(invalid.data, invalid.schedule)[0].km, diesel)!.energy).toBeCloseTo(scenarioImpact(before, diesel)!.energy, 6);
   });
   it("répartit la distance par parcours pour appliquer des motorisations différentes", () => {
     const second = { ...schedule.trips[0], id: "electric", variantId: "short" };

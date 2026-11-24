@@ -55,9 +55,9 @@ export function materialiseOverlay(schedule: Schedule, table: WeeklyTimetable, d
     if (!note.rule || note.rule === "created") { warnings.push("Options de départ non prises en compte dans le calcul"); result.push(trip); continue; }
     if (!departureRunsOnDate(note, date)) continue;
     const selected = selectedDepartureTrip(trip, note, schedule.trips);
-    if (!selected) { warnings.push("Parcours alternatif absent, modifié ou incompatible"); continue; }
+    if (!selected) return fallback("Parcours alternatif absent, modifié ou incompatible ; référence conservée");
     try { result.push(note.rule === "trip" ? { ...shiftTrip(selected, time), id: `weekly:${table.id}:${date}:${time}` } : trip); }
-    catch { warnings.push("Départ du tableau invalide"); }
+    catch { return fallback("Départ du tableau invalide ; référence conservée"); }
   }
   for (const time of edited) {
     if (base.has(time)) continue;
@@ -65,9 +65,9 @@ export function materialiseOverlay(schedule: Schedule, table: WeeklyTimetable, d
     if (note && (!note.rule || note.rule === "created")) warnings.push("Options de départ non prises en compte dans le calcul");
     if (note?.rule !== "created" && !departureRunsOnDate(note, date)) continue;
     const selected = selectedDepartureTrip(template, note, schedule.trips);
-    if (!selected) { warnings.push("Parcours alternatif absent, modifié ou incompatible"); continue; }
+    if (!selected) return fallback("Parcours alternatif absent, modifié ou incompatible ; référence conservée");
     try { result.push({ ...shiftTrip(selected, time), id: `weekly:${table.id}:${date}:${time}` }); }
-    catch { warnings.push("Départ du tableau invalide"); }
+    catch { return fallback("Départ du tableau invalide ; référence conservée"); }
   }
   return { trips: result, warnings: [...new Set(warnings)] };
 }

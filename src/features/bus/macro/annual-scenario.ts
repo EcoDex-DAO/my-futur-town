@@ -13,7 +13,7 @@ import { projectAnnualSchedule } from "./project-annual-schedule";
 export function annualScenario(reference: Schedule, data: SibraData, created: readonly BusCreatedLine[], entries: readonly TerminusEntry[], links: LineReplacementStore, weekly: readonly WeeklyTimetable[]) {
   const projected = projectAnnualSchedule(reference);
   if (!created.length && !entries.length && !weekly.length && !Object.keys(links.replacements).length) {
-    return { projected, reference: lineActivity(data, projected, false, true), referenceVariants: variantActivity(data, projected, false, true), adapted: lineActivity(data, projected), scenarioVariants: variantActivity(data, projected), longest: variantLongestTrips(data, projected), diagnostics: sourceDiscrepancies(reference, data) };
+    return { projected, reference: lineActivity(data, projected), referenceVariants: variantActivity(data, projected), adapted: lineActivity(data, projected), scenarioVariants: variantActivity(data, projected), longest: variantLongestTrips(data, projected), diagnostics: sourceDiscrepancies(reference, data) };
   }
   const days = Object.keys(projected.serviceDates).sort();
   const months = new Map<string, Set<string>>();
@@ -38,5 +38,5 @@ export function annualScenario(reference: Schedule, data: SibraData, created: re
     }
     for (const [key, distance] of variantLongestTrips(resolved.data, resolved.schedule)) longest.set(key, Math.max(longest.get(key) ?? 0, distance));
   }
-  return { projected, reference: lineActivity(data, projected, false, true), referenceVariants: variantActivity(data, projected, false, true), adapted: [...lines.values()], scenarioVariants: [...variants.values()], longest, diagnostics: [...issues.values()] };
+  return { projected, reference: lineActivity(data, projected), referenceVariants: variantActivity(data, projected), adapted: [...lines.values()], scenarioVariants: [...variants.values()], longest, diagnostics: [...issues.values()] };
 }

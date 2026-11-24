@@ -6,6 +6,8 @@ import type { SibraData } from "../shared/sibra";
 import { parseSibraData } from "../shared/sibra";
 import type { TerminusEntry } from "../shared/terminus-storage";
 import { annualScenario } from "./annual-scenario";
+import { readFleet } from "../shared/BusFleetManager";
+import { scenarioImpact } from "./scenario-impact";
 
 describe("bilan annuel par dates", () => {
   it("compte une ligne créée une seule fois à sa date projetée, même après le GTFS", () => {
@@ -36,5 +38,14 @@ describe("bilan annuel par dates", () => {
     expect(result.adapted.reduce((sum, line) => sum + line.trips, 0)).toBeGreaterThan(0);
     expect(result.diagnostics.some((item) => item.entryId === "source:15")).toBe(true);
     expect(result.diagnostics.some((item) => item.entryId === "source:21")).toBe(true);
+    expect(result.reference.reduce((sum, row) => sum + row.km, 0)).toBeCloseTo(result.adapted.reduce((sum, row) => sum + row.km, 0));
+    expect(result.referenceVariants.reduce((sum, row) => sum + row.km, 0)).toBeCloseTo(result.scenarioVariants.reduce((sum, row) => sum + row.km, 0));
+    expect(result.reference.find((row) => row.id === "1")?.km).toBeCloseTo(result.adapted.find((row) => row.id === "1")!.km);
+    const model = readFleet(null).find((item) => item.id === "standard-diesel");
+    for (const row of result.referenceVariants.filter((item) => item.lineId === "1")) {
+      const other = result.scenarioVariants.find((item) => item.lineId === row.lineId && item.variantId === row.variantId)!;
+      expect(scenarioImpact(row.km, model)?.energy).toBeCloseTo(scenarioImpact(other.km, model)!.energy);
+      expect(scenarioImpact(row.km, model)?.ghgKg).toBeCloseTo(scenarioImpact(other.km, model)!.ghgKg!);
+    }
   }, 120_000);
 });

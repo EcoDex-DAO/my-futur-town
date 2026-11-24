@@ -51,4 +51,10 @@ describe("modifications GTFS sans effacer les exceptions", () => {
     expect(result.warnings).toEqual([]);
     expect(result.trips.find((item) => item.variantId === "alt")?.id).toBe("weekly:w:2026-11-04:28800");
   });
+  it("conserve toutes les courses si un parcours alternatif est devenu invalide", () => {
+    const note = { code: "r", description: "autre trajet", until: "", days: [], rule: "trip" as const, targetTripId: "absent", targetSignature: "absent" };
+    const result = materialiseOverlay(schedule, { ...table, notes: { weekday: { "28800": note } } }, "2026-11-04", "weekday", "fixture-v1");
+    expect(result.trips).toEqual(schedule.trips.slice(0, 3));
+    expect(result.warnings[0]).toMatch(/référence conservée/);
+  });
 });

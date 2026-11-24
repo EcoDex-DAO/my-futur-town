@@ -5,6 +5,7 @@ import type { TerminusEntry } from "./terminus-storage";
 import { resolveScenario } from "./scenario-schedule";
 import { createdTableSignature, type WeeklyTimetable } from "./weekly-timetables";
 import { gtfsReferenceVersion } from "./gtfs-overlay";
+import { lineActivity } from "../macro/bus-report";
 
 const schedule: Schedule = { metadata: { validFrom: "2026-11-04", validTo: "2026-11-05", timeZone: "Europe/Paris" }, serviceDates: { "2026-11-04": ["s"], "2026-11-05": [] }, trips: [{ id: "t", serviceId: "s", lineId: "1", variantId: "v", directionId: "0", stops: [{ stopId: "a", arrival: 3600, departure: 3600, progress: 0 }, { stopId: "b", arrival: 4200, departure: 4200, progress: 1 }] }] };
 const data = { metadata: {}, lines: [{ id: "1", shortName: "1", longName: "1", color: "#000000", variants: [{ id: "v", headsign: "B", coordinates: [[6, 45], [6.01, 45]], stops: [] }] }] } as unknown as SibraData;
@@ -30,8 +31,23 @@ describe("résolution des horaires de scénario", () => {
   });
   it("exclut et signale un modèle modifié ou hors calendrier", () => {
     const result = resolveScenario(schedule, data, [], [{ ...entry, stops: [{ id: "x", name: "X", offset: 0 }, entry.stops[1]] }, { ...entry, id: "out", date: "2026-12-01" }]);
-    expect(result.schedule.trips).toHaveLength(0);
+    expect(result.schedule.trips).toHaveLength(1);
+    expect(result.schedule.trips[0].stops[0].departure).toBe(3600);
+    expect(getActiveVehicles(result.schedule, data, "2026-11-04", 3700, "1")).toHaveLength(1);
+    expect(lineActivity(result.data, result.schedule)[0].km).toBeCloseTo(lineActivity(data, schedule)[0].km);
     expect(result.diagnostics).toHaveLength(2);
+  });
+  it("conserve les courses GTFS si le tableau de remplacement a un modèle invalide", () => {
+    const weekly: WeeklyTimetable = { id: "bad", kind: "gtfs", lineId: "1", variantId: "v", directionId: "0", tripId: "missing", stops: entry.stops, validFrom: "2026-11-04", validTo: "2026-11-05", days: { weekday: [], saturday: [], "sunday-holiday": [] } };
+    const result = resolveScenario(schedule, data, [], [], {}, "dates", [weekly]);
+    expect(result.schedule.trips).toHaveLength(1);
+    expect(result.schedule.trips[0].stops[0].departure).toBe(3600);
+    expect(result.diagnostics.some((item) => item.reason.includes("référence conservée"))).toBe(true);
+  });
+  it("conserve la course si le départ modifié est invalide", () => {
+    const result = resolveScenario(schedule, data, [], [{ ...entry, departure: -1 }]);
+    expect(result.schedule.trips[0].stops[0].departure).toBe(3600);
+    expect(result.diagnostics.some((item) => item.reason.includes("référence conservée"))).toBe(true);
   });
   it("intègre une ligne créée puis invalide son horaire si le parcours change", () => {
     const a = { id: "a", name: "A", kind: "terminus" as const, coordinates: [6, 45] as [number, number] };
