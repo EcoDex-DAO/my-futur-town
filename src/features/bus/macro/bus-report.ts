@@ -43,7 +43,9 @@ export function annualLineActivity(data: SibraData, schedule: Schedule): LineAct
 }
 
 /** Same period and geometry as lineActivity, retaining the route used by each trip. */
-export function variantActivity(data: SibraData, schedule: Schedule): VariantActivity[] {
+export function variantActivity(data: SibraData, schedule: Schedule, annualise = false): VariantActivity[] {
+  const days = (Date.parse(`${schedule.metadata.validTo}T00:00:00Z`) - Date.parse(`${schedule.metadata.validFrom}T00:00:00Z`)) / 86400000 + 1;
+  const factor = annualise ? 365 / days : 1;
   const frequencies = new Map<string, number>();
   for (const services of Object.values(schedule.serviceDates)) for (const id of services) frequencies.set(id, (frequencies.get(id) ?? 0) + 1);
   const lengths = new Map(data.lines.flatMap((line) => line.variants.map((variant) => [variantModelKey(line.id, variant.id), lengthKm(variant.coordinates)] as const)));
@@ -55,7 +57,7 @@ export function variantActivity(data: SibraData, schedule: Schedule): VariantAct
     const row = result.get(key) ?? { lineId: trip.lineId, variantId: trip.variantId, km: 0, trips: 0, missing: 0 };
     const length = lengths.get(key), first = trip.stops[0], last = trip.stops.at(-1);
     if (!length || !first || !last || last.progress < first.progress) row.missing += count;
-    else { row.km += length * (last.progress - first.progress) * count; row.trips += count; }
+    else { row.km += length * (last.progress - first.progress) * count * factor; row.trips += count * factor; }
     result.set(key, row);
   }
   return [...result.values()];

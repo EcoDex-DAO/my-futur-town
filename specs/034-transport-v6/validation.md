@@ -29,7 +29,7 @@
 - Étendre les essais aux conflits entre onglets de l'interface, aux horaires supprimés ou invalidés, aux modèles incompatibles, aux calendriers incomplets et aux variations de parcours dans le navigateur.
 - Vérifier les interactions clavier et lecteurs d'écran, les captures ordinateur/mobile, les performances et tous les cas sans API.
 - Le besoin simultané est une borne indicative : ni enchaînements géographiques, ni temps de dépôt, ni affectation de véhicules individuels ne sont calculés. Les hypothèses de disponibilité doivent rester visibles.
-- Les horaires GTFS couvrent uniquement la période indiquée. Le V1 extrapole uniformément ; le V2 conserve la période observée. Aucun résultat n'est une mesure d'exploitation réelle.
+- Les horaires GTFS couvrent uniquement la période indiquée. V1 et V2 extrapolent uniformément à 365 jours ; les modifications ponctuelles du scénario sont également extrapolées. Les variations saisonnières et scolaires hors couverture sont inconnues et aucun résultat n'est une mesure d'exploitation réelle. Le besoin simultané reste calculé sur les jours couverts, pas extrapolé.
 - Les jours fériés fournis couvrent la France métropolitaine en 2026 ; une autre année n'est pas classée automatiquement. En mode remplacement, les temps d'un tableau SIBRA utilisent la course modèle choisie et ne reproduisent pas nécessairement les variations entre courses GTFS.
 - Les facteurs transférés ont des millésimes et périmètres différents ; leur actualité et leur incertitude restent à vérifier. Les motorisations sans facteur comparable restent inconnues.
 - Le projet ne doit pas être considéré terminé ou intégré tant que ces vérifications et la revue ne sont pas achevées.
