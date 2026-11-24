@@ -11,7 +11,9 @@ describe("catégories de jours", () => {
     expect(serviceDayType("2026-11-11")).toBe("sunday-holiday");
   });
   it("ne devine pas les fériés hors couverture ou pour une date invalide", () => {
-    expect(serviceDayType("2027-01-01")).toBeNull();
+    expect(serviceDayType("2027-01-01")).toBe("sunday-holiday");
+    expect(serviceDayType("2027-05-06")).toBe("sunday-holiday");
+    expect(serviceDayType("2028-01-01")).toBeNull();
     expect(serviceDayType("2026-02-30")).toBeNull();
   });
 });

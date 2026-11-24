@@ -7,6 +7,7 @@ import { annualLineActivity } from "./bus-report";
 import { readReportSnapshot, REPORT_STORAGE_KEY, saveReportSnapshot } from "./report-storage";
 import { discrepancySource, sourceDiscrepancies } from "../shared/source-discrepancies";
 import { supportsStopConstraints } from "../shared/gtfs-stop-constraints";
+import { projectAnnualSchedule } from "./project-annual-schedule";
 
 const defaults = { standard: 38.4, articulated: 55.5, electric: 1.07, gas: 0.53, density: 0.84, dieselGhg: 3.16, electricGhg: 0.092, gasGhg: "", dieselNox: 1.85, gasNox: 0.713, pm10: 0.059, pm25: 0.0316, tyreLife: 85000, tyresStandard: 6, tyresArticulated: 10, occupancy: 20, capacityStandard: 100, capacityArticulated: 150, dwell: 12 };
 const sourceColors: Record<string, string> = { "Constructeur": "#174c83", "Rapport SIBRA ou Annecy": "#155b32", "Autre rapport": "#5d3f83", "Hypothèse comparable": "#7a4a00", "Saisie utilisateur": "#253d36" };
@@ -37,7 +38,8 @@ export function BusReport({ data, groups, selectedIds }: { data: SibraData; grou
     return () => controller.abort();
   }, []);
   useEffect(() => { if (loaded) try { snapshot.current = saveReportSnapshot(localStorage, snapshot.current, { parameters, sizes, scenario, sources, sourceKinds, sourceChecks }); } catch (error) { setLoaded(false); setError(error instanceof Error && error.message.includes("autre onglet") ? error.message : "Les hypothèses ne peuvent pas être sauvegardées dans ce navigateur."); } }, [loaded, parameters, sizes, scenario, sources, sourceKinds, sourceChecks]);
-  const rows = useMemo(() => schedule ? annualLineActivity(data, schedule).filter((row) => scope === "all" || selectedIds.includes(row.id)) : [], [data, schedule, scope, selectedIds]);
+  const projection = useMemo(() => { if (!schedule) return null; try { return projectAnnualSchedule(schedule); } catch { return null; } }, [schedule]);
+  const rows = useMemo(() => schedule ? annualLineActivity(data, projection ?? schedule).filter((row) => scope === "all" || selectedIds.includes(row.id)) : [], [data, schedule, projection, scope, selectedIds]);
   const calc = (row: typeof rows[number]) => {
     const size = sizes[row.id] ?? "standard";
     const consumption = num(parameters[scenario === "diesel" ? size : scenario]);
@@ -62,7 +64,7 @@ export function BusReport({ data, groups, selectedIds }: { data: SibraData; grou
     <label className="bilan-scenario">Périmètre du bilan<select value={scope} onChange={(e) => setScope(e.target.value as "all" | "selected")}><option value="all">Toutes les lignes SIBRA</option><option value="selected">Lignes cochées dans le menu Bus</option></select></label>
     {error && <p role="alert">{error}</p>}
     {!schedule && !error && <p role="status">Chargement des horaires…</p>}
-    {schedule && <><p className="bilan-note">Horaires du {schedule.metadata.validFrom} au {schedule.metadata.validTo} : extrapolation uniforme à 365 jours à partir de cette seule période. Sa représentativité annuelle n’est pas établie : vacances et variations saisonnières restent inconnues. Les kilomètres sont estimés depuis les tracés et horaires, sans trajets à vide.</p>
+    {schedule && <><p className="bilan-note">Horaires publiés du {schedule.metadata.validFrom} au {schedule.metadata.validTo} ; {projection ? `année estimée jusqu'au ${projection.metadata.validTo} en répétant les jours types observés, y compris l'été` : "extrapolation uniforme à 365 jours, faute de modèle pour chaque jour de semaine"}. Sa représentativité annuelle n’est pas établie : vacances et variations saisonnières restent inconnues. Les kilomètres sont estimés depuis les tracés et horaires, sans trajets à vide.</p>
       {supportsStopConstraints(data) && <p>Certains passages GTFS sont estimés ou interpolés : horaires et positions restent théoriques.</p>}
       {Object.values(Object.fromEntries(sourceDiscrepancies(schedule, data).filter((warning) => rows.some((row) => row.id === warning.lineId)).map((warning) => [warning.entryId, warning]))).map((warning) => <p role="alert" key={warning.entryId}>Données à vérifier : {warning.reason} (<a href={discrepancySource(warning.entryId) ?? "https://www.sibra.fr/"} target="_blank" rel="noreferrer">fiche SIBRA</a>). Les chiffres suivent le GTFS et restent incertains.</p>)}
       <label className="bilan-scenario">Motorisation du scénario<select value={scenario} onChange={(e) => setScenario(e.target.value as Scenario)}><option value="diesel">100 % gazole</option><option value="electric">100 % électrique</option><option value="gas">100 % biométhane</option></select></label>

@@ -40,7 +40,7 @@ function stopProgress(coordinates: [number, number][], markers: BusLineMarker[])
 }
 
 /** Materialise one service per date. The original reference and entries are never mutated. */
-export function resolveScenario(reference: Schedule, data: SibraData, created: readonly BusCreatedLine[], entries: readonly TerminusEntry[], replacements: LineReplacements = {}, replacementMode: "dates" | "period" = "dates", weeklyTables: readonly WeeklyTimetable[] = []): ResolvedScenario {
+export function resolveScenario(reference: Schedule, data: SibraData, created: readonly BusCreatedLine[], entries: readonly TerminusEntry[], replacements: LineReplacements = {}, replacementMode: "dates" | "period" = "dates", weeklyTables: readonly WeeklyTimetable[] = [], datesToResolve?: ReadonlySet<string>): ResolvedScenario {
   const diagnostics: ScenarioDiagnostic[] = sourceDiscrepancies(reference, data);
   for (const table of weeklyTables) if (table.validFrom < reference.metadata.validFrom || table.validTo > reference.metadata.validTo) diagnostics.push({ entryId: table.id, date: table.validFrom, lineId: table.lineId, reason: "Période partiellement ou entièrement hors calendrier de référence" });
   const trips: ScheduleTrip[] = [];
@@ -65,6 +65,7 @@ export function resolveScenario(reference: Schedule, data: SibraData, created: r
     generatedLines.push({ id: line.id, shortName: line.name, longName: line.name, color: "#31594a", variants });
   }
   for (const [date, services] of Object.entries(reference.serviceDates)) {
+    if (datesToResolve && !datesToResolve.has(date)) continue;
     const serviceId = `scenario:${date}`;
     serviceDates[date] = [serviceId];
     const active = new Set(services);
