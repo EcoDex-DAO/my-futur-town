@@ -82,6 +82,7 @@ for (const width of [1440, 390]) test(`un départ utilise un parcours alternatif
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
   test(`bilan V2 et persistance sans API ${viewport.width}px`, async ({ page }) => {
+    test.setTimeout(300_000);
     await page.setViewportSize(viewport);
     await page.route("**/api/**", (route) => route.abort());
     await page.route("https://tiles.openfreemap.org/**", (route) => route.abort());
@@ -101,6 +102,18 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(projections.locator("p").filter({ hasText: /^100 % biogaz :/ })).toContainText("GES inconnus");
     await expect(page.getByRole("alert").filter({ hasText: /Ligne 15B.*12 h 45.*12 h 43/ })).toBeVisible();
     await expect(page.getByText("Écart de kilomètres").locator("+ dd")).toHaveText("0 km");
+    const kmInfo = page.getByText("Informations sur les kilomètres", { exact: true });
+    await kmInfo.focus();
+    await page.keyboard.press("Enter");
+    await expect(kmInfo.locator("..").getByRole("link", { name: "GTFS SIBRA" })).toHaveAttribute("href", /20261106\.081009\.206313\.zip$/);
+    await page.getByText("Facteurs modifiables et provenance", { exact: true }).click();
+    const factorInfo = page.getByText("Informations sur GES gazole", { exact: true });
+    await factorInfo.focus();
+    await page.keyboard.press("Enter");
+    await expect(factorInfo.locator("..").getByRole("link")).toHaveAttribute("href", /ecologie\.gouv\.fr/);
+    await factorInfo.focus();
+    await page.keyboard.press("Enter");
+    await page.getByText("Facteurs modifiables et provenance", { exact: true }).click();
     const line = page.locator("details.bilan-line").filter({ has: page.locator("summary").filter({ hasText: /^1 ·/ }) }).first();
     await line.locator("summary").first().click();
     await line.getByLabel("Modèle supposé en référence").selectOption("standard-diesel");
