@@ -57,6 +57,7 @@ export function BusReport({ data, groups, selectedIds }: { data: SibraData; grou
   const unit = scenario === "diesel" ? "L" : scenario === "electric" ? "kWh" : "kg";
   return <div className="bilan-report">
     <p>Scénario annuel théorique des lignes SIBRA, fondé sur les horaires disponibles et des hypothèses. Ce n’est ni un bilan mesuré du réseau actuel ni une affectation réelle des véhicules. Les lignes créées sans horaires et les kilomètres à vide sont exclus.</p>
+    <p>Chaque départ est supposé parcourir le trajet complet : provisoirement, le plus long trajet actif observé pour chaque ligne et sens. Ce choix reste à vérifier ; une variante plus longue ne représente pas toujours le parcours habituel.</p>
     <details><summary>Légende des provenances</summary><p><span style={{ color: "#155b32" }}>Rapport SIBRA ou Annecy</span> · <span style={{ color: "#174c83" }}>Constructeur</span> · <span style={{ color: "#5d3f83" }}>Autre rapport</span> · <span style={{ color: "#7a4a00" }}>Hypothèse comparable</span> · Origine inconnue ou déclarée.</p><p>L’origine et le niveau de vérification sont distincts. Une catégorie ou une couleur ne garantit pas la fiabilité.</p></details>
     <label className="bilan-scenario">Périmètre du bilan<select value={scope} onChange={(e) => setScope(e.target.value as "all" | "selected")}><option value="all">Toutes les lignes SIBRA</option><option value="selected">Lignes cochées dans le menu Bus</option></select></label>
     {error && <p role="alert">{error}</p>}

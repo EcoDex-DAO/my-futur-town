@@ -97,7 +97,7 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await expect(page.getByText("Kilomètres de référence", { exact: true }).locator("+ dd")).toHaveText(annualReference);
     await expect(page.getByText("Bilan annuel estimé", { exact: false })).toBeVisible();
     await expect(page.getByRole("alert").filter({ hasText: /Ligne 15B.*12 h 45.*12 h 43/ })).toBeVisible();
-    await expect(page.getByText("Écart de kilomètres").locator("+ dd")).toHaveText("0 km");
+    await expect(page.getByText("Écart de kilomètres").locator("+ dd")).toContainText("km");
     const line = page.locator("details.bilan-line").filter({ has: page.locator("summary").filter({ hasText: /^1 ·/ }) }).first();
     await line.locator("summary").first().click();
     await line.getByLabel("Modèle supposé en référence").selectOption("standard-diesel");

@@ -64,10 +64,10 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
     return () => { controller.abort(); window.removeEventListener("storage", refresh); window.removeEventListener("yft:terminus-updated", refresh); window.removeEventListener("yft:fleet-updated", refresh); window.removeEventListener("yft:line-replacements-updated", refresh); window.removeEventListener("yft:weekly-timetables-updated", refresh); };
   }, []);
   const resolved = useMemo(() => schedule ? resolveScenario(schedule, data, createdLines, entries, links.replacements, links.mode, weekly) : null, [schedule, data, createdLines, entries, links, weekly]);
-  const reference = useMemo(() => schedule ? lineActivity(data, schedule, true) : [], [schedule, data]);
+  const reference = useMemo(() => schedule ? lineActivity(data, schedule, true, true) : [], [schedule, data]);
   const adapted = useMemo(() => resolved ? lineActivity(resolved.data, resolved.schedule, true) : [], [resolved]);
   const rows = useMemo(() => adapted.filter((row) => selectedIds === null || selectedIds.includes(row.id) || Object.entries(links.replacements).some(([referenceId, createdId]) => (selectedIds.includes(referenceId) && row.id === createdId) || (selectedIds.includes(createdId) && row.id === referenceId))), [adapted, selectedIds, links]);
-  const referenceVariants = useMemo(() => schedule ? variantActivity(data, schedule, true) : [], [schedule, data]);
+  const referenceVariants = useMemo(() => schedule ? variantActivity(data, schedule, true, true) : [], [schedule, data]);
   const scenarioVariants = useMemo(() => resolved ? variantActivity(resolved.data, resolved.schedule, true) : [], [resolved]);
   const longestTrips = useMemo(() => resolved ? variantLongestTrips(resolved.data, resolved.schedule) : new Map<string, number>(), [resolved]);
   const referenceById = new Map(reference.map((row) => [row.id, row]));
@@ -124,6 +124,7 @@ export function BusScenarioReport({ data, createdLines, selectedIds }: { data: S
   return <div className="bilan-report">
     <h3>Bilan V2 · {selectedIds === null ? "toutes les lignes" : "lignes sélectionnées"}</h3>
     <p>Bilan annuel estimé : référence et scénario sont calculés sur les mêmes jours du {schedule.metadata.validFrom} au {schedule.metadata.validTo}, puis extrapolés uniformément à 365 jours. Les modifications ponctuelles du scénario sont elles aussi extrapolées : cela ne prédit pas leur répétition réelle. Les vacances, saisons et services hors de cette période sont inconnus ; cette estimation peut donc être très différente d’une année réelle. Les lignes créées n’existent que dans le scénario. Les trajets à vide et les annulations sont inconnus.</p>
+    <p>La référence suppose un trajet complet à chaque départ : provisoirement, le plus long trajet actif observé pour chaque ligne et sens. Le scénario utilise les parcours GTFS et les modifications enregistrées ; un détour peut être plus long. Le choix du trajet complet reste à vérifier.</p>
     {supportsStopConstraints(data) && <p>Certains passages GTFS sont estimés ou interpolés : horaires et positions restent théoriques.</p>}
     {Object.keys(links.replacements).length > 0 && <p>Les lignes créées liées remplacent leurs lignes SIBRA {links.mode === "dates" ? "uniquement les jours où elles ont des horaires ; les autres jours restent en référence" : "sur toute la période ; les jours sans horaires créés sont sans service"}. Une ligne liée à une ligne sélectionnée est incluse dans son périmètre.</p>}
     {weekly.length > 0 && <p>Les tableaux par type de jour s’appliquent à leur période. Le mode de conservation maintient les différences du GTFS sauf conflit signalé ; les horaires particuliers enregistrés pour une date et un parcours restent prioritaires.</p>}

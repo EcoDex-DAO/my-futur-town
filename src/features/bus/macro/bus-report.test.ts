@@ -30,4 +30,16 @@ describe("annualLineActivity", () => {
     expect(variant.trips).toBe(annual.trips);
     expect(annual.scheduled).toBe(1); // coverage diagnostics remain actual counts
   });
+  it("compare chaque départ au trajet complet de son sens, puis applique les variantes connues", () => {
+    const data = { metadata: {}, lines: [{ id: "1", shortName: "1", variants: [{ id: "long", coordinates: [[6, 45], [6.02, 45]] }, { id: "short", coordinates: [[6, 45], [6.01, 45]] }, { id: "return", coordinates: [[6.01, 45], [6, 45]] }] }] } as SibraData;
+    const trip = (id: string, variantId: string, directionId: string) => ({ id, variantId, directionId, lineId: "1", serviceId: "s", stops: [{ stopId: "a", arrival: 0, departure: 0, progress: 0 }, { stopId: "b", arrival: 600, departure: 600, progress: 1 }] });
+    const schedule = { metadata: { validFrom: "2026-01-01", validTo: "2026-01-01", timeZone: "Europe/Paris" }, serviceDates: { "2026-01-01": ["s"] }, trips: [trip("a", "long", "0"), trip("b", "short", "0"), trip("c", "return", "1")] } satisfies Schedule;
+    const reference = lineActivity(data, schedule, true, true)[0];
+    const actual = lineActivity(data, schedule, true)[0];
+    const variants = variantActivity(data, schedule, true, true);
+    expect(reference.km).toBeGreaterThan(actual.km);
+    expect(reference.km).toBeCloseTo(variants.reduce((sum, item) => sum + item.km, 0));
+    expect(variants.find((item) => item.variantId === "return")!.km).toBeCloseTo(variantActivity(data, schedule, true).find((item) => item.variantId === "return")!.km);
+    expect(reference.trips).toBe(actual.trips);
+  });
 });
