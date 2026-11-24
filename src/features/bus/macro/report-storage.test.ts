@@ -18,4 +18,9 @@ describe("hypothèses du bilan", () => {
     expect(readReportSnapshot(raw).sourceChecks?.standard).toBe("À vérifier");
     expect(() => readReportSnapshot('{"sources":{"standard":42}}')).toThrow(/illisibles/);
   });
+  it("conserve le statut modifié et refuse un statut illisible", () => {
+    const saved = readReportSnapshot('{"parameters":{"standard":"38.4"},"modifiedParameters":{"standard":true}}');
+    expect(saved.modifiedParameters?.standard).toBe(true);
+    expect(() => readReportSnapshot('{"modifiedParameters":{"standard":"oui"}}')).toThrow(/illisibles/);
+  });
 });

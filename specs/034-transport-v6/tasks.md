@@ -44,3 +44,9 @@
 - [ ] T022 Préserver les calendriers et temps propres à chaque course lors de la création d'un scénario ; permettre les modifications explicites sans effacer les différences entre dates.
 - [ ] T023 Modéliser les restrictions et terminus alternatifs vérifiés, les appliquer aux arrêts, à la simulation et au bilan, et signaler les cas non interprétés.
 - [ ] T024 Vérifier les règles par ligne, les jours scolaires et fériés, les variantes, la persistance et la comparaison référence/scénario sur ordinateur et mobile.
+
+## Phase 1: Convergence — affinements V3 acceptés
+
+- [ ] T025 Compléter et vérifier l'accès individuel à la provenance, aux unités, dates, périmètres et limites pour chaque valeur du bilan et de la flotte, y compris les saisies modifiées et les sources inconnues, conformément à FR-011 et FR-013 (partial ; report V3 accepté).
+- [ ] T026 Vérifier les parcours complets au clavier et avec lecteur d'écran sur ordinateur et mobile, puis corriger les obstacles identifiés, conformément à FR-009 et Constitution IV (partial ; report V3 accepté pour la validation exhaustive).
+- [ ] T027 Mesurer et améliorer les performances du réseau complet avec scénarios modifiés et données réelles, sur ordinateur et mobile, conformément à FR-010 et Constitution V (partial ; report V3 accepté pour l'optimisation exhaustive).

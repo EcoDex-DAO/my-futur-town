@@ -33,6 +33,8 @@
 - Comparer référence et scénario sur les mêmes dates, lignes, kilomètres et hypothèses ; distinguer modifications ponctuelles, saisons et projections, y compris lignes créées et lignes sélectionnées. Expliquer tout résultat partiel et ne pas afficher les données inconnues comme zéro.
 - Vérifier les écritures concurrentes, erreurs de stockage, migrations, restauration des anciennes données et conservation des réglages utilisateur, notamment les affectations et horaires.
 - Compléter les essais de bout en bout sur ordinateur et mobile : sens et variantes réels, plusieurs périodes, exceptions, modèles incompatibles, horaires absents, données incomplètes et fonctionnement sans API. Vérifier clavier, lecteur d'écran, lisibilité et performances avec un réseau complet et des scénarios modifiés.
+- Une mesure Chromium headless avec une course GTFS modifiée a donné environ 16,7 secondes jusqu'à l'affichage du V2 sur la machine de test ; mesurer de nouveau sur les appareils cibles et réduire cette attente.
 - Conserver les sources officielles, leurs dates de consultation, licences et unités. Séparer les observations, données planifiées et hypothèses ; signaler l'incertitude et les périmètres incomparables.
+- Le V1 donne désormais un accès direct aux sources initiales documentées de ses hypothèses. Les valeurs modifiées ou issues d'anciennes sauvegardes sans historique ne reprennent pas automatiquement cette provenance ; étendre la même vérification à chaque valeur du V2 et de la flotte.
 
 Les tâches détaillées et les contrôles déjà réalisés figurent dans `specs/034-transport-v6/tasks.md`, `specs/034-transport-v6/validation.md` et `docs/specificites-sibra.md`.
