@@ -6,4 +6,4 @@
 - [x] T004 Dessiner et modifier les hypothèses de projet.
 - [x] T005 Persister et gérer les erreurs sans effacer les données existantes.
 - [x] T006 Tester les parcours, les erreurs, le mobile et le bureau.
-- [ ] T007 Ouvrir une PR liée avec preuves et limites.
+- [x] T007 Ouvrir une PR liée avec preuves et limites : #56.
