@@ -1130,7 +1130,21 @@ main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
 .tool-nav button { display:flex; align-items:center; gap:7px; min-height:40px; padding:7px 11px; border:1px solid #dbe2d9; border-radius:7px; background:white; color:#31594a; cursor:pointer; }
 .tool-nav button.is-active,.tool-nav button:hover { background:#31594a; border-color:#31594a; color:white; }
 .tool-nav svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
-.sidebar:not(.panel-bus):not(.panel-layers):not(.panel-bilan) { display:none !important; }
+.sidebar.panel-tresums { display:block !important; position:fixed; z-index:15; top:76px; right:14px; bottom:14px; width:min(360px, calc(100vw - 28px)); padding:20px; overflow:auto; background:#fff; border:1px solid #dbe2d9; border-radius:10px; box-shadow:0 12px 36px #193e3a24; }
+.sidebar.panel-tresums .tresums-panel { display:block !important; }
+.tresums-editor { border:0; padding:0; }
+.tresums-editor p { line-height:1.45; font-size:13px; overflow-wrap:anywhere; }
+.tresums-editor h2 { font-size:19px; }
+.tresums-editor h3 { margin-top:20px; }
+.tresums-editor button { min-height:40px; padding:8px 10px; border:1px solid #a8bdb1; border-radius:6px; background:#f3f8f4; color:#153d32; }
+.tresums-editor button:hover { background:#e3f0e7; }
+.tresums-editor button:disabled { opacity:.5; }
+.tresums-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.tresums-editor input { width:100%; padding:8px; border:1px solid #a8bdb1; border-radius:6px; font:inherit; }
+.tresums-editor ul { padding-left:20px; }
+.tresums-arrow { width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:16px solid #146271; }
+@media(max-width:760px) { .sidebar.panel-tresums { top:auto; bottom:8px; left:8px; right:8px; width:auto; max-height:40%; padding:12px; } .sidebar.panel-tresums section { display:block; } .sidebar.panel-tresums section h2 { display:block; } }
+.sidebar:not(.panel-bus):not(.panel-layers):not(.panel-bilan):not(.panel-tresums) { display:none !important; }
 .sidebar.panel-bus,.sidebar.panel-layers,.sidebar.panel-bilan { display:block; position:fixed; z-index:15; top:76px; right:14px; bottom:14px; width:min(400px,calc(100vw - 28px)); padding:24px; overflow:auto; background:#fff; border:1px solid #dbe2d9; border-radius:10px; box-shadow:0 12px 36px #193e3a24; }
 .sidebar > * { display:none !important; }
 .sidebar .panel-close { display:block !important; float:right; border:0; background:transparent; color:#31594a; font-size:27px; cursor:pointer; }

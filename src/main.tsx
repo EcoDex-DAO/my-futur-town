@@ -16,6 +16,7 @@ import { LineReplacementEditor } from "./features/bus/shared/LineReplacementEdit
 import { TimetableManager } from "./features/bus/shared/TimetableManager";
 import { CreatedStopTimetable } from "./features/bus/shared/CreatedStopTimetable";
 import { MultimodalPanel } from "./features/multimodal/MultimodalPanel";
+import { TresumsEditor } from "./features/multimodal/TresumsEditor";
 import { PARKING_BOUNDS, syncParkingMap, type ParkingPreview } from "./features/multimodal/parking-map";
 import { parseSibraData, sibraFeatures, type SibraData } from "./features/bus/shared/sibra";
 import { BUS_CREATED_LINES_KEY, busCreatedMarkerFeatures, readBusCreatedLines, type BusCreatedLine } from "./features/bus/creator/bus-line";
@@ -58,7 +59,7 @@ export default function App() {
   const [manageCreatedOpen, setManageCreatedOpen] = useState(false);
   const [busSelection, setBusSelection] = useState<{ kind: "line" | "created"; id: string } | { kind: "stop" | "created-stop"; id: string; name: string; lineId?: string } | null>(null);
   const [busInfoPosition, setBusInfoPosition] = useState<{ side: "left" | "right"; vertical: "top" | "bottom" }>({ side: "right", vertical: "top" });
-  const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | "multimodal" | null>(null);
+  const [activePanel, setActivePanel] = useState<"bus" | "layers" | "bilan" | "multimodal" | "tresums" | null>(null);
   const [parkingPreview, setParkingPreview] = useState<ParkingPreview | null>(null);
   const focusParking = useCallback(() => {
     const instance = map.current;
@@ -73,6 +74,7 @@ export default function App() {
   const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [creationMessage, setCreationMessage] = useState("");
   const busMapAction = useRef(false);
+  const tresumsMapAction = useRef(false);
   const busSelectionRef = useRef(busSelection);
   const lastBusHit = useRef<{ x: number; y: number } | null>(null);
   busSelectionRef.current = busSelection;
@@ -182,7 +184,7 @@ export default function App() {
       setError("");
     });
     instance.on("click", (e) => {
-      if (busMapAction.current || e.defaultPrevented) return;
+      if (busMapAction.current || tresumsMapAction.current || e.defaultPrevented) return;
       if (busSelectionRef.current && lastBusHit.current && Math.hypot(e.point.x - lastBusHit.current.x, e.point.y - lastBusHit.current.y) <= 10) {
         lastBusHit.current = null;
         setBusSelection(null);
@@ -361,6 +363,7 @@ export default function App() {
           <button type="button" aria-label="Menu Couches de référence" aria-expanded={activePanel === "layers"} className={activePanel === "layers" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "layers" ? null : "layers")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" /></svg><span>Couches</span></button>
           <button type="button" aria-label="Menu Bilan" aria-expanded={activePanel === "bilan"} className={activePanel === "bilan" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "bilan" ? null : "bilan")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 1 9-9M12 7v5l3 2m2 5 2 2 4-5" /></svg><span>Bilan</span></button>
           <button type="button" aria-label="Menu Scénarios multimodaux" aria-expanded={activePanel === "multimodal"} className={activePanel === "multimodal" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "multimodal" ? null : "multimodal")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16M8 3v6m8 0v6m-6 0v6" /></svg><span>Scénarios</span></button>
+          <button type="button" aria-label="Menu Trésums" aria-expanded={activePanel === "tresums"} className={activePanel === "tresums" ? "is-active" : ""} onClick={() => setActivePanel(activePanel === "tresums" ? null : "tresums")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3V6Zm6-3v15m6-12v15" /></svg><span>Trésums</span></button>
         </nav>
       </header>
       <main>
@@ -431,6 +434,7 @@ export default function App() {
           <section className="multimodal-tools" hidden={activePanel !== "multimodal"} aria-label="Scénarios multimodaux">
             <MultimodalPanel onParkingPreview={setParkingPreview} onFocusParking={focusParking} mapReady={ready} />
           </section>
+          <div className="tresums-panel" hidden={activePanel !== "tresums"}><TresumsEditor map={map.current} ready={ready} open={activePanel === "tresums"} mapAction={tresumsMapAction} /></div>
           <div className="sidebar-footer">
             <span className="dot" />
             {api}
