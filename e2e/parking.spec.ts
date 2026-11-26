@@ -25,6 +25,10 @@ test("estimation et aperçu du parking restent propres au scénario", async ({ p
   await page.getByRole("button", { name: "Afficher le volume sur la carte" }).click();
   await expect(page.getByRole("button", { name: "Menu Scénarios multimodaux" })).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByText("Volume indicatif sur le contour OSM", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Menu Trésums" }).click();
+  await expect(page.locator(".parking-map-note")).toHaveCount(0);
+  await page.getByRole("button", { name: "Menu Trésums" }).click();
+  await expect(page.locator(".parking-map-note")).toHaveCount(1);
   await page.getByRole("button", { name: "Zoom in" }).click();
   await page.getByRole("button", { name: "Zoom in" }).click();
   await page.screenshot({ path: testInfo.outputPath("parking-desktop.png") });
@@ -67,6 +71,10 @@ test("aperçu du parking sur mobile", async ({ page }, testInfo) => {
   await page.getByRole("spinbutton", { name: /Hauteur par niveau/ }).fill("3");
   await page.getByRole("button", { name: "Afficher le volume sur la carte" }).click();
   await expect(page.getByText("Volume indicatif sur le contour OSM", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Menu Trésums" }).click();
+  await expect(page.locator(".parking-map-note")).toHaveCount(0);
+  await page.getByRole("button", { name: "Menu Trésums" }).click();
+  await expect(page.locator(".parking-map-note")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Menu Scénarios multimodaux" })).toHaveAttribute("aria-expanded", "false");
   await page.screenshot({ path: testInfo.outputPath("parking-mobile.png") });
 });

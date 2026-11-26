@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Marker, type GeoJSONSource, type Map as MapLibreMap, type MapMouseEvent } from "maplibre-gl";
 import type { FeatureCollection, Geometry } from "geojson";
+import { ProjectCreator } from "./ProjectCreator";
 
 type Kind = "circulation" | "acces" | "sens" | "parking";
 type Position = [number, number];
@@ -31,6 +32,8 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
   const [mode, setMode] = useState<Kind | "parcel" | null>(null);
   const [points, setPoints] = useState<Position[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [projectEditing, setProjectEditing] = useState(false);
+  const onProjectEditing = useCallback((editing: boolean) => { setProjectEditing(editing); if (editing) { setMode(null); setPoints([]); setSelected(null); } }, []);
   const lastRaw = useRef<string | null>(null);
   const state = useRef({ doc, mode, points, open });
   state.current = { doc, mode, points, open };
@@ -48,7 +51,7 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
     catch { setStorageError("Enregistrement impossible. Les dernières modifications ne sont pas sauvegardées."); return false; }
   };
   const saveRef = useRef(save); saveRef.current = save;
-  useEffect(() => { mapAction.current = open && mode !== null; return () => { mapAction.current = false; }; }, [open, mode, mapAction]);
+  useEffect(() => { mapAction.current = open && (mode !== null || projectEditing); return () => { mapAction.current = false; }; }, [open, mode, projectEditing, mapAction]);
   useEffect(() => {
     if (!map || !ready) return;
     let cancelled = false;
@@ -122,9 +125,11 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
     if (save({ ...doc, items: [...doc.items, item] })) { setPoints([]); setMode(null); setSelected(item.id); }
   };
   const current = doc.items.find((i) => i.id === selected);
-  return <section aria-label="Préparation des Trésums" className="tresums-editor">
+  return <section aria-label="Préparation des Trésums" className={`tresums-editor${projectEditing ? " is-project-editing" : ""}`}>
     <h2>Trésums · préparation</h2>
     <p>Cadastre et hypothèses indicatifs : ni bornage, ni étude de faisabilité.</p>
+    <ProjectCreator map={map} ready={ready} open={open} mapAction={mapAction} onEditingChange={onProjectEditing} sourceStatus={sourceStatus} legacyActive={mode !== null} />
+    {!projectEditing && <details className="tresums-legacy"><summary>Outils V0 existants</summary>
     <p role="status">{sourceStatus}</p>
     <p>DGFiP / Etalab · septembre 2026 · <a href="https://www.data.gouv.fr/pages/legal/licences/etalab-2-0" target="_blank" rel="noreferrer">Licence Ouverte 2.0</a></p>
     {storageError && <p role="alert">{storageError}</p>}
@@ -139,5 +144,6 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
     <ul>{doc.items.map((item) => <li key={item.id}><button type="button" onClick={() => { setMode(null); setPoints([]); setSelected(item.id); }}>{item.name} · {LABELS[item.kind]}</button></li>)}</ul>
     {current && <div><label>Nom <input value={current.name} onChange={(e) => save({ ...doc, items: doc.items.map((i) => i.id === current.id ? { ...i, name: e.target.value } : i) })} /></label><button type="button" onClick={() => { save({ ...doc, items: doc.items.filter((i) => i.id !== current.id) }); setSelected(null); }}>Supprimer</button></div>}
     <p>Enregistré dans ce navigateur uniquement. Les sens suivent l'ordre des points placés.</p>
+    </details>}
   </section>;
 }
