@@ -11,6 +11,7 @@ for (const width of [1440, 390]) {
     await page.goto("/");
     await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 90_000 });
     await page.getByRole("button", { name: "Menu Trésums" }).click();
+    await page.getByText("Outils V0 existants").click();
     await expect(page.getByText("Cadastre chargé", { exact: false })).toBeVisible({ timeout: 90_000 });
     const canvas = page.locator(".map canvas");
     await page.getByRole("button", { name: "Sélectionner les parcelles" }).click();
@@ -27,6 +28,7 @@ for (const width of [1440, 390]) {
     await page.getByLabel("Nom", { exact: true }).fill("Accès projet");
     await page.reload();
     await page.getByRole("button", { name: "Menu Trésums" }).click();
+    await page.getByText("Outils V0 existants").click();
     await expect(page.getByText("Accès projet · Accès")).toBeVisible();
     await expect(page.getByText(/Parcelles sélectionnées : 74010/)).toBeVisible();
     await page.getByText("Accès projet · Accès").click();
@@ -40,6 +42,7 @@ test("cadastre indisponible et stockage refusé restent visibles", async ({ page
   await page.goto("/");
   await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 90_000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
+    await page.getByText("Outils V0 existants").click();
   await expect(page.getByText("Cadastre indisponible", { exact: false })).toBeVisible({ timeout: 90_000 });
   await page.evaluate(() => { Storage.prototype.setItem = () => { throw Error("quota"); }; });
   await page.getByRole("button", { name: "Accès", exact: true }).click();
@@ -57,6 +60,7 @@ test("dessine et déplace les sommets des hypothèses", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 90_000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
+    await page.getByText("Outils V0 existants").click();
   await expect(page.getByText("Cadastre chargé", { exact: false })).toBeVisible({ timeout: 90_000 });
   const canvas = page.locator(".map canvas");
   for (const [label, count] of [["Circulation", 2], ["Sens de circulation", 2], ["Zone de stationnement", 3]] as const) {
@@ -83,6 +87,7 @@ test("ne remplace pas un document modifié dans un autre onglet", async ({ page 
   await page.goto("/");
   await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 90_000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
+    await page.getByText("Outils V0 existants").click();
   await expect(page.getByText("Cadastre chargé", { exact: false })).toBeVisible({ timeout: 90_000 });
   const other = JSON.stringify({ version: 1, parcels: ["autre"], items: [] });
   await page.evaluate((raw) => localStorage.setItem("mft-tresums-v0", raw), other);

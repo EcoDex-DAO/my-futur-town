@@ -1141,9 +1141,30 @@ main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
 .tresums-editor button:disabled { opacity:.5; }
 .tresums-actions { display:flex; flex-wrap:wrap; gap:6px; }
 .tresums-editor input { width:100%; padding:8px; border:1px solid #a8bdb1; border-radius:6px; font:inherit; }
+.tresums-editor .tresums-way-control { display:flex; align-items:center; gap:9px; min-height:38px; font-size:13px; cursor:pointer; }
+.tresums-editor .tresums-way-control input { width:18px; height:18px; margin:0; }
+.site-project { color:#203c34; }
+.site-project h3 { margin:18px 0 8px; }
+.site-project .project-primary { background:#234a3b; color:#fff; border-color:#234a3b; font-weight:600; }
+.site-project .project-primary:hover { background:#315f4b; }
+.site-project .project-field { display:grid; gap:5px; margin:12px 0; font-weight:600; font-size:13px; }
+.site-project select { width:100%; min-height:40px; padding:7px; border:1px solid #a8bdb1; border-radius:6px; background:#fff; color:#203c34; font:inherit; }
+.site-project fieldset { display:grid; gap:8px; border:0; padding:0; margin:14px 0; }
+.site-project legend { font-weight:600; font-size:13px; margin-bottom:6px; }
+.site-project fieldset label { display:flex; align-items:center; gap:8px; min-height:32px; font-size:13px; }
+.site-project fieldset input { width:18px; height:18px; margin:0; }
+.project-layers, .tresums-legacy { margin:16px 0; padding:10px 0; border-top:1px solid #dbe2d9; border-bottom:1px solid #dbe2d9; }
+.project-layers summary, .tresums-legacy summary { cursor:pointer; font-weight:600; color:#234a3b; }
+.project-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
+.site-project :focus-visible { outline:3px solid #297c5c; outline-offset:2px; }
+.tresums-way-swatch { width:28px; border-top:4px solid #a0442f; flex:none; }
+.tresums-way-swatch.pedestrian { border-top:4px dotted #165a9a; }
+.tresums-way-swatch.cycle { border-top-color:#177346; }
 .tresums-editor ul { padding-left:20px; }
 .tresums-arrow { width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent; border-bottom:16px solid #146271; }
+.tresums-reference-arrow { border-bottom-color:#a0442f; }
 @media(max-width:760px) { .sidebar.panel-tresums { top:auto; bottom:8px; left:8px; right:8px; width:auto; max-height:40%; padding:12px; } .sidebar.panel-tresums section { display:block; } .sidebar.panel-tresums section h2 { display:block; } }
+@media(max-width:760px) { .tresums-editor.is-project-editing > p, .tresums-editor.is-project-editing .site-project > h3 { display:none; } .tresums-editor.is-project-editing .project-step h3 { margin-top:8px; } }
 .sidebar:not(.panel-bus):not(.panel-layers):not(.panel-bilan):not(.panel-tresums) { display:none !important; }
 .sidebar.panel-bus,.sidebar.panel-layers,.sidebar.panel-bilan { display:block; position:fixed; z-index:15; top:76px; right:14px; bottom:14px; width:min(400px,calc(100vw - 28px)); padding:24px; overflow:auto; background:#fff; border:1px solid #dbe2d9; border-radius:10px; box-shadow:0 12px 36px #193e3a24; }
 .sidebar > * { display:none !important; }

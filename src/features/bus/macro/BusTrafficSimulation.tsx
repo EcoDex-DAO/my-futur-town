@@ -16,7 +16,7 @@ import { supportsStopConstraints } from "../shared/gtfs-stop-constraints";
 import { FLEET_STORAGE_KEY, readFleet, type Model } from "../shared/BusFleetManager";
 import { activeFleetSummary, emptyAssignments, readModelAssignments, REPORT_V2_STORAGE_KEY } from "../shared/scenario-fleet";
 
-type Props = { map: MapLibreMap | null; mapReady: boolean; data: SibraData; createdLines: BusCreatedLine[]; visibleCreatedIds: string[] };
+type Props = { map: MapLibreMap | null; mapReady: boolean; hiddenOnMap?: boolean; data: SibraData; createdLines: BusCreatedLine[]; visibleCreatedIds: string[] };
 const sourceId = "yft-traffic-vehicles";
 const layerId = "yft-traffic-points";
 const modelsLayerId = "yft-traffic-models";
@@ -24,7 +24,7 @@ const speeds = [1, 5, 10, 60] as const;
 const maxSecond = 86_399;
 const formatTime = (value: number) => { const seconds = Math.max(0, Math.min(maxSecond, Math.floor(value))); return `${String(Math.floor(seconds / 3600)).padStart(2, "0")}:${String(Math.floor(seconds % 3600 / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`; };
 
-export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibleCreatedIds }: Props) {
+export function BusTrafficSimulation({ map, mapReady, hiddenOnMap = false, data, createdLines, visibleCreatedIds }: Props) {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [error, setError] = useState("");
   const [scenario, setScenario] = useState(false);
@@ -123,6 +123,12 @@ export function BusTrafficSimulation({ map, mapReady, data, createdLines, visibl
     map.on("zoomend", refreshView);
     return () => { map.off("move", refreshPoints); map.off("moveend", refreshView); map.off("zoomend", refreshView); markerContainer.remove(); markers.current = null; displayingModels.current = false; if (map.getLayer(modelsLayerId)) map.removeLayer(modelsLayerId); if (map.getLayer(layerId)) map.removeLayer(layerId); if (map.getSource(sourceId)) map.removeSource(sourceId); };
   }, [active, map, mapReady]);
+
+  useEffect(() => {
+    if (!active || !map || !mapReady) return;
+    for (const id of [layerId, modelsLayerId]) if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", hiddenOnMap ? "none" : "visible");
+    if (markers.current) markers.current.style.display = hiddenOnMap ? "none" : "";
+  }, [active, map, mapReady, hiddenOnMap]);
 
   useEffect(() => {
     if (!active || !map || !mapReady) return;

@@ -2,7 +2,9 @@ import { test, expect } from "@playwright/test";
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
   test(`simulation réseau sans API ${viewport.width}px`, async ({ page }) => {
+    test.setTimeout(360_000);
     await page.setViewportSize(viewport);
+    await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
     await page.route("**/health", (route) => route.abort());
     await page.goto("/");
     await page.getByRole("button", { name: "Menu Bus" }).click();
@@ -19,6 +21,11 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
     await panel.getByRole("button", { name: "Démarrer" }).click();
     await expect(panel.locator(".bus-simulation-clock")).not.toContainText("0 bus en circulation");
     await panel.getByRole("button", { name: "Pause" }).click();
+    await page.getByRole("button", { name: "Menu Trésums" }).click();
+    await expect(page.locator(".bus-traffic-markers")).toBeHidden();
+    await page.getByRole("button", { name: "Menu Bus" }).click();
+    await expect(page.locator(".bus-traffic-markers")).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Reprendre" })).toBeVisible();
     const lines = page.locator(".sibra-line-tree");
     await lines.getByLabel(/Tout le réseau/).uncheck();
     await lines.getByLabel(/Ligne 2 -/).check();

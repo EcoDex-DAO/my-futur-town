@@ -24,6 +24,7 @@ interface Props {
   newLineToken: number;
   selectedLineId: string | null;
   createdVisible: boolean;
+  suppressMap?: boolean;
   visibleCreatedLineIds: string[];
   onClose: () => void;
   onLinesChange: (lines: BusCreatedLine[]) => void;
@@ -51,7 +52,7 @@ function anchors(line: BusLineDraft | BusCreatedLine): BusCoordinate[] {
   return [line.termini[0].coordinates, ...line.passages.map((marker) => marker.coordinates), line.termini[1].coordinates];
 }
 
-export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId, createdVisible, visibleCreatedLineIds, onClose, onLinesChange, onSelectLine, onCreated, onDraftChange, mapActionRef }: Props) {
+export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId, createdVisible, suppressMap = false, visibleCreatedLineIds, onClose, onLinesChange, onSelectLine, onCreated, onDraftChange, mapActionRef }: Props) {
   const [lines, setLines] = useState<BusCreatedLine[]>([]);
   const [draft, setDraft] = useState<BusLineDraft | null>(null);
   const [variantId, setVariantId] = useState<string | null>(null);
@@ -68,7 +69,7 @@ export function BusLineCreator({ map, ready, open, newLineToken, selectedLineId,
   const placementRef = useRef(false);
   const selectedLine = lines.find((line) => line.id === selectedLineId) ?? null;
   const activeLine = draft ?? (variantId ? selectedLine?.variants?.find((variant) => variant.id === variantId) : selectedLine) ?? null;
-  const showCreatedOnMap = createdVisible || (open && activeLine !== null);
+  const showCreatedOnMap = !suppressMap && (createdVisible || (open && activeLine !== null));
 
   useEffect(() => { lineChangeRef.current = onLinesChange; }, [onLinesChange]);
   useEffect(() => { selectLineRef.current = onSelectLine; }, [onSelectLine]);
