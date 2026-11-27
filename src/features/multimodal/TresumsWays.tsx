@@ -21,8 +21,6 @@ export function TresumsWays({ map, ready, open, mapAction }: { map: MapLibreMap 
     if (!map || !ready || !open) return;
     let cancelled = false;
     setStatus("Chargement des voies…");
-    const padding = window.innerWidth <= 760 ? { top: 45, right: 45, bottom: Math.round(window.innerHeight * 0.42), left: 45 } : { top: 60, right: 420, bottom: 60, left: 60 };
-    map.fitBounds([[6.125, 45.893], [6.136, 45.901]], { padding, maxZoom: 16, pitch: 0 });
     fetch("/data/tresums/voies.json").then((response) => { if (!response.ok) throw Error("voies"); return response.json(); }).then((data) => {
       if (cancelled) return;
       map.addSource("tresums-ways", { type: "geojson", data, attribution: '© <a href="https://www.openstreetmap.org/copyright">contributeurs OpenStreetMap</a> — ODbL' });

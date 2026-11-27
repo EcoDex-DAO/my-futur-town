@@ -1280,3 +1280,9 @@ main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
 .timetable-manager button:focus-visible, .timetable-manager input:focus-visible, .timetable-manager select:focus-visible { outline: 3px solid #367652; outline-offset: 2px; }
 .timetable-manager .timetable-period-tabs [aria-selected="true"] { background: #216448; color: #fff; }
 .timetable-grid-scroll th { background: #eef6f0; color: #244d3b; }
+
+.survey-marker { width:44px; height:44px; display:grid; place-items:center; cursor:grab; touch-action:none; }
+.survey-marker:active { cursor:grabbing; }
+.survey-marker svg { width:30px; height:30px; fill:#fff; stroke:#005e59; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; filter:drop-shadow(0 1px 2px #0008); }
+
+.segment-insertion-preview { width:14px; height:14px; border:2px solid #fff; border-radius:50%; background:#005e59; box-shadow:0 1px 4px #0009; pointer-events:none; }

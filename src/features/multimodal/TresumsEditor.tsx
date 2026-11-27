@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Marker, type GeoJSONSource, type Map as MapLibreMap, type MapMouseEvent } from "maplibre-gl";
 import type { FeatureCollection, Geometry } from "geojson";
+import { segmentHit } from "./segment-insertion";
+import { showSegmentPreview } from "./segment-preview";
+import { surveyMarker } from "./survey-marker";
 import { ProjectCreator } from "./ProjectCreator";
 
 type Kind = "circulation" | "acces" | "sens" | "parking";
@@ -35,8 +38,8 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
   const [projectEditing, setProjectEditing] = useState(false);
   const onProjectEditing = useCallback((editing: boolean) => { setProjectEditing(editing); if (editing) { setMode(null); setPoints([]); setSelected(null); } }, []);
   const lastRaw = useRef<string | null>(null);
-  const state = useRef({ doc, mode, points, open });
-  state.current = { doc, mode, points, open };
+  const state = useRef({ doc, mode, points, open, selected, projectEditing });
+  state.current = { doc, mode, points, open, selected, projectEditing };
 
   useEffect(() => {
     try { const raw = localStorage.getItem(KEY); setDoc(readDocument(raw)); lastRaw.current = raw; setLoaded(true); }
@@ -51,7 +54,7 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
     catch { setStorageError("Enregistrement impossible. Les dernières modifications ne sont pas sauvegardées."); return false; }
   };
   const saveRef = useRef(save); saveRef.current = save;
-  useEffect(() => { mapAction.current = open && (mode !== null || projectEditing); return () => { mapAction.current = false; }; }, [open, mode, projectEditing, mapAction]);
+  useEffect(() => { mapAction.current = open && (mode !== null || selected !== null || projectEditing); return () => { mapAction.current = false; }; }, [open, mode, selected, projectEditing, mapAction]);
   useEffect(() => {
     if (!map || !ready) return;
     let cancelled = false;
@@ -68,7 +71,18 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
     map.addLayer({ id: "tresums-points", type: "circle", source: "tresums-items", filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 7, "circle-color": "#146271", "circle-stroke-color": "#fff", "circle-stroke-width": 2 } });
     const click = (e: MapMouseEvent) => {
       const s = state.current;
-      if (!s.open || !s.mode) return;
+      if (!s.open || s.projectEditing) return;
+      if (!s.mode) {
+        const item = s.doc.items.find((entry) => entry.id === s.selected);
+        if (!item || item.kind === "acces") return;
+        const hit = segmentHit(item.points, e.point, (point) => map.project(point), item.kind === "parking");
+        if (!hit) return;
+        const location = map.unproject([hit.x, hit.y]);
+        e.preventDefault();
+        const updated = [...item.points]; updated.splice(hit.index, 0, [location.lng, location.lat]);
+        saveRef.current({ ...s.doc, items: s.doc.items.map((entry) => entry.id === item.id ? { ...entry, points: updated } : entry) });
+        return;
+      }
       e.preventDefault();
       if (s.mode === "parcel") {
         if (!map.getLayer("tresums-parcel-fill")) return;
@@ -87,14 +101,21 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
   useEffect(() => {
     if (!map || !ready) return;
     (map.getSource("tresums-items") as GeoJSONSource | undefined)?.setData(features(doc.items));
-    if (map.getLayer("tresums-parcel-fill")) map.setPaintProperty("tresums-parcel-fill", "fill-opacity", ["case", ["in", ["get", "id"], ["literal", doc.parcels]], 0.5, 0.08]);
-  }, [map, ready, doc, sourceStatus]);
+    if (map.getLayer("tresums-parcel-fill")) map.setPaintProperty("tresums-parcel-fill", "fill-opacity", ["case", ["in", ["get", "id"], ["literal", open && mode === "parcel" && !projectEditing ? doc.parcels : []]], 0.5, 0.08]);
+  }, [map, ready, doc, sourceStatus, open, mode, projectEditing]);
+  useEffect(() => {
+    if (!map || !open || !selected || mode || projectEditing) return;
+    return showSegmentPreview(map, () => {
+      const item = state.current.doc.items.find((entry) => entry.id === state.current.selected);
+      return item && item.kind !== "acces" ? { points: item.points, closed: item.kind === "parking" } : null;
+    });
+  }, [map, open, selected, mode, projectEditing]);
   useEffect(() => {
     if (!map || !open) return;
     const item = doc.items.find((i) => i.id === selected);
     const editable = item?.points ?? points;
     const markers = editable.map((point, index) => {
-      const marker = new Marker({ draggable: true, color: "#146271" }).setLngLat(point).addTo(map);
+      const marker = new Marker({ draggable: true, element: surveyMarker(index), offset: [0, -13] }).setLngLat(point).addTo(map);
       marker.on("dragend", () => {
         const lngLat = marker.getLngLat();
         const updated = editable.map((p, n): Position => n === index ? [lngLat.lng, lngLat.lat] : p);
@@ -118,7 +139,7 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
     });
     return () => arrows.forEach((arrow) => arrow.remove());
   }, [map, doc]);
-  const start = (next: Kind | "parcel") => { setSelected(null); setPoints([]); setMode(next); map?.fitBounds([[6.129928, 45.8957931], [6.13144, 45.8971421]], { padding: 100, maxZoom: 18, pitch: 0 }); };
+  const start = (next: Kind | "parcel") => { setSelected(null); setPoints([]); setMode(next); };
   const finish = () => {
     if (!mode || mode === "parcel") return;
     const item: Item = { id: crypto.randomUUID(), kind: mode, name: LABELS[mode], points };
@@ -134,9 +155,9 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
     <p>DGFiP / Etalab · septembre 2026 · <a href="https://www.data.gouv.fr/pages/legal/licences/etalab-2-0" target="_blank" rel="noreferrer">Licence Ouverte 2.0</a></p>
     {storageError && <p role="alert">{storageError}</p>}
     <button type="button" disabled={!loaded} onClick={() => start("parcel")}>Sélectionner les parcelles</button>
-    <p>Parcelles sélectionnées : {doc.parcels.length ? doc.parcels.join(", ") : "aucune"}</p>
+    <p>Sélection de l’ancien outil : {doc.parcels.length ? doc.parcels.join(", ") : "aucune"}. Elle est distincte de la zone du projet et visible seulement pendant sa sélection.</p>{doc.parcels.length > 0 && <button type="button" onClick={() => save({ ...doc, parcels: [] })}>Désélectionner toutes les parcelles de l’ancien outil</button>}
     <h3>Hypothèses de projet</h3>
-    <p>Choisissez un type puis placez les points sur la carte. Déplacez les repères pour modifier la forme.</p>
+    <p>Choisissez un type puis placez les points sur la carte. Déplacez les repères pour modifier la forme. Sélectionnez une forme enregistrée puis touchez un segment pour y ajouter un sommet.</p>
     <div className="tresums-actions">{(Object.keys(LABELS) as Kind[]).map((kind) => <button key={kind} type="button" disabled={!loaded} onClick={() => start(kind)}>{LABELS[kind]}</button>)}</div>
     {mode && <p role="status">{mode === "parcel" ? "Touchez une parcelle pour la sélectionner ou la retirer." : `${LABELS[mode]} : ${points.length} point(s).`}</p>}
     {mode && mode !== "parcel" && <button type="button" disabled={points.length < (mode === "parking" ? 3 : mode === "acces" ? 1 : 2)} onClick={finish}>Enregistrer la forme</button>}

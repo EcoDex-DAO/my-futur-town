@@ -8,6 +8,8 @@ test.beforeEach(async ({ page }) => {
 for (const width of [1440, 390]) {
   test(`sélection et édition sur écran ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
+    // The map no longer recentres when selection starts, so use a known parcel covering the initial view.
+    await page.route("**/data/tresums/parcelles.json", (route) => route.fulfill({ json: { type: "FeatureCollection", features: [{ type: "Feature", properties: { id: "74010-test" }, geometry: { type: "Polygon", coordinates: [[[5.9, 45.7], [6.3, 45.7], [6.3, 46.1], [5.9, 46.1], [5.9, 45.7]]] } }] } }));
     await page.goto("/");
     await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 90_000 });
     await page.getByRole("button", { name: "Menu Trésums" }).click();
@@ -21,7 +23,7 @@ for (const width of [1440, 390]) {
     const x = width < 760 ? box.x + box.width / 2 : box.x + box.width / 2 - 120;
     const y = box.y + Math.min(box.height / 2, 250);
     await canvas.dispatchEvent("click", { clientX: x, clientY: y });
-    await expect(page.getByText(/Parcelles sélectionnées : 74010/)).toBeVisible();
+    await expect(page.getByText(/Sélection de l’ancien outil : 74010/)).toBeVisible();
     await page.getByRole("button", { name: "Accès", exact: true }).click();
     await canvas.dispatchEvent("click", { clientX: x, clientY: y });
     await page.getByRole("button", { name: "Enregistrer la forme" }).click();
@@ -30,7 +32,7 @@ for (const width of [1440, 390]) {
     await page.getByRole("button", { name: "Menu Trésums" }).click();
     await page.getByText("Outils V0 existants").click();
     await expect(page.getByText("Accès projet · Accès")).toBeVisible();
-    await expect(page.getByText(/Parcelles sélectionnées : 74010/)).toBeVisible();
+    await expect(page.getByText(/Sélection de l’ancien outil : 74010/)).toBeVisible();
     await page.getByText("Accès projet · Accès").click();
     await page.getByRole("button", { name: "Supprimer", exact: true }).click();
     await expect(page.getByText("Accès projet · Accès")).toHaveCount(0);
