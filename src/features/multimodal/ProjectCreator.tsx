@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Marker, type GeoJSONSource, type Map as MapLibreMap, type MapMouseEvent, type ErrorEvent } from "maplibre-gl";
 import type { FeatureCollection, Geometry } from "geojson";
 import { PROJECT_KEY, readProjects, validPolygon, type Parcel, type Position, type ProjectStore, type SiteProject } from "./project-zone";
+import { ParkingReference } from "./ParkingReference";
+import { AccessReferences } from "./AccessReferences";
 import { TresumsWays } from "./TresumsWays";
 import { segmentHit } from "./segment-insertion";
 import { showSegmentPreview } from "./segment-preview";
@@ -19,6 +21,8 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
   const [error, setError] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [accessEditing, setAccessEditing] = useState(false);
+  const onAccessEditingChange = useCallback((editing: boolean) => setAccessEditing(editing), []);
   const [parcels, setParcels] = useState<Parcel[] | null>(null);
   const [parcelStatus, setParcelStatus] = useState("Chargement du cadastre…");
   const [showCadastre, setShowCadastre] = useState(true);
@@ -36,7 +40,7 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
     try { const raw = localStorage.getItem(PROJECT_KEY); const next = readProjects(raw); lastRaw.current = raw; setStore(next); setActiveId(next.projects.at(-1)?.id ?? null); setLoaded(true); }
     catch { setError("Lecture des projets impossible. Les données existantes sont conservées ; vérifiez le stockage du navigateur."); }
   }, []);
-  useEffect(() => { onEditingChange(open && draft !== null); return () => onEditingChange(false); }, [open, draft !== null, onEditingChange]);
+  useEffect(() => { onEditingChange(open && (draft !== null || accessEditing)); return () => onEditingChange(false); }, [open, draft !== null, accessEditing, onEditingChange]);
   useEffect(() => {
     if (!draft || !open) return;
     let cancelled = false;
@@ -164,8 +168,8 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
 
   return <section className="site-project" aria-label="Projets Trésums">
     <h3>Projet de site</h3>
-    {!draft && <><p>Définissez une zone de travail pour préparer le site.</p><button type="button" className="project-primary" disabled={!loaded || !ready || legacyActive} onClick={() => start()}>Créer un projet</button>{legacyActive && <p>Terminez ou annulez l’outil V0 en cours avant de créer un projet.</p>}
-      {store.projects.length > 0 && <><label className="project-field">Projet enregistré<select value={activeId ?? ""} onChange={(event) => setActiveId(event.target.value)}>{store.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label>{active && <><p>Zone confirmée · {active.zone.kind === "parcels" ? `${active.zone.parcels.length} parcelle(s)` : "polygone libre"}</p><button type="button" disabled={legacyActive} onClick={() => start(active)}>Modifier la zone</button></>}</>}</>}
+    {!draft && <><p>Définissez une zone de travail pour préparer le site.</p><button type="button" className="project-primary" disabled={!loaded || !ready || legacyActive || accessEditing} onClick={() => start()}>Créer un projet</button>{legacyActive && <p>Terminez ou annulez l’outil V0 en cours avant de créer un projet.</p>}
+      {store.projects.length > 0 && <><label className="project-field">Projet enregistré<select disabled={accessEditing} value={activeId ?? ""} onChange={(event) => setActiveId(event.target.value)}>{store.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label>{active && <><p>Zone confirmée · {active.zone.kind === "parcels" ? `${active.zone.parcels.length} parcelle(s)` : "polygone libre"}</p><button type="button" disabled={legacyActive || accessEditing} onClick={() => start(active)}>Modifier la zone</button><ParkingReference key={`capacity-${active.id}`} projectId={active.id} /><AccessReferences key={`access-${active.id}`} projectId={active.id} map={map} ready={ready} open={open} blocked={legacyActive} onEditingChange={onAccessEditingChange} /></>}</>}</>}
     {draft && <div className="project-step" role="region" aria-label="Définir la zone du projet">
       <h3>Définir la zone</h3><p>Choisissez une méthode, puis touchez la carte. La zone colorée est une proposition, pas un bornage.</p>
       <label className="project-field">Nom du projet<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Ex. Trésums" /></label>
@@ -175,6 +179,6 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
       <div className="project-actions"><button type="button" className="project-primary" onClick={confirm}>Confirmer la zone</button><button type="button" onClick={() => { setDraft(null); setError(""); }}>Annuler</button></div>
     </div>}
     {error && <p role="alert">{error}</p>}
-    <p>Conservé dans ce navigateur uniquement. Parking et flux seront définis lors d’une étape ultérieure.</p>
+    <p>Conservé dans ce navigateur uniquement. Les flux seront définis lors d’une étape ultérieure.</p>
   </section>;
 }
