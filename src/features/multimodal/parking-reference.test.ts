@@ -8,6 +8,7 @@ describe("capacité de référence", () => {
     expect(estimatedPlaces("100", "0")).toBeNull();
     expect(estimatedPlaces("99", "25")).toBe(3);
     expect(validReference({ ...emptyReference(), kind: "manual", places: "0", source: "comptage", date: "2026-11-27", assumptions: "à vérifier" })).toBe(true);
+    expect(validReference({ ...emptyReference(), kind: "official", places: "0", source: "Ville", date: "2026-11-27", assumptions: "périmètre à vérifier" })).toBe(true);
     expect(validReference({ ...emptyReference(), kind: "manual", places: "", source: "comptage", date: "2026-11-27", assumptions: "à vérifier" })).toBe(false);
   });
   it("conserve les projets et refuse un conflit ou une version inconnue", () => {
