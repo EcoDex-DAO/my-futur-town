@@ -9,3 +9,9 @@
 - [ ] T007 Vérifier l’applicabilité d’une source officielle à chaque zone et période avant toute proposition automatique.
 
 Cette livraison est partielle ; les tâches ouvertes restent nécessaires à #59.
+
+- [x] T008 Ajouter un sous-ensemble PMR facultatif à la capacité déclarée, migrer les données et tester les cas limites.
+- [ ] T009 Calculer la surface confirmée sans compter deux fois les recouvrements et actualiser l'estimation avec hypothèses sourcées et modifiables.
+- [ ] T010 Estimer séparément les places ordinaires et PMR, sans double comptage.
+- [ ] T011 Simplifier les accès tout en préservant les règles existantes et l'inconnu.
+- [ ] T012 Vérifier les parcours complets sur ordinateur et mobile, notamment les conflits et les anciens projets.

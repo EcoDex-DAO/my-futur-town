@@ -12,3 +12,7 @@ Branche : `EcoDex-DAO/mission-59-parking-actuel` · 27 novembre 2026 · Refs #59
 ## Hors périmètre
 
 Aucun parking paramétrique, comptage ou constat de terrain.
+
+## Ajustement partiel : capacité déclarée
+
+Une capacité déclarée comporte un total et un nombre facultatif de places PMR incluses dans ce total. Si ce nombre est inconnu, le nombre de places ordinaires est également inconnu ; zéro reste une valeur explicite. Un nombre PMR supérieur au total est refusé. Les références version 1 sont lues sans perte et migrées en mémoire avec un nombre PMR inconnu. Les anciennes versions de l'application refusent la version 2 plutôt que de l'écraser.

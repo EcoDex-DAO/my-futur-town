@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyReference, estimatedPlaces, parkingReferenceKey, readParkingReference, saveParkingReference, validReference } from "./parking-reference";
+import { declaredPlaces, emptyReference, estimatedPlaces, parkingReferenceKey, readParkingReference, saveParkingReference, validReference } from "./parking-reference";
 
 describe("capacité de référence", () => {
   it("distingue zéro, inconnu et données invalides", () => {
@@ -20,6 +20,20 @@ describe("capacité de référence", () => {
     expect(storage.getItem(parkingReferenceKey("p2"))).toBeNull();
     expect(() => saveParkingReference(storage, key, null, emptyReference())).toThrow();
     expect(storage.getItem(key)).toBe(saved);
-    expect(() => readParkingReference(JSON.stringify({ version: 2 }))).toThrow();
+    expect(() => readParkingReference(JSON.stringify({ version: 3 }))).toThrow();
+  });
+  it("distingue PMR inconnu de zéro et refuse un sous-ensemble impossible", () => {
+    expect(declaredPlaces("10", "")).toEqual({ total: 10, pmr: null, ordinary: null });
+    expect(declaredPlaces("10", "0")).toEqual({ total: 10, pmr: 0, ordinary: 10 });
+    expect(declaredPlaces("10", "2")).toEqual({ total: 10, pmr: 2, ordinary: 8 });
+    expect(declaredPlaces("0", "0")).toEqual({ total: 0, pmr: 0, ordinary: 0 });
+    for (const [total, pmr] of [["10", "11"], ["10", "1.5"], ["", "0"], ["-1", ""]]) expect(declaredPlaces(total, pmr)).toBeNull();
+  });
+  it("migre une capacité ancienne sans inventer de places PMR ni perdre ses informations", () => {
+    const old = { ...emptyReference(), version: 1, places: "20", kind: "manual", source: "comptage", date: "2026-11-27", assumptions: "à vérifier", extra: "conservé" };
+    delete (old as { pmrPlaces?: string }).pmrPlaces;
+    const migrated = readParkingReference(JSON.stringify(old));
+    expect(migrated).toMatchObject({ ...old, version: 2, pmrPlaces: "", extra: "conservé" });
+    expect(validReference(migrated)).toBe(true);
   });
 });
