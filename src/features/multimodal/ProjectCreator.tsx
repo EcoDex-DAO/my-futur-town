@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Marker, type GeoJSONSource, type Map as MapLibreMap, type MapMouseEvent } from "maplibre-gl";
+import { Marker, type GeoJSONSource, type Map as MapLibreMap, type MapMouseEvent, type ErrorEvent } from "maplibre-gl";
 import type { FeatureCollection, Geometry } from "geojson";
 import { PROJECT_KEY, readProjects, validPolygon, type Parcel, type Position, type ProjectStore, type SiteProject } from "./project-zone";
 import { TresumsWays } from "./TresumsWays";
+import { segmentHit } from "./segment-insertion";
+import { showSegmentPreview } from "./segment-preview";
+import { surveyMarker } from "./survey-marker";
 import { groupForLayer } from "../../map";
 
 type Draft = { id: string; name: string; mode: "parcels" | "polygon"; parcels: Parcel[]; points: Position[] };
@@ -19,6 +22,8 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
   const [parcels, setParcels] = useState<Parcel[] | null>(null);
   const [parcelStatus, setParcelStatus] = useState("Chargement du cadastre…");
   const [showCadastre, setShowCadastre] = useState(true);
+  const [ortho, setOrtho] = useState(false);
+  const [orthoError, setOrthoError] = useState("");
   const [contextLayers, setContextLayers] = useState({ buildings: true, water: true });
   const contextOriginal = useRef<{ id: string; group: "buildings" | "water"; visibility: "visible" | "none" }[]>([]);
   const lastRaw = useRef<string | null>(null);
@@ -53,7 +58,14 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
       if (!openRef.current || !current) return;
       event.preventDefault();
       if (current.mode === "polygon") {
-        setDraft((value) => value ? { ...value, points: [...value.points, [event.lngLat.lng, event.lngLat.lat]] } : value);
+        const hit = segmentHit(current.points, event.point, (point) => map.project(point), current.points.length >= 3);
+        const location = hit ? map.unproject([hit.x, hit.y]) : event.lngLat;
+        setDraft((value) => {
+          if (!value) return value;
+          const points = [...value.points];
+          points.splice(hit?.index ?? points.length, 0, [location.lng, location.lat]);
+          return { ...value, points };
+        });
       } else if (map.getLayer("tresums-parcel-fill") && map.getLayoutProperty("tresums-parcel-fill", "visibility") !== "none") {
         const hit = map.queryRenderedFeatures(event.point, { layers: ["tresums-parcel-fill"] })[0];
         const id = hit?.properties?.id;
@@ -68,6 +80,7 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
     if (!map || !ready) return;
     let data: FeatureCollection<Geometry> = emptyCollection;
     if (open && draft?.mode === "parcels") data = { type: "FeatureCollection", features: draft.parcels };
+    else if (open && draft?.mode === "polygon" && draft.points.length === 2) data = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: draft.points } }] };
     else if (open && draft?.mode === "polygon" && draft.points.length >= 3) data = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[...draft.points, draft.points[0]]] } }] };
     else if (open && !draft && active?.zone.kind === "parcels") data = { type: "FeatureCollection", features: active.zone.parcels };
     else if (open && !draft && active?.zone.kind === "polygon") data = { type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[...active.zone.points, active.zone.points[0]]] } }] };
@@ -75,8 +88,15 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
   }, [map, ready, open, draft, active]);
   useEffect(() => {
     if (!map || !open || draft?.mode !== "polygon") return;
+    return showSegmentPreview(map, () => {
+      const current = draftRef.current;
+      return current?.mode === "polygon" ? { points: current.points, closed: current.points.length >= 3 } : null;
+    });
+  }, [map, open, draft?.mode]);
+  useEffect(() => {
+    if (!map || !open || draft?.mode !== "polygon") return;
     const markers = draft.points.map((point, index) => {
-      const marker = new Marker({ draggable: true, color: "#005e59" }).setLngLat(point).addTo(map);
+      const marker = new Marker({ draggable: true, element: surveyMarker(index), offset: [0, -13] }).setLngLat(point).addTo(map);
       marker.on("dragend", () => { const position = marker.getLngLat(); setDraft((value) => value ? { ...value, points: value.points.map((p, i) => i === index ? [position.lng, position.lat] : p) } : value); });
       return marker;
     });
@@ -113,6 +133,19 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
     }
   }, [map, ready, open, !!draft, contextLayers]);
 
+  useEffect(() => {
+    if (!map || !ready || !open || !draft || !ortho) return;
+    const source = "tresums-ortho";
+    const onError = (event: ErrorEvent) => {
+      if ((event as ErrorEvent & { sourceId?: string }).sourceId === source) { setOrtho(false); setOrthoError("Orthophotographie indisponible. Le fond précédent a été rétabli ; réessayez plus tard."); }
+    };
+    map.addSource(source, { type: "raster", tiles: ["https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image%2Fjpeg"], tileSize: 256, maxzoom: 19, attribution: "© IGN — BD ORTHO® · Licence Ouverte 2.0" });
+    const before = map.getStyle().layers.find((layer) => layer.id.startsWith("tresums-"))?.id;
+    map.addLayer({ id: source, type: "raster", source }, before);
+    map.on("error", onError);
+    return () => { map.off("error", onError); if (map.getLayer(source)) map.removeLayer(source); if (map.getSource(source)) map.removeSource(source); };
+  }, [map, ready, open, !!draft, ortho]);
+
   const start = (project?: SiteProject) => {
     setError(""); setShowCadastre(true);
     setDraft(project ? { id: project.id, name: project.name, mode: project.zone.kind, parcels: project.zone.kind === "parcels" ? project.zone.parcels : [], points: project.zone.kind === "polygon" ? project.zone.points : [] } : { id: crypto.randomUUID(), name: "", mode: "parcels", parcels: [], points: [] });
@@ -120,7 +153,7 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
   const confirm = () => {
     if (!draft || !draft.name.trim()) { setError("Donnez un nom au projet."); return; }
     if (draft.mode === "parcels" ? draft.parcels.length === 0 : !validPolygon(draft.points)) { setError(draft.mode === "parcels" ? "Sélectionnez au moins une parcelle." : "Dessinez un polygone simple avec au moins trois sommets distincts."); return; }
-    const project: SiteProject = { id: draft.id, name: draft.name.trim(), zone: draft.mode === "parcels" ? { kind: "parcels", parcels: draft.parcels } : { kind: "polygon", points: draft.points }, parking: null, flows: [] };
+    const project: SiteProject = { ...(store.projects.find((item) => item.id === draft.id) ?? { parking: null, flows: [] }), id: draft.id, name: draft.name.trim(), zone: draft.mode === "parcels" ? { kind: "parcels", parcels: draft.parcels } : { kind: "polygon", points: draft.points } };
     const next: ProjectStore = { version: 1, projects: [...store.projects.filter((item) => item.id !== project.id), project] };
     try {
       if (localStorage.getItem(PROJECT_KEY) !== lastRaw.current) throw Error();
@@ -137,8 +170,8 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
       <h3>Définir la zone</h3><p>Choisissez une méthode, puis touchez la carte. La zone colorée est une proposition, pas un bornage.</p>
       <label className="project-field">Nom du projet<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Ex. Trésums" /></label>
       <fieldset><legend>Méthode de sélection</legend><label><input type="radio" name="zone-mode" checked={draft.mode === "parcels"} onChange={() => setDraft({ ...draft, mode: "parcels" })} /> Parcelles cadastrales</label><label><input type="radio" name="zone-mode" checked={draft.mode === "polygon"} onChange={() => setDraft({ ...draft, mode: "polygon" })} /> Dessin libre</label></fieldset>
-      {draft.mode === "parcels" ? <><p role="status">{sourceStatus.startsWith("Cadastre indisponible") ? "Cadastre indisponible : utilisez le dessin libre ou réessayez plus tard." : sourceStatus.startsWith("Cadastre chargé") ? parcelStatus : sourceStatus}</p><p>Touchez une parcelle pour l’ajouter ou la retirer. {draft.parcels.length} sélectionnée(s).</p>{draft.parcels.length > 0 && <ul>{draft.parcels.map((parcel) => <li key={parcel.properties.id}>{parcel.properties.id} <button type="button" onClick={() => setDraft({ ...draft, parcels: draft.parcels.filter((item) => item.properties.id !== parcel.properties.id) })}>Retirer {parcel.properties.id}</button></li>)}</ul>}{!showCadastre && <p>Affichez le cadastre dans les couches pour sélectionner une parcelle.</p>}</> : <><p role="status">{draft.points.length} sommet(s). Placez au moins trois points ; déplacez les repères pour modifier le contour.</p><button type="button" disabled={!draft.points.length} onClick={() => setDraft({ ...draft, points: draft.points.slice(0, -1) })}>Retirer le dernier sommet</button></>}
-      <details className="project-layers"><summary>Couches de la carte</summary><div><label className="tresums-way-control"><input type="checkbox" checked={showCadastre} onChange={(event) => setShowCadastre(event.target.checked)} /> Cadastre · DGFiP / Etalab 2026</label><p>Le cadastre est indicatif, sans valeur de bornage. <a href="https://www.data.gouv.fr/pages/legal/licences/etalab-2-0" target="_blank" rel="noreferrer">Licence Ouverte 2.0</a>.</p><label className="tresums-way-control"><input type="checkbox" checked={contextLayers.buildings} onChange={(event) => setContextLayers({ ...contextLayers, buildings: event.target.checked })} /> Bâtiments du fond</label><label className="tresums-way-control"><input type="checkbox" checked={contextLayers.water} onChange={(event) => setContextLayers({ ...contextLayers, water: event.target.checked })} /> Eau du fond</label><p>Fond OpenFreeMap / OpenStreetMap : données évolutives, sans garantie de précision.</p><TresumsWays map={map} ready={ready} open={open && !!draft} mapAction={mapAction} /></div></details>
+      {draft.mode === "parcels" ? <><p role="status">{sourceStatus.startsWith("Cadastre indisponible") ? "Cadastre indisponible : utilisez le dessin libre ou réessayez plus tard." : sourceStatus.startsWith("Cadastre chargé") ? parcelStatus : sourceStatus}</p><p>Touchez une parcelle pour l’ajouter ou la retirer. {draft.parcels.length} sélectionnée(s).</p>{draft.parcels.length > 0 && <ul>{draft.parcels.map((parcel) => <li key={parcel.properties.id}>{parcel.properties.id} <button type="button" onClick={() => setDraft({ ...draft, parcels: draft.parcels.filter((item) => item.properties.id !== parcel.properties.id) })}>Retirer {parcel.properties.id}</button></li>)}</ul>}{!showCadastre && <p>Affichez le cadastre dans les couches pour sélectionner une parcelle.</p>}</> : <><p role="status">{draft.points.length} sommet(s). Placez au moins trois points ; déplacez les repères ou touchez un segment pour ajouter un sommet.</p><button type="button" disabled={!draft.points.length} onClick={() => setDraft({ ...draft, points: draft.points.slice(0, -1) })}>Retirer le dernier sommet</button></>}
+      <details className="project-layers"><summary>Couches de la carte</summary><div><label className="tresums-way-control"><input type="checkbox" checked={ortho} onChange={(event) => { setOrthoError(""); setOrtho(event.target.checked); }} /> Orthophotographie IGN</label><p>Photographie aérienne non temps réel · © IGN, <a href="https://www.data.gouv.fr/pages/legal/licences/etalab-2-0" target="_blank" rel="noreferrer">Licence Ouverte 2.0</a>. Le fond initial reste disponible en décochant.</p>{orthoError && <p role="alert">{orthoError}</p>}<label className="tresums-way-control"><input type="checkbox" checked={showCadastre} onChange={(event) => setShowCadastre(event.target.checked)} /> Cadastre · DGFiP / Etalab 2026</label><p>Le cadastre est indicatif, sans valeur de bornage. <a href="https://www.data.gouv.fr/pages/legal/licences/etalab-2-0" target="_blank" rel="noreferrer">Licence Ouverte 2.0</a>.</p><label className="tresums-way-control"><input type="checkbox" checked={contextLayers.buildings} onChange={(event) => setContextLayers({ ...contextLayers, buildings: event.target.checked })} /> Bâtiments du fond</label><label className="tresums-way-control"><input type="checkbox" checked={contextLayers.water} onChange={(event) => setContextLayers({ ...contextLayers, water: event.target.checked })} /> Eau du fond</label><p>Fond OpenFreeMap / OpenStreetMap : données évolutives, sans garantie de précision.</p><TresumsWays map={map} ready={ready} open={open && !!draft} mapAction={mapAction} /></div></details>
       <div className="project-actions"><button type="button" className="project-primary" onClick={confirm}>Confirmer la zone</button><button type="button" onClick={() => { setDraft(null); setError(""); }}>Annuler</button></div>
     </div>}
     {error && <p role="alert">{error}</p>}

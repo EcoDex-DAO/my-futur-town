@@ -154,11 +154,10 @@ export default function App() {
       new maplibregl.ScaleControl({ unit: "metric" }),
       "bottom-left",
     );
-    instance.on("error", () =>
-      setError(
-        "Une ressource cartographique est indisponible. Vérifiez votre connexion ou réessayez.",
-      ),
-    );
+    instance.on("error", (event) => {
+      if ((event as typeof event & { sourceId?: string }).sourceId === "tresums-ortho") return;
+      setError("Une ressource cartographique est indisponible. Vérifiez votre connexion ou réessayez.");
+    });
     instance.on("load", () => {
       const layer = buildingSource(instance.getStyle());
       if (layer && "source" in layer) {
