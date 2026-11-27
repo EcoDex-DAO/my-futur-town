@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { declaredPlaces, emptyReference, estimatedPlaces, parkingReferenceKey, readParkingReference, saveParkingReference, validReference } from "./parking-reference";
+import { declaredPlaces, emptyReference, estimatedBreakdown, estimatedPlaces, parkingReferenceKey, readParkingReference, saveParkingReference, validReference } from "./parking-reference";
 
 describe("capacité de référence", () => {
   it("distingue zéro, inconnu et données invalides", () => {
@@ -33,7 +33,17 @@ describe("capacité de référence", () => {
     const old = { ...emptyReference(), version: 1, places: "20", kind: "manual", source: "comptage", date: "2026-11-27", assumptions: "à vérifier", extra: "conservé" };
     delete (old as { pmrPlaces?: string }).pmrPlaces;
     const migrated = readParkingReference(JSON.stringify(old));
-    expect(migrated).toMatchObject({ ...old, version: 2, pmrPlaces: "", extra: "conservé" });
+    expect(migrated).toMatchObject({ ...old, version: 3, estimateMode: "legacy", legacyAreaPerPlace: old.areaPerPlace, pmrPlaces: "", extra: "conservé" });
     expect(validReference(migrated)).toBe(true);
+  });
+  it("calcule le total et ses sous-ensembles sans dépasser la surface", () => {
+    expect(estimatedBreakdown(1000, "100", "25", "33", "2")).toEqual({ total: 39, ordinary: 38, pmr: 1 });
+    expect(estimatedBreakdown(1000, "50", "25", "33", "0")).toEqual({ total: 20, ordinary: 20, pmr: 0 });
+    expect(estimatedBreakdown(33, "100", "25", "33", "100")).toEqual({ total: 1, ordinary: 0, pmr: 1 });
+    expect(estimatedBreakdown(0, "100", "25", "33", "2")).toEqual({ total: 0, ordinary: 0, pmr: 0 });
+    expect(estimatedBreakdown(null, "100", "25", "33", "2")).toBeNull();
+    expect(estimatedBreakdown(1000, "101", "25", "33", "2")).toBeNull();
+    expect(estimatedBreakdown(1000, "100", "0", "33", "2")).toBeNull();
+    expect(estimatedBreakdown(1000, "100", "25", "24", "2")).toBeNull();
   });
 });

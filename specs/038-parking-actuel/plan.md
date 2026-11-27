@@ -7,3 +7,5 @@ Ajouter les accès dans une clé versionnée distincte par projet ; une absence 
 Les étapes ultérieures restent hors de cette livraison : voiries et profils de trafic hypothétiques ; captation et niveaux ; répartition modale ; puis desserte, rotations et flotte de transport collectif. Aucune de ces étapes ne constitue un comptage réel.
 
 Pour la capacité déclarée, conserver la clé et le contrôle de conflit, mais utiliser un format version 2 afin que les anciens clients ne remplacent pas silencieusement le nombre PMR. La lecture du format 1 ajoute seulement une valeur inconnue en mémoire ; l'écriture reste explicite.
+
+Pour cet ajustement, les formats de capacité et d'accès passent en version 3 dans leurs clés existantes : les anciens clients refusent leur lecture. Les formats précédents migrent en mémoire et ne sont enregistrés qu'après action explicite et contrôle de conflit. Le calcul spatial unit les géométries avant de mesurer leur surface sphérique, puis la répartition cherche le nombre entier maximal compatible avec les hypothèses et arrondit les PMR au supérieur.

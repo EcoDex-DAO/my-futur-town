@@ -1,5 +1,7 @@
 import { defineConfig } from "@playwright/test";
 
+const port = process.env.MFT_E2E_PORT || "4173";
+
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
@@ -7,7 +9,7 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: `http://127.0.0.1:${port}`,
     viewport: { width: 1440, height: 1000 },
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
@@ -25,8 +27,8 @@ export default defineConfig({
   },
   webServer: {
     timeout: 180_000,
-    command: `${process.env.MFT_E2E_SKIP_BUILD === "1" ? "" : "corepack pnpm run build && "}corepack pnpm exec next start --hostname 127.0.0.1 --port 4173`,
-    url: "http://127.0.0.1:4173",
+    command: `${process.env.MFT_E2E_SKIP_BUILD === "1" ? "" : "corepack pnpm run build && "}corepack pnpm exec next start --hostname 127.0.0.1 --port ${port}`,
+    url: `http://127.0.0.1:${port}`,
     reuseExistingServer: false,
     env: {
       NEXT_PUBLIC_API_URL: "",

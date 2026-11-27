@@ -28,7 +28,19 @@ describe("accès de référence", () => {
     expect(storage.getItem("mft-tresums-v0")).toBe("ancien");
     const old = JSON.stringify({ version: 1, accesses: [{ ...access, parking: { ...access.parking, enabled: true }, street: { ...access.street, enabled: false } }] });
     expect(readAccesses(old).accesses[0]).toMatchObject({ parking: { enabled: "yes" }, street: { enabled: "no" } });
-    expect(() => readAccesses('{"version":3,"accesses":[]}')).toThrow();
+    expect(() => readAccesses('{"version":4,"accesses":[]}')).toThrow();
     expect(readAccesses(saveAccesses(storage, key, saved, [])).accesses).toEqual([]);
+  });
+  it("préserve les permissions et conditions communes dans la migration", () => {
+    const access = { ...newAccess([6.13, 45.89]), name: "Borne", directionDetails: "sens ancien", parking: { enabled: "yes", pedestrian: "conditional", bicycle: "prohibited", vehicle: "conditional", condition: "badge" } };
+    const result = readAccesses(JSON.stringify({ version: 2, accesses: [access] })).accesses[0];
+    expect(result).toMatchObject({ directionDetails: "sens ancien", exitLeft: false, exitRight: false, parking: { condition: "badge", bicycle: "prohibited", modeConditions: { pedestrian: "badge", vehicle: "badge" } } });
+  });
+  it.each(["entry", "exit", "both", "unknown"] as const)("conserve le sens %s et les conditions par mode", (direction) => {
+    const access = { ...newAccess([6.13, 45.89]), name: "Accès", direction, exitLeft: true, exitRight: true };
+    access.parking = { enabled: "yes", pedestrian: "conditional", bicycle: "conditional", vehicle: "conditional", condition: "ancienne précision", modeConditions: { pedestrian: "jour", bicycle: "badge", vehicle: "livraison" } };
+    const saved = readAccesses(JSON.stringify({ version: 3, accesses: [access] })).accesses[0];
+    expect(saved).toEqual(access);
+    expect(validAccess({ ...saved, parking: { ...saved.parking, modeConditions: { pedestrian: "jour", bicycle: "", vehicle: "livraison" } } })).toBe(false);
   });
 });

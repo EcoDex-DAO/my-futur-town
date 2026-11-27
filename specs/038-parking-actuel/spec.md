@@ -16,3 +16,9 @@ Aucun parking paramétrique, comptage ou constat de terrain.
 ## Ajustement partiel : capacité déclarée
 
 Une capacité déclarée comporte un total et un nombre facultatif de places PMR incluses dans ce total. Si ce nombre est inconnu, le nombre de places ordinaires est également inconnu ; zéro reste une valeur explicite. Un nombre PMR supérieur au total est refusé. Les références version 1 sont lues sans perte et migrées en mémoire avec un nombre PMR inconnu. Les anciennes versions de l'application refusent la version 2 plutôt que de l'écraser.
+
+## Surface et accès
+
+La surface confirmée est calculée à partir du polygone ou de l'union des parcelles. L'estimation applique une proportion utilisable, puis répartit les places selon des surfaces unitaires distinctes et une part PMR modifiables. Les hypothèses ne démontrent pas une conformité ou une capacité réelle. Les anciennes estimations restent consultables, avec leur surface et ratio, lors de leur conversion explicite.
+
+Les cases d'entrée et de sortie peuvent être combinées ; les directions droite et gauche sont indiquées séparément pour une sortie. Pour chaque destination, les modes non renseignés restent inconnus et les conditions sont propres à chaque mode. Les interdictions, les indications de direction et les conditions communes des accès anciens restent accessibles ; la migration ne remplace pas ces informations par des permissions implicites.
