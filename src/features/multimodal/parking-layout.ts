@@ -5,13 +5,16 @@ import type { ProjectZone } from "./project-zone";
 type Point = [number, number];
 type Shape = Point[][];
 type Cell = { row: number; col: number; side: number; shape: Shape };
+type Aisle = { row: number; col: number; shape: Shape };
+export type LayoutAccesses = { entries: Point[]; exits: Point[] };
 export type LayoutParameters = { stallWidth: number; stallDepth: number; aisleWidth: number; pmrWidth: number; pmrPercent: number };
 export type ParkingLayout = { total: number; ordinary: number; pmr: number; angle: number; features: FeatureCollection<Polygon>; pmrTargetMet: boolean };
 const R = 6371008.8;
 const rectangle = (x: number, y: number, w: number, h: number): Shape => [[[x,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y]]];
 
 /** Heuristique locale : rangées perpendiculaires et quelques orientations, sans garantie de raccordement aux accès. */
-export function generateParkingLayout(zone: ProjectZone, p: LayoutParameters): ParkingLayout | null {
+export function generateParkingLayout(zone: ProjectZone, p: LayoutParameters, accesses: LayoutAccesses): ParkingLayout | null {
+  if (!accesses.entries.length || !accesses.exits.length) return null;
   if (![p.stallWidth,p.stallDepth,p.aisleWidth,p.pmrWidth,p.pmrPercent].every(Number.isFinite) || p.stallWidth < 2 || p.stallWidth > 5 || p.stallDepth < 4 || p.stallDepth > 10 || p.aisleWidth < 3 || p.aisleWidth > 15 || p.pmrWidth < p.stallWidth || p.pmrWidth > 8 || p.pmrPercent < 0 || p.pmrPercent > 100) return null;
   try {
     const polys = zone.kind === "polygon" ? [[zone.points.concat([zone.points[0]])]] : zone.parcels.flatMap((f) => f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates);
@@ -33,22 +36,53 @@ export function generateParkingLayout(zone: ProjectZone, p: LayoutParameters): P
       const moduleDepth = 2*p.stallDepth+p.aisleWidth;
       if ((maxX-minX)*(maxY-minY) / (p.stallWidth*moduleDepth) > 3000) return null;
       for (const dx of [0,p.stallWidth/2]) for (const dy of [0,moduleDepth/2]) {
-        const cells: Cell[] = [], aisles: Shape[] = [];
+        const cells: Cell[] = [], aisles: Aisle[] = [];
         let row = 0;
         for (let y = minY + dy; y + p.stallDepth + p.aisleWidth <= maxY + 1e-7; y += moduleDepth, row++) {
           let col = 0;
           for (let x = minX + dx; x+p.stallWidth <= maxX + 1e-7; x += p.stallWidth, col++) {
             const aisle = rectangle(x,y+p.stallDepth,p.stallWidth,p.aisleWidth);
             if (difference(aisle, rotated).length) continue;
-            let found = false;
+            aisles.push({ row, col, shape: aisle });
             for (const side of [0,1]) {
               const stall = rectangle(x, y + (side ? p.stallDepth+p.aisleWidth : 0), p.stallWidth,p.stallDepth);
-              if (!difference(stall, rotated).length) { cells.push({ row, col, side, shape: stall }); found = true; }
+              if (!difference(stall, rotated).length) { cells.push({ row, col, side, shape: stall }); }
             }
-            if (found) aisles.push(aisle);
+
           }
         }
-        if (!best || cells.length > best.cells.length) best = { cells, aisles, angle };
+        const entries = accesses.entries.map((point) => rotate(local(point)));
+        const exits = accesses.exits.map((point) => rotate(local(point)));
+        const boundaryDistance = (point: Point) => Math.min(...rotated.flatMap((poly) => poly.flatMap((ring) => ring.slice(1).map((end, index) => {
+          const start = ring[index], dx = end[0]-start[0], dy = end[1]-start[1], length = dx*dx+dy*dy;
+          const t = length ? Math.max(0,Math.min(1,((point[0]-start[0])*dx+(point[1]-start[1])*dy)/length)) : 0;
+          return Math.hypot(point[0]-start[0]-t*dx,point[1]-start[1]-t*dy);
+        }))));
+        const onBoundary = (point: Point) => boundaryDistance(point) <= 2;
+        const entryPoints = entries.filter(onBoundary), exitPoints = exits.filter(onBoundary);
+        if (!entryPoints.length || !exitPoints.length || entryPoints.length !== entries.length || exitPoints.length !== exits.length) continue;
+        const span = maxX-minX-p.aisleWidth;
+        for (const sx of [minX+0.05, minX+span/2, maxX-p.aisleWidth-0.05]) {
+          const spine = rectangle(sx,minY+0.05,p.aisleWidth,maxY-minY-0.1);
+          if (span < 0.1 || difference(spine,rotated).length) continue;
+          const connected: Aisle[] = [];
+          for (const currentRow of new Set(aisles.map((a) => a.row))) {
+            const sorted = aisles.filter((a) => a.row === currentRow).sort((a,b) => a.col-b.col);
+            let group: Aisle[] = [];
+            const flush = () => {
+              if (group.some((a) => { const x = a.shape[0][0][0]; return x <= sx+p.aisleWidth+1e-6 && x+p.stallWidth >= sx-1e-6; })) connected.push(...group);
+              group = [];
+            };
+            for (const aisle of sorted) { if (group.length && aisle.col !== group[group.length-1].col+1) flush(); group.push(aisle); }
+            flush();
+          }
+          const roadShapes = [spine,...connected.map((a) => a.shape)];
+          const nearRoad = ([x,y]: Point) => roadShapes.some((shape) => { const a = shape[0][0], b = shape[0][2]; return Math.hypot(Math.max(a[0]-x,0,x-b[0]),Math.max(a[1]-y,0,y-b[1])) <= 2; });
+          if (!entryPoints.every(nearRoad) || !exitPoints.every(nearRoad)) continue;
+          const keys = new Set(connected.map((a) => `${a.row}:${a.col}`));
+          const kept = cells.filter((cell) => { const x = cell.shape[0][0][0]; return keys.has(`${cell.row}:${cell.col}`) && (x+p.stallWidth <= sx+1e-6 || x >= sx+p.aisleWidth-1e-6); });
+          if (!best || kept.length > best.cells.length) best = { cells: kept, aisles: roadShapes, angle };
+        }
       }
     }
     if (!best) return null;

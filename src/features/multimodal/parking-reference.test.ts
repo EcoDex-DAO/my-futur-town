@@ -33,7 +33,7 @@ describe("capacité de référence", () => {
     const old = { ...emptyReference(), version: 1, places: "20", kind: "manual", source: "comptage", date: "2026-11-27", assumptions: "à vérifier", extra: "conservé" };
     delete (old as { pmrPlaces?: string }).pmrPlaces;
     const migrated = readParkingReference(JSON.stringify(old));
-    expect(migrated).toMatchObject({ ...old, version: 4, estimateMode: "layout", legacyAreaPerPlace: old.areaPerPlace, pmrPlaces: "", extra: "conservé" });
+    expect(migrated).toMatchObject({ ...old, version: 5, savedLayout: null, estimateMode: "layout", legacyAreaPerPlace: old.areaPerPlace, pmrPlaces: "", extra: "conservé" });
     expect(validReference(migrated)).toBe(true);
   });
   it("préserve une estimation ancienne et active les valeurs automatiques si elle est vide", () => {
@@ -45,16 +45,22 @@ describe("capacité de référence", () => {
     const values = new Map<string, string>();
     const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value); } } as Storage;
     const base = emptyReference();
-    const item = { ...base, kind: "estimate" as const, source: "plan", date: "2026-11-28", assumptions: "indicatif", savedLayout: { zone: "zone-a", parameters: JSON.stringify(base.layoutParameters), generatedAt: "2026-11-28", total: 10, ordinary: 9, pmr: 1, pmrTargetMet: true } };
-    expect(() => saveParkingReference(storage, "p", null, item, 1000, "zone-b")).toThrow("Zone modifiée");
-    const raw = saveParkingReference(storage, "p", null, item, 1000, "zone-a");
+    const item = { ...base, kind: "estimate" as const, source: "plan", date: "2026-11-28", assumptions: "indicatif", savedLayout: { zone: "zone-a", accesses: "accès-a", parameters: JSON.stringify(base.layoutParameters), generatedAt: "2026-11-28", total: 10, ordinary: 9, pmr: 1, pmrTargetMet: true } };
+    expect(() => saveParkingReference(storage, "p", null, item, 1000, "zone-b", "accès-a")).toThrow("Zone modifiée");
+    expect(() => saveParkingReference(storage, "p", null, item, 1000, "zone-a", "accès-b")).toThrow("Zone modifiée");
+    const raw = saveParkingReference(storage, "p", null, item, 1000, "zone-a", "accès-a");
     expect(readParkingReference(raw).savedLayout).toEqual(item.savedLayout);
-    expect(() => saveParkingReference(storage, "p", null, item, 1000, "zone-a")).toThrow("Conflit entre onglets");
+    expect(() => saveParkingReference(storage, "p", null, item, 1000, "zone-a", "accès-a")).toThrow("Conflit entre onglets");
     expect(storage.getItem("p")).toBe(raw);
   });
   it("préserve une estimation version 3 par ratio", () => {
     const old = { ...emptyReference(), version: 3, kind: "estimate", estimateMode: "zone", areaPerPlace: "28", source: "ancien", date: "2026-01-01", assumptions: "conservées" };
-    expect(readParkingReference(JSON.stringify(old))).toMatchObject({ version: 4, estimateMode: "zone", areaPerPlace: "28", source: "ancien", assumptions: "conservées" });
+    expect(readParkingReference(JSON.stringify(old))).toMatchObject({ version: 5, estimateMode: "zone", areaPerPlace: "28", source: "ancien", assumptions: "conservées" });
+  });
+  it("conserve une estimation version 4 sans prétendre qu’elle utilisait les accès", () => {
+    const base = emptyReference();
+    const old = { ...base, version: 4, kind: "estimate", savedLayout: { zone: "zone-a", parameters: JSON.stringify(base.layoutParameters), generatedAt: "2026-11-28", total: 10, ordinary: 9, pmr: 1, pmrTargetMet: true } };
+    expect(readParkingReference(JSON.stringify(old))).toMatchObject({ version: 5, savedLayout: { total: 10, accesses: null } });
   });
   it("calcule le total et ses sous-ensembles sans dépasser la surface", () => {
     expect(estimatedBreakdown(1000, "100", "25", "33", "2")).toEqual({ total: 39, ordinary: 38, pmr: 1 });

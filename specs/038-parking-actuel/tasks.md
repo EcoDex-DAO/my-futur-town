@@ -17,6 +17,8 @@ Cette livraison est partielle ; les tâches ouvertes restent nécessaires à #59
 - [ ] T012 Vérifier les parcours complets sur ordinateur et mobile, notamment les conflits et les anciens projets.
 
 - [x] T013 Générer et afficher un plan géométrique indicatif, avec dimensions modifiables et répartition PMR sans double comptage.
-- [ ] T014 Étudier le raccordement des voies aux accès, les obstacles, virages et cheminements, puis éditer les variantes ; le prototype actuel ne les traite pas.
+- [ ] T014 Étudier le raccordement réel aux accès, les obstacles, virages et cheminements, puis éditer les variantes ; le prototype actuel ne les traite pas.
 
 - [x] T015 Utiliser le nombre de places du plan comme capacité estimée et conserver ses dimensions et son résultat.
+
+- [x] T016 Réserver une voie commune et ne compter que les rangées raccordées aux accès véhicules explicitement autorisés, avec résultat inconnu si aucun plan n’est trouvé.

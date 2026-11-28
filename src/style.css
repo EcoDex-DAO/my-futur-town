@@ -1157,6 +1157,7 @@ main { height:calc(100dvh - 64px); min-height:0; overflow:hidden; }
 .project-layers summary, .tresums-legacy summary { cursor:pointer; font-weight:600; color:#234a3b; }
 .project-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:16px; }
 .site-project :focus-visible { outline:3px solid #297c5c; outline-offset:2px; }
+.parking-layout-access { display:block; padding:4px 7px; border-radius:4px; background:#173c35; color:#fff; font-size:12px; font-weight:700; white-space:nowrap; pointer-events:none; }
 .tresums-way-swatch { width:28px; border-top:4px solid #a0442f; flex:none; }
 .tresums-way-swatch.pedestrian { border-top:4px dotted #165a9a; }
 .tresums-way-swatch.cycle { border-top-color:#177346; }

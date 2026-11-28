@@ -60,7 +60,7 @@ export function AccessReferences({ projectId, map, ready, open, blocked, onEditi
     return () => markers.forEach((marker) => marker.remove());
   }, [map, ready, open, accesses, draft, placing, blocked]);
   const save = (next: AccessReference[]) => {
-    try { snapshot.current = saveAccesses(localStorage, key, snapshot.current, next); setAccesses(next); setDraft(null); setMessage("Accès enregistrés dans ce navigateur."); }
+    try { snapshot.current = saveAccesses(localStorage, key, snapshot.current, next); setAccesses(next); window.dispatchEvent(new CustomEvent("mft-access-changed", { detail: projectId })); setDraft(null); setMessage("Accès enregistrés dans ce navigateur."); }
     catch (error) { setMessage(error instanceof Error && error.message === "Conflit entre onglets" ? "Les accès ont changé dans un autre onglet. Copiez votre saisie puis rechargez." : "Enregistrement impossible : donnez un nom et précisez chaque condition, ainsi que la source et la date pour une donnée officielle."); }
   };
   return <details className="project-layers"><summary>Accès de référence</summary>

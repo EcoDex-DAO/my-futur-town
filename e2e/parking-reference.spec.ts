@@ -6,7 +6,7 @@ for (const width of [1440, 390]) {
     await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
     await page.addInitScript(() => {
       if (!localStorage.getItem("mft-tresums-projects-v1")) localStorage.setItem("mft-tresums-projects-v1", JSON.stringify({ version: 1, projects: [{ id: "p", name: "Projet test", parking: null, flows: [], zone: { kind: "polygon", points: [[6.13,45.89],[6.131,45.89],[6.131,45.891],[6.13,45.891]] } }] }));
-      if (!localStorage.getItem("mft-access-reference-v1:p")) localStorage.setItem("mft-access-reference-v1:p", JSON.stringify({ version: 2, accesses: [{ id: "a", name: "Borne", position: [6.13,45.89], direction: "both", directionDetails: "ancien sens", origin: "unknown", source: "", date: "", notes: "", parking: { enabled: "yes", pedestrian: "conditional", bicycle: "unknown", vehicle: "prohibited", condition: "badge" }, street: { enabled: "unknown", pedestrian: "unknown", bicycle: "unknown", vehicle: "unknown", condition: "" } }] }));
+      if (!localStorage.getItem("mft-access-reference-v1:p")) localStorage.setItem("mft-access-reference-v1:p", JSON.stringify({ version: 2, accesses: [{ id: "a", name: "Borne", position: [6.13,45.89], direction: "both", directionDetails: "ancien sens", origin: "unknown", source: "", date: "", notes: "", parking: { enabled: "yes", pedestrian: "conditional", bicycle: "unknown", vehicle: "prohibited", condition: "badge" }, street: { enabled: "unknown", pedestrian: "unknown", bicycle: "unknown", vehicle: "unknown", condition: "" } }, { id: "vehicle", name: "Entrée parking", position: [6.13,45.89], direction: "both", directionDetails: "", origin: "unknown", source: "", date: "", notes: "", parking: { enabled: "yes", pedestrian: "unknown", bicycle: "unknown", vehicle: "allowed", condition: "" }, street: { enabled: "unknown", pedestrian: "unknown", bicycle: "unknown", vehicle: "unknown", condition: "" } }] }));
     });
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: "Menu Trésums" }).click();
@@ -24,20 +24,30 @@ for (const width of [1440, 390]) {
     await plan.getByRole("heading", { name: "Plan indicatif sur la carte" }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: `/tmp/parking-plan-${width}.png` });
     await page.getByRole("button", { name: "Fermer le menu" }).click();
+    await expect(page.getByText("Entrée / sortie", { exact: true })).toBeVisible();
     await page.screenshot({ path: `/tmp/parking-plan-plein-${width}.png` });
     await page.getByRole("button", { name: "Menu Trésums" }).click();
     await page.getByRole("button", { name: "Enregistrer la capacité" }).click();
     await expect(page.getByText("Référence enregistrée dans ce navigateur.")).toBeVisible();
     const capacity = JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p")))!);
-    expect(capacity).toMatchObject({ version: 4, kind: "estimate", estimateMode: "layout", layoutParameters: { aisleWidth: "12" }, savedLayout: { pmrTargetMet: true } });
+    expect(capacity).toMatchObject({ version: 5, kind: "estimate", estimateMode: "layout", layoutParameters: { aisleWidth: "12" }, savedLayout: { pmrTargetMet: true } });
     expect(capacity.savedLayout.total).toBe(capacity.savedLayout.ordinary + capacity.savedLayout.pmr);
     expect(capacity.savedLayout.total).toBe(displayedTotal);
     const projects = await page.evaluate(() => localStorage.getItem("mft-tresums-projects-v1"));
-    await page.evaluate(() => { const key = "mft-tresums-projects-v1"; const data = JSON.parse(localStorage.getItem(key)!); data.projects[0].zone.points[1][0] += 0.0001; localStorage.setItem(key, JSON.stringify(data)); });
+    const other = await page.context().newPage();
+    await other.goto("/health", { waitUntil: "domcontentloaded" });
+    await other.evaluate(() => { const key = "mft-tresums-projects-v1"; const data = JSON.parse(localStorage.getItem(key)!); data.projects[0].zone.points[1][0] += 0.0001; localStorage.setItem(key, JSON.stringify(data)); });
     await page.getByRole("button", { name: "Enregistrer la capacité" }).click();
-    await expect(page.getByText("Le projet ou sa zone a changé", { exact: false })).toBeVisible();
+    await expect(page.getByText("Le projet, sa zone ou ses accès ont changé", { exact: false })).toBeVisible();
     expect(JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p")))!).savedLayout).toEqual(capacity.savedLayout);
-    await page.evaluate((raw) => localStorage.setItem("mft-tresums-projects-v1", raw!), projects);
+    await other.evaluate((raw) => localStorage.setItem("mft-tresums-projects-v1", raw!), projects);
+    const external = JSON.stringify({ ...capacity, assumptions: "modification dans un autre onglet" });
+    await other.evaluate((raw) => localStorage.setItem("mft-parking-reference-v1:p", raw), external);
+    await page.getByRole("button", { name: "Enregistrer la capacité" }).click();
+    await expect(page.getByText("Le projet, sa zone ou ses accès ont changé", { exact: false })).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p"))).toBe(external);
+    await other.evaluate((raw) => localStorage.setItem("mft-parking-reference-v1:p", raw), JSON.stringify(capacity));
+    await other.close();
     await page.getByText("Accès de référence", { exact: true }).click();
     await page.getByRole("button", { name: "Borne" }).click();
     const edit = page.getByRole("region", { name: "Modifier un accès" });
@@ -48,13 +58,34 @@ for (const width of [1440, 390]) {
     await expect(edit.getByText("Règle enregistrée : passage interdit.", { exact: false })).toBeVisible();
     await edit.getByRole("button", { name: "Enregistrer l’accès" }).click();
     const saved = JSON.parse((await page.evaluate(() => localStorage.getItem("mft-access-reference-v1:p")))!);
-    expect(saved.accesses[0]).toMatchObject({ exitRight: true, directionDetails: "ancien sens", parking: { vehicle: "prohibited", modeConditions: { pedestrian: "badge" } } });
+    expect(saved.accesses.find((item: { id: string }) => item.id === "a")).toMatchObject({ exitRight: true, directionDetails: "ancien sens", parking: { vehicle: "prohibited", modeConditions: { pedestrian: "badge" } } });
     await page.reload({ waitUntil: "domcontentloaded" });
     const menu = page.getByRole("button", { name: "Menu Trésums" });
     if (await menu.getAttribute("aria-expanded") !== "true") await menu.click();
     await page.getByText("Parking actuel · capacité de référence").click();
-    await expect(page.getByText("Dernier résultat enregistré :", { exact: false })).toContainText(`${capacity.savedLayout.total} places`);
+    await expect(page.getByText("Ancien résultat enregistré :", { exact: false })).toContainText(`${capacity.savedLayout.total} places`);
     await page.getByText("Dimensions du plan").click();
     await expect(page.getByLabel("Largeur de circulation (m)")).toHaveValue("12");
+    await page.getByRole("button", { name: "Modifier la zone" }).click();
+    const zoneEditor = page.getByRole("region", { name: "Définir la zone du projet" });
+    await zoneEditor.getByRole("button", { name: "Retirer le dernier sommet" }).click();
+    await zoneEditor.getByRole("button", { name: "Confirmer la zone" }).click();
+    await page.getByText("Parking actuel · capacité de référence").click();
+    await expect(page.getByText("Ancien résultat enregistré :", { exact: false })).toContainText("ne tient pas compte");
+    expect(JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p")))!).savedLayout).toEqual(capacity.savedLayout);
   });
 }
+
+
+test("sans accès voiture renseignés, aucune capacité n’est inventée", async ({ page }) => {
+  await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
+  await page.addInitScript(() => localStorage.setItem("mft-tresums-projects-v1", JSON.stringify({ version: 1, projects: [{ id: "sans-acces", name: "Sans accès", parking: null, flows: [], zone: { kind: "polygon", points: [[6.13,45.89],[6.131,45.89],[6.131,45.891],[6.13,45.891]] } }] })));
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Menu Trésums" }).click();
+  await page.getByText("Parking actuel · capacité de référence").click();
+  await page.getByLabel("Nature de la donnée").selectOption("estimate");
+  await expect(page.getByText("Capacité inconnue : renseignez", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Enregistrer la capacité" }).click();
+  await expect(page.getByText("Attendez le calcul du plan", { exact: false })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:sans-acces"))).toBeNull();
+});

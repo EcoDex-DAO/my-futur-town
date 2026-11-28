@@ -13,6 +13,10 @@ export type AccessReference = {
 };
 export type AccessStore = { version: 3; accesses: AccessReference[] };
 export const accessKey = (projectId: string) => `mft-access-reference-v1:${projectId}`;
+export function vehicleLayoutAccesses(items: AccessReference[]): { entries: Position[]; exits: Position[] } {
+  const usable = items.filter((access) => access.parking.enabled === "yes" && access.parking.vehicle === "allowed");
+  return { entries: usable.filter((access) => access.direction === "entry" || access.direction === "both").map((access) => access.position), exits: usable.filter((access) => access.direction === "exit" || access.direction === "both").map((access) => access.position) };
+}
 const destination = (): Destination => ({ enabled: "unknown", pedestrian: "unknown", bicycle: "unknown", vehicle: "unknown", condition: "", modeConditions: { pedestrian: "", bicycle: "", vehicle: "" } });
 export const newAccess = (position: Position): AccessReference => ({ id: crypto.randomUUID(), name: "", position, direction: "unknown", directionDetails: "", exitRight: false, exitLeft: false, origin: "unknown", source: "", date: "", notes: "", parking: destination(), street: destination() });
 

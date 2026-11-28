@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { accessKey, newAccess, readAccesses, saveAccesses, validAccess } from "./access-reference";
+import { accessKey, newAccess, readAccesses, saveAccesses, validAccess, vehicleLayoutAccesses } from "./access-reference";
 
 describe("accès de référence", () => {
+  it("ne traite pas les permissions inconnues, conditionnelles ou interdites comme autorisées", () => {
+    const a = { ...newAccess([6.13, 45.89]), name: "A", direction: "both" as const };
+    for (const vehicle of ["unknown", "conditional", "prohibited"] as const) expect(vehicleLayoutAccesses([{ ...a, parking: { ...a.parking, enabled: "yes", vehicle } }])).toEqual({ entries: [], exits: [] });
+    expect(vehicleLayoutAccesses([{ ...a, parking: { ...a.parking, enabled: "yes", vehicle: "allowed" } }])).toEqual({ entries: [a.position], exits: [a.position] });
+    expect(vehicleLayoutAccesses([{ ...a, direction: "entry", parking: { ...a.parking, enabled: "yes", vehicle: "allowed" } }])).toEqual({ entries: [a.position], exits: [] });
+  });
   it("distingue les destinations et exige la précision des conditions", () => {
     const access = newAccess([6.13, 45.89]);
     access.name = "Borne";
