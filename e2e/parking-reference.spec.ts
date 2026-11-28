@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+test.beforeEach(async ({ page }) => {
+  await page.route("**/data/sibra.json", (route) => route.fulfill({ json: { metadata: { sourceUrl: "fixture", attribution: "fixture", license: "fixture", validFrom: "2026-01-01", validTo: "2026-12-31", generatedAt: "2026-01-01" }, lines: [] } }));
+});
+
 for (const width of [1440, 390]) {
   test(`capacité et accès migrés à ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
@@ -23,14 +27,26 @@ for (const width of [1440, 390]) {
     await plan.getByRole("button", { name: "Centrer la carte sur le plan" }).click();
     await plan.getByRole("heading", { name: "Plan indicatif sur la carte" }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: `/tmp/parking-plan-${width}.png` });
-    await page.getByRole("button", { name: "Fermer le menu" }).click();
+    await page.getByRole("button", { name: "Menu Trésums" }).click();
     await expect(page.getByText("Entrée / sortie", { exact: true })).toBeVisible();
     await page.screenshot({ path: `/tmp/parking-plan-plein-${width}.png` });
     await page.getByRole("button", { name: "Menu Trésums" }).click();
     await page.getByRole("button", { name: "Enregistrer la capacité" }).click();
     await expect(page.getByText("Référence enregistrée dans ce navigateur.")).toBeVisible();
+    const firstLayout = JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p")))!).savedLayout;
+    await page.getByLabel("Méthode d’estimation").selectOption("zone");
+    await page.getByLabel("Part de la zone utilisable (%)").fill("50");
+    await page.getByRole("button", { name: "Enregistrer la capacité" }).click();
+    const ratioSaved = JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p")))!);
+    expect(ratioSaved.savedLayout).toEqual(firstLayout);
+    expect(ratioSaved.savedRatio.total).toBe(ratioSaved.savedRatio.ordinary + ratioSaved.savedRatio.pmr);
+    await page.getByLabel("Méthode d’estimation").selectOption("layout");
+    await expect(plan.getByText("places dessinées", { exact: false })).toBeVisible({ timeout: 60000 });
+    await page.getByRole("button", { name: "Enregistrer la capacité" }).click();
+    await expect.poll(async () => JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p")))!).estimateMode).toBe("layout");
     const capacity = JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p")))!);
-    expect(capacity).toMatchObject({ version: 5, kind: "estimate", estimateMode: "layout", layoutParameters: { aisleWidth: "12" }, savedLayout: { pmrTargetMet: true } });
+    expect(capacity).toMatchObject({ version: 6, kind: "estimate", estimateMode: "layout", layoutParameters: { aisleWidth: "12" }, savedLayout: { pmrTargetMet: true } });
+    expect(capacity.savedRatio).toEqual(ratioSaved.savedRatio);
     expect(capacity.savedLayout.total).toBe(capacity.savedLayout.ordinary + capacity.savedLayout.pmr);
     expect(capacity.savedLayout.total).toBe(displayedTotal);
     const projects = await page.evaluate(() => localStorage.getItem("mft-tresums-projects-v1"));
@@ -62,7 +78,7 @@ for (const width of [1440, 390]) {
     await page.reload({ waitUntil: "domcontentloaded" });
     const menu = page.getByRole("button", { name: "Menu Trésums" });
     if (await menu.getAttribute("aria-expanded") !== "true") await menu.click();
-    await page.getByText("Parking actuel · capacité de référence").click();
+    await page.getByText("Parking actuel · capacité de référence").dispatchEvent("click");
     await expect(page.getByText("Ancien résultat enregistré :", { exact: false })).toContainText(`${capacity.savedLayout.total} places`);
     await page.getByText("Dimensions du plan").click();
     await expect(page.getByLabel("Largeur de circulation (m)")).toHaveValue("12");
@@ -88,4 +104,21 @@ test("sans accès voiture renseignés, aucune capacité n’est inventée", asyn
   await page.getByRole("button", { name: "Enregistrer la capacité" }).click();
   await expect(page.getByText("Attendez le calcul du plan", { exact: false })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:sans-acces"))).toBeNull();
+  await page.getByLabel("Méthode d’estimation").selectOption("zone");
+  await expect(page.getByText("Estimation :", { exact: false })).toContainText("ordinaires");
+  await page.getByLabel("Part de la zone utilisable (%)").fill("50");
+  await page.screenshot({ path: "/tmp/estimation-surface.png" });
+  await page.getByRole("button", { name: "Enregistrer la capacité" }).click();
+  await expect(page.getByText("Référence enregistrée dans ce navigateur.")).toBeVisible();
+  const saved = JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:sans-acces")))!);
+  expect(saved).toMatchObject({ version: 6, estimateMode: "zone", usablePercent: "50" });
+  expect(saved.savedRatio.total).toBe(saved.savedRatio.ordinary + saved.savedRatio.pmr);
+  expect(await page.evaluate(() => localStorage.getItem("mft-access-reference-v1:sans-acces"))).toBeNull();
+  await page.reload({ waitUntil: "domcontentloaded" });
+  const menu = page.getByRole("button", { name: "Menu Trésums" });
+  if (await menu.getAttribute("aria-expanded") !== "true") await menu.click();
+  await page.getByText("Parking actuel · capacité de référence").dispatchEvent("click");
+  await expect(page.getByLabel("Méthode d’estimation")).toHaveValue("zone");
+  await expect(page.getByLabel("Part de la zone utilisable (%)")).toHaveValue("50");
+  await expect(page.getByText("Dernière estimation par surface enregistrée :", { exact: false })).toContainText(`${saved.savedRatio.total} places`);
 });

@@ -22,3 +22,5 @@ Cette livraison est partielle ; les tâches ouvertes restent nécessaires à #59
 - [x] T015 Utiliser le nombre de places du plan comme capacité estimée et conserver ses dimensions et son résultat.
 
 - [x] T016 Réserver une voie commune et ne compter que les rangées raccordées aux accès véhicules explicitement autorisés, avec résultat inconnu si aucun plan n’est trouvé.
+
+- [x] T017 Proposer et conserver une estimation simple par surface sans accès, parallèlement au plan géométrique.

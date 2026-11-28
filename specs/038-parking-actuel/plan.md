@@ -16,3 +16,5 @@ Le calcul géométrique projette localement les coordonnées en mètres, unit le
 La version 4 de la référence enregistre les dimensions et le résultat du plan, ainsi qu’une empreinte de la zone. Les anciens formats restent lisibles et leurs informations ne sont pas écrasées ; les anciennes estimations demandent une conversion explicite. La sauvegarde refuse un calcul périmé ou une zone changée dans un autre onglet.
 
 Le format version 5 associe le résultat à une copie des accès utilisés. Les enregistrements version 4 restent lisibles et sont signalés comme n’ayant pas vérifié les accès.
+
+Le format version 6 conserve également le dernier résultat par surface, ses paramètres et la zone correspondante. La sauvegarde refuse une zone modifiée dans un autre onglet. Les anciennes références restent lisibles et les deux méthodes peuvent être réutilisées sans écraser leur historique respectif.
