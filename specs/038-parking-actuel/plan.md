@@ -12,3 +12,5 @@ Pour cet ajustement, les formats de capacité et d'accès passent en version 3 d
 
 
 Le calcul géométrique projette localement les coordonnées en mètres, unit les parcelles, teste des modules de places et d’allées entièrement inclus dans la zone et compare quatre orientations et quatre décalages. Les places PMR regroupent si nécessaire plusieurs modules voisins, sans les compter deux fois. Un worker évite de bloquer l’interface ; la carte affiche séparément voies, places et PMR. Ce calcul n’est pas un solveur de circulation ni une validation de conformité ; il ne modifie aucun stockage existant.
+
+La version 4 de la référence enregistre les dimensions et le résultat du plan, ainsi qu’une empreinte de la zone. Les anciens formats restent lisibles et leurs informations ne sont pas écrasées ; les anciennes estimations demandent une conversion explicite. La sauvegarde refuse un calcul périmé ou une zone changée dans un autre onglet.
