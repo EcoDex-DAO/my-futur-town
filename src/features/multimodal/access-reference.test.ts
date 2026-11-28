@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { accessKey, newAccess, readAccesses, saveAccesses, validAccess } from "./access-reference";
+import { accessKey, newAccess, readAccesses, saveAccesses, validAccess, vehicleLayoutAccesses } from "./access-reference";
 
 describe("accès de référence", () => {
+  it("ne traite pas les permissions inconnues, conditionnelles ou interdites comme autorisées", () => {
+    const a = { ...newAccess([6.13, 45.89]), name: "A", direction: "both" as const };
+    for (const vehicle of ["unknown", "conditional", "prohibited"] as const) expect(vehicleLayoutAccesses([{ ...a, parking: { ...a.parking, enabled: "yes", vehicle } }])).toEqual({ entries: [], exits: [] });
+    expect(vehicleLayoutAccesses([{ ...a, parking: { ...a.parking, enabled: "yes", vehicle: "allowed" } }])).toEqual({ entries: [a.position], exits: [a.position] });
+    expect(vehicleLayoutAccesses([{ ...a, direction: "entry", parking: { ...a.parking, enabled: "yes", vehicle: "allowed" } }])).toEqual({ entries: [a.position], exits: [] });
+  });
   it("distingue les destinations et exige la précision des conditions", () => {
     const access = newAccess([6.13, 45.89]);
     access.name = "Borne";
@@ -28,7 +34,19 @@ describe("accès de référence", () => {
     expect(storage.getItem("mft-tresums-v0")).toBe("ancien");
     const old = JSON.stringify({ version: 1, accesses: [{ ...access, parking: { ...access.parking, enabled: true }, street: { ...access.street, enabled: false } }] });
     expect(readAccesses(old).accesses[0]).toMatchObject({ parking: { enabled: "yes" }, street: { enabled: "no" } });
-    expect(() => readAccesses('{"version":3,"accesses":[]}')).toThrow();
+    expect(() => readAccesses('{"version":4,"accesses":[]}')).toThrow();
     expect(readAccesses(saveAccesses(storage, key, saved, [])).accesses).toEqual([]);
+  });
+  it("préserve les permissions et conditions communes dans la migration", () => {
+    const access = { ...newAccess([6.13, 45.89]), name: "Borne", directionDetails: "sens ancien", parking: { enabled: "yes", pedestrian: "conditional", bicycle: "prohibited", vehicle: "conditional", condition: "badge" } };
+    const result = readAccesses(JSON.stringify({ version: 2, accesses: [access] })).accesses[0];
+    expect(result).toMatchObject({ directionDetails: "sens ancien", exitLeft: false, exitRight: false, parking: { condition: "badge", bicycle: "prohibited", modeConditions: { pedestrian: "badge", vehicle: "badge" } } });
+  });
+  it.each(["entry", "exit", "both", "unknown"] as const)("conserve le sens %s et les conditions par mode", (direction) => {
+    const access = { ...newAccess([6.13, 45.89]), name: "Accès", direction, exitLeft: true, exitRight: true };
+    access.parking = { enabled: "yes", pedestrian: "conditional", bicycle: "conditional", vehicle: "conditional", condition: "ancienne précision", modeConditions: { pedestrian: "jour", bicycle: "badge", vehicle: "livraison" } };
+    const saved = readAccesses(JSON.stringify({ version: 3, accesses: [access] })).accesses[0];
+    expect(saved).toEqual(access);
+    expect(validAccess({ ...saved, parking: { ...saved.parking, modeConditions: { pedestrian: "jour", bicycle: "", vehicle: "livraison" } } })).toBe(false);
   });
 });

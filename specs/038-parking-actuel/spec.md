@@ -12,3 +12,24 @@ Branche : `EcoDex-DAO/mission-59-parking-actuel` · 27 novembre 2026 · Refs #59
 ## Hors périmètre
 
 Aucun parking paramétrique, comptage ou constat de terrain.
+
+## Ajustement partiel : capacité déclarée
+
+Une capacité déclarée comporte un total et un nombre facultatif de places PMR incluses dans ce total. Si ce nombre est inconnu, le nombre de places ordinaires est également inconnu ; zéro reste une valeur explicite. Un nombre PMR supérieur au total est refusé. Les références version 1 sont lues sans perte et migrées en mémoire avec un nombre PMR inconnu. Les anciennes versions de l'application refusent la version 2 plutôt que de l'écraser.
+
+## Surface et accès
+
+La surface confirmée est calculée à partir du polygone ou de l'union des parcelles. L'estimation applique une proportion utilisable, puis répartit les places selon des surfaces unitaires distinctes et une part PMR modifiables. Les hypothèses ne démontrent pas une conformité ou une capacité réelle. Les anciennes estimations restent consultables, avec leur surface et ratio, lors de leur conversion explicite.
+
+Les cases d'entrée et de sortie peuvent être combinées ; les directions droite et gauche sont indiquées séparément pour une sortie. Pour chaque destination, les modes non renseignés restent inconnus et les conditions sont propres à chaque mode. Les interdictions, les indications de direction et les conditions communes des accès anciens restent accessibles ; la migration ne remplace pas ces informations par des permissions implicites.
+
+
+## Étude géométrique paramétrique — demande du 28 novembre 2026
+
+Après confirmation de la zone, l’utilisateur voit automatiquement une proposition de rangées de places et de voies sur la carte, ainsi que le nombre de places ordinaires et PMR. Les dimensions et la proportion PMR sont modifiables ; le dessin et les comptes se recalculent. Le plan utilise la géométrie complète de la zone, sans compter deux fois les parcelles superposées et en respectant les trous.
+
+Le calcul est une première heuristique : plusieurs orientations et décalages de rangées perpendiculaires sont comparés ; la meilleure solution parmi celles essayées est affichée. Elle ne prouve pas un optimum global. Une voie commune et les rangées reliées sont recherchées à partir des entrées et sorties explicitement autorisées aux véhicules ; sans accès connus ou sans solution trouvée, la capacité reste inconnue. Les repères peuvent être à 2 m du bord et de la voie : le raccordement réel, les obstacles, les virages, les cheminements et la faisabilité réglementaire restent à vérifier. La capacité estimée enregistrée correspond au nombre de places du plan. Ses paramètres, son résultat, sa date et la zone de calcul sont enregistrés dans la référence du projet ; après modification de la zone ou des paramètres, le résultat est recalculé et l’ancien enregistrement reste visible jusqu’à une nouvelle sauvegarde. Les anciennes estimations par ratio, déclarations et scénarios restent accessibles.
+
+La modification des accès entraîne un nouveau calcul. L’enregistrement refuse une zone ou des accès périmés et conserve les anciens résultats en les identifiant comme non vérifiés avec les accès actuels.
+
+Une méthode simple par surface est proposée explicitement même sans accès renseigné. Elle donne un ordre de grandeur total, ordinaire et PMR à partir de la surface confirmée et d’hypothèses modifiables, sans dessiner de plan ni supposer des accès autorisés. Le plan géométrique reste une autre méthode ; leurs paramètres et derniers résultats sont conservés séparément.

@@ -2,16 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Marker, type Map as MapLibreMap, type MapMouseEvent } from "maplibre-gl";
-import { accessKey, newAccess, readAccesses, saveAccesses, type AccessReference, type Destination, type Permission } from "./access-reference";
+import { accessKey, newAccess, readAccesses, saveAccesses, type AccessReference, type Destination } from "./access-reference";
 
-const permissionLabels: Record<Permission, string> = { unknown: "Inconnu", allowed: "Autorisé", prohibited: "Interdit", conditional: "Sous condition" };
 const modes = [["pedestrian", "Piétons"], ["bicycle", "Vélos"], ["vehicle", "Véhicules"]] as const;
 
 function DestinationFields({ title, value, change }: { title: string; value: Destination; change: (value: Destination) => void }) {
   return <fieldset><legend>{title}</legend>
     <label className="project-field">Ce point permet-il cette destination ?<select value={value.enabled} onChange={(event) => change({ ...value, enabled: event.target.value as Destination["enabled"] })}><option value="unknown">Inconnu</option><option value="yes">Oui</option><option value="no">Non</option></select></label>
-    {value.enabled === "yes" && <>{modes.map(([mode, label]) => <label className="project-field" key={mode}>{label}<select value={value[mode]} onChange={(event) => change({ ...value, [mode]: event.target.value as Permission })}>{Object.entries(permissionLabels).map(([key, text]) => <option key={key} value={key}>{text}</option>)}</select></label>)}
-      <label className="project-field">Condition ou précision pour cette destination<textarea value={value.condition} onChange={(event) => change({ ...value, condition: event.target.value })} placeholder="Ex. borne : voitures autorisées uniquement" /></label></>}
+    {value.enabled === "yes" && <><p>Une case non cochée indique que le passage est inconnu, sauf mention contraire.</p>{modes.map(([mode, label]) => {
+      const permission = value[mode];
+      const conditions = value.modeConditions ?? { pedestrian: "", bicycle: "", vehicle: "" };
+      return <fieldset key={mode}><legend>{label}</legend><label><input type="checkbox" checked={permission === "allowed" || permission === "conditional"} onChange={(event) => change({ ...value, [mode]: event.target.checked ? "allowed" : "unknown" })} /> Passage renseigné comme autorisé</label>{permission === "prohibited" && <p>Règle enregistrée : passage interdit. Cochez pour autoriser ou <button type="button" onClick={() => change({ ...value, [mode]: "unknown" })}>marquer inconnu</button>.</p>}{(permission === "allowed" || permission === "conditional") && <><label><input type="checkbox" checked={permission === "conditional"} onChange={(event) => change({ ...value, [mode]: event.target.checked ? "conditional" : "allowed", modeConditions: conditions })} /> Passage sous condition</label>{permission === "conditional" && <label className="project-field">Condition pour {label.toLowerCase()}<textarea value={conditions[mode]} onChange={(event) => change({ ...value, modeConditions: { ...conditions, [mode]: event.target.value } })} /></label>}</>}</fieldset>;
+    })}<label className="project-field">Précisions communes pour cette destination<textarea value={value.condition} onChange={(event) => change({ ...value, condition: event.target.value })} placeholder="Ex. présence d’une borne" /></label></>}
   </fieldset>;
 }
 
@@ -58,7 +60,7 @@ export function AccessReferences({ projectId, map, ready, open, blocked, onEditi
     return () => markers.forEach((marker) => marker.remove());
   }, [map, ready, open, accesses, draft, placing, blocked]);
   const save = (next: AccessReference[]) => {
-    try { snapshot.current = saveAccesses(localStorage, key, snapshot.current, next); setAccesses(next); setDraft(null); setMessage("Accès enregistrés dans ce navigateur."); }
+    try { snapshot.current = saveAccesses(localStorage, key, snapshot.current, next); setAccesses(next); window.dispatchEvent(new CustomEvent("mft-access-changed", { detail: projectId })); setDraft(null); setMessage("Accès enregistrés dans ce navigateur."); }
     catch (error) { setMessage(error instanceof Error && error.message === "Conflit entre onglets" ? "Les accès ont changé dans un autre onglet. Copiez votre saisie puis rechargez." : "Enregistrement impossible : donnez un nom et précisez chaque condition, ainsi que la source et la date pour une donnée officielle."); }
   };
   return <details className="project-layers"><summary>Accès de référence</summary>
@@ -70,8 +72,8 @@ export function AccessReferences({ projectId, map, ready, open, blocked, onEditi
     {draft && <div role="region" aria-label="Modifier un accès">
       <p>Déplacez le repère orange ou replacez-le sur la carte.</p><button type="button" onClick={() => setPlacing(true)}>Replacer le point</button>
       <label className="project-field">Nom de l’accès<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
-      <label className="project-field">Entrée ou sortie<select value={draft.direction} onChange={(event) => setDraft({ ...draft, direction: event.target.value as AccessReference["direction"] })}><option value="unknown">Inconnu</option><option value="entry">Entrée</option><option value="exit">Sortie</option><option value="both">Entrée et sortie</option></select></label>
-      <label className="project-field">Sens ou direction, si connu<input value={draft.directionDetails} onChange={(event) => setDraft({ ...draft, directionDetails: event.target.value })} /></label>
+      <fieldset><legend>Sens de passage</legend><p>Sans case cochée, le sens est inconnu.</p>{([["entry", "Entrée"], ["exit", "Sortie"]] as const).map(([direction, label]) => { const entry = draft.direction === "entry" || draft.direction === "both", exit = draft.direction === "exit" || draft.direction === "both"; return <label key={direction}><input type="checkbox" checked={direction === "entry" ? entry : exit} onChange={(event) => { const nextEntry = direction === "entry" ? event.target.checked : entry, nextExit = direction === "exit" ? event.target.checked : exit; setDraft({ ...draft, direction: nextEntry && nextExit ? "both" : nextEntry ? "entry" : nextExit ? "exit" : "unknown" }); }} /> {label}</label>; })}{(draft.direction === "exit" || draft.direction === "both") && <fieldset><legend>Direction de sortie si connue</legend><label><input type="checkbox" checked={!!draft.exitRight} onChange={(event) => setDraft({ ...draft, exitRight: event.target.checked })} /> Droite</label><label><input type="checkbox" checked={!!draft.exitLeft} onChange={(event) => setDraft({ ...draft, exitLeft: event.target.checked })} /> Gauche</label><p>Sans case cochée, la direction est inconnue.</p></fieldset>}</fieldset>
+      <label className="project-field">Autre précision sur le sens<input value={draft.directionDetails} onChange={(event) => setDraft({ ...draft, directionDetails: event.target.value })} /></label>
       <DestinationFields title="Accès au parking" value={draft.parking} change={(parking) => setDraft({ ...draft, parking })} />
       <DestinationFields title="Passage vers une rue" value={draft.street} change={(street) => setDraft({ ...draft, street })} />
       <label className="project-field">Origine<select value={draft.origin} onChange={(event) => setDraft({ ...draft, origin: event.target.value as AccessReference["origin"] })}><option value="unknown">Inconnue</option><option value="official">Donnée officielle</option><option value="entered">Saisie</option><option value="assumption">Hypothèse</option></select></label>
