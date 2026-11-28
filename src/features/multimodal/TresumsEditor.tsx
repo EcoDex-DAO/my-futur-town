@@ -147,7 +147,7 @@ export function TresumsEditor({ map, ready, open, mapAction }: { map: MapLibreMa
   };
   const current = doc.items.find((i) => i.id === selected);
   return <section aria-label="Préparation des Trésums" className={`tresums-editor${projectEditing ? " is-project-editing" : ""}`}>
-    <h2>Trésums · préparation</h2>
+    <h2>Projet · Trésums</h2>
     <p>Cadastre et hypothèses indicatifs : ni bornage, ni étude de faisabilité.</p>
     <ProjectCreator map={map} ready={ready} open={open} mapAction={mapAction} onEditingChange={onProjectEditing} sourceStatus={sourceStatus} legacyActive={mode !== null} />
     {!projectEditing && <details className="tresums-legacy"><summary>Outils V0 existants</summary>

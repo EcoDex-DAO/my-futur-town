@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Marker, type GeoJSONSource, type Map as MapLibreMap, type MapMouseEvent, type ErrorEvent } from "maplibre-gl";
 import type { FeatureCollection, Geometry } from "geojson";
 import { PROJECT_KEY, readProjects, validPolygon, type Parcel, type Position, type ProjectStore, type SiteProject } from "./project-zone";
+import { SimpleParkingEstimate } from "./SimpleParkingEstimate";
 import { ParkingReference } from "./ParkingReference";
 import { AccessReferences } from "./AccessReferences";
 import { TresumsWays } from "./TresumsWays";
@@ -21,6 +22,8 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
   const [error, setError] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [estimateVersion, setEstimateVersion] = useState(0);
   const [accessEditing, setAccessEditing] = useState(false);
   const onAccessEditingChange = useCallback((editing: boolean) => setAccessEditing(editing), []);
   const [parcels, setParcels] = useState<Parcel[] | null>(null);
@@ -167,11 +170,11 @@ export function ProjectCreator({ map, ready, open, mapAction, onEditingChange, s
   };
 
   return <section className="site-project" aria-label="Projets Trésums">
-    <h3>Projet de site</h3>
-    {!draft && <><p>Définissez une zone de travail pour préparer le site.</p><button type="button" className="project-primary" disabled={!loaded || !ready || legacyActive || accessEditing} onClick={() => start()}>Créer un projet</button>{legacyActive && <p>Terminez ou annulez l’outil V0 en cours avant de créer un projet.</p>}
-      {store.projects.length > 0 && <><label className="project-field">Projet enregistré<select disabled={accessEditing} value={activeId ?? ""} onChange={(event) => setActiveId(event.target.value)}>{store.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label>{active && <><p>Zone confirmée · {active.zone.kind === "parcels" ? `${active.zone.parcels.length} parcelle(s)` : "polygone libre"}</p><button type="button" disabled={legacyActive || accessEditing} onClick={() => start(active)}>Modifier la zone</button><ParkingReference key={`capacity-${active.id}`} projectId={active.id} zone={active.zone} map={map} ready={ready} /><AccessReferences key={`access-${active.id}`} projectId={active.id} map={map} ready={ready} open={open} blocked={legacyActive} onEditingChange={onAccessEditingChange} /></>}</>}</>}
+    <h3>Parcours de projet</h3>
+    {!draft && <><p>1. Définissez la zone, puis 2. estimez sa capacité.</p><button type="button" className="project-primary" disabled={!loaded || !ready || legacyActive || accessEditing} onClick={() => start()}>Créer un projet</button>{legacyActive && <p>Terminez ou annulez l’outil V0 en cours avant de créer un projet.</p>}
+      {store.projects.length > 0 && <><label className="project-field">Projet enregistré<select disabled={accessEditing} value={activeId ?? ""} onChange={(event) => setActiveId(event.target.value)}>{store.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></label>{active && <><p>Zone confirmée · {active.zone.kind === "parcels" ? `${active.zone.parcels.length} parcelle(s)` : "polygone libre"}</p><button type="button" disabled={legacyActive || accessEditing} onClick={() => start(active)}>Modifier la zone</button><SimpleParkingEstimate key={`simple-${active.id}-${advancedOpen}`} projectId={active.id} zone={active.zone} onSaved={() => setEstimateVersion((version) => version + 1)} /><details className="project-layers" onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}><summary>Données et outils précédents</summary>{advancedOpen && <><ParkingReference key={`capacity-${active.id}-${estimateVersion}`} projectId={active.id} zone={active.zone} map={map} ready={ready} /><AccessReferences key={`access-${active.id}`} projectId={active.id} map={map} ready={ready} open={open} blocked={legacyActive} onEditingChange={onAccessEditingChange} /></>}</details></>}</>}</>}
     {draft && <div className="project-step" role="region" aria-label="Définir la zone du projet">
-      <h3>Définir la zone</h3><p>Choisissez une méthode, puis touchez la carte. La zone colorée est une proposition, pas un bornage.</p>
+      <h3>1. Définir la zone</h3><p>Choisissez une méthode, puis touchez la carte. La zone colorée est une proposition, pas un bornage.</p>
       <label className="project-field">Nom du projet<input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Ex. Trésums" /></label>
       <fieldset><legend>Méthode de sélection</legend><label><input type="radio" name="zone-mode" checked={draft.mode === "parcels"} onChange={() => setDraft({ ...draft, mode: "parcels" })} /> Parcelles cadastrales</label><label><input type="radio" name="zone-mode" checked={draft.mode === "polygon"} onChange={() => setDraft({ ...draft, mode: "polygon" })} /> Dessin libre</label></fieldset>
       {draft.mode === "parcels" ? <><p role="status">{sourceStatus.startsWith("Cadastre indisponible") ? "Cadastre indisponible : utilisez le dessin libre ou réessayez plus tard." : sourceStatus.startsWith("Cadastre chargé") ? parcelStatus : sourceStatus}</p><p>Touchez une parcelle pour l’ajouter ou la retirer. {draft.parcels.length} sélectionnée(s).</p>{draft.parcels.length > 0 && <ul>{draft.parcels.map((parcel) => <li key={parcel.properties.id}>{parcel.properties.id} <button type="button" onClick={() => setDraft({ ...draft, parcels: draft.parcels.filter((item) => item.properties.id !== parcel.properties.id) })}>Retirer {parcel.properties.id}</button></li>)}</ul>}{!showCadastre && <p>Affichez le cadastre dans les couches pour sélectionner une parcelle.</p>}</> : <><p role="status">{draft.points.length} sommet(s). Placez au moins trois points ; déplacez les repères ou touchez un segment pour ajouter un sommet.</p><button type="button" disabled={!draft.points.length} onClick={() => setDraft({ ...draft, points: draft.points.slice(0, -1) })}>Retirer le dernier sommet</button></>}

@@ -14,6 +14,7 @@ for (const width of [1440, 390]) {
     });
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: "Menu Trésums" }).click();
+    await page.getByText("Données et outils précédents").click();
     await page.getByText("Parking actuel · capacité de référence").click();
     await expect(page.getByText("Surface de la zone confirmée :", { exact: false })).toContainText("m²");
     await page.getByLabel("Nature de la donnée").selectOption("estimate");
@@ -78,6 +79,7 @@ for (const width of [1440, 390]) {
     await page.reload({ waitUntil: "domcontentloaded" });
     const menu = page.getByRole("button", { name: "Menu Trésums" });
     if (await menu.getAttribute("aria-expanded") !== "true") await menu.click();
+    await page.getByText("Données et outils précédents").click();
     await page.getByText("Parking actuel · capacité de référence").dispatchEvent("click");
     await expect(page.getByText("Ancien résultat enregistré :", { exact: false })).toContainText(`${capacity.savedLayout.total} places`);
     await page.getByText("Dimensions du plan").click();
@@ -86,6 +88,7 @@ for (const width of [1440, 390]) {
     const zoneEditor = page.getByRole("region", { name: "Définir la zone du projet" });
     await zoneEditor.getByRole("button", { name: "Retirer le dernier sommet" }).click();
     await zoneEditor.getByRole("button", { name: "Confirmer la zone" }).click();
+    await page.getByText("Données et outils précédents").click();
     await page.getByText("Parking actuel · capacité de référence").click();
     await expect(page.getByText("Ancien résultat enregistré :", { exact: false })).toContainText("ne tient pas compte");
     expect(JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p")))!).savedLayout).toEqual(capacity.savedLayout);
@@ -98,6 +101,7 @@ test("sans accès voiture renseignés, aucune capacité n’est inventée", asyn
   await page.addInitScript(() => localStorage.setItem("mft-tresums-projects-v1", JSON.stringify({ version: 1, projects: [{ id: "sans-acces", name: "Sans accès", parking: null, flows: [], zone: { kind: "polygon", points: [[6.13,45.89],[6.131,45.89],[6.131,45.891],[6.13,45.891]] } }] })));
   await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
+  await page.getByText("Données et outils précédents").click();
   await page.getByText("Parking actuel · capacité de référence").click();
   await page.getByLabel("Nature de la donnée").selectOption("estimate");
   await expect(page.getByText("Capacité inconnue : renseignez", { exact: false })).toBeVisible();
@@ -117,6 +121,7 @@ test("sans accès voiture renseignés, aucune capacité n’est inventée", asyn
   await page.reload({ waitUntil: "domcontentloaded" });
   const menu = page.getByRole("button", { name: "Menu Trésums" });
   if (await menu.getAttribute("aria-expanded") !== "true") await menu.click();
+  await page.getByText("Données et outils précédents").click();
   await page.getByText("Parking actuel · capacité de référence").dispatchEvent("click");
   await expect(page.getByLabel("Méthode d’estimation")).toHaveValue("zone");
   await expect(page.getByLabel("Part de la zone utilisable (%)")).toHaveValue("50");
