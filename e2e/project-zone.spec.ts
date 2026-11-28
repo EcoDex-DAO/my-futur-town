@@ -9,6 +9,7 @@ for (const width of [1440, 390]) {
   test(`créer, retrouver et annuler une modification à ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/");
+    await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
     await page.getByRole("button", { name: "Menu Trésums" }).click();
     await page.getByRole("button", { name: "Créer un projet" }).click();
     const panel = page.getByRole("region", { name: "Définir la zone du projet" });
@@ -29,6 +30,7 @@ for (const width of [1440, 390]) {
     const saved = await page.evaluate(() => localStorage.getItem("mft-tresums-projects-v1"));
     expect(saved).toContain("Site témoin");
     await page.reload();
+    await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
     await page.getByRole("button", { name: "Menu Trésums" }).click();
     await expect(page.getByText("Zone confirmée · polygone libre")).toBeVisible();
     await page.getByRole("button", { name: "Modifier la zone" }).click();
@@ -41,6 +43,7 @@ for (const width of [1440, 390]) {
 test("l'absence du cadastre laisse le dessin libre disponible", async ({ page }) => {
   await page.route("**/data/tresums/parcelles.json", (route) => route.abort());
   await page.goto("/");
+  await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
   await page.getByRole("button", { name: "Créer un projet" }).click();
   const panel = page.getByRole("region", { name: "Définir la zone du projet" });
@@ -55,6 +58,7 @@ test("sélectionne une parcelle et conserve sa géométrie", async ({ page }) =>
   const parcel = { type: "Feature", id: "test-parcelle", properties: { id: "test-parcelle" }, geometry: { type: "Polygon", coordinates: [[[6.125, 45.893], [6.136, 45.893], [6.136, 45.901], [6.125, 45.901], [6.125, 45.893]]] } };
   await page.route("**/data/tresums/parcelles.json", (route) => route.fulfill({ json: { type: "FeatureCollection", features: [parcel] } }));
   await page.goto("/");
+  await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
   await page.getByRole("button", { name: "Créer un projet" }).click();
   const panel = page.getByRole("region", { name: "Définir la zone du projet" });
@@ -80,6 +84,7 @@ test("sélectionne une parcelle et conserve sa géométrie", async ({ page }) =>
 
 test("ne remplace pas un projet modifié dans un autre onglet", async ({ page }) => {
   await page.goto("/");
+  await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
   await page.getByRole("button", { name: "Créer un projet" }).click();
   const panel = page.getByRole("region", { name: "Définir la zone du projet" });
@@ -102,6 +107,7 @@ test("sélection V0 distincte et suppression explicite", async ({ page }) => {
   const old = JSON.stringify({ version: 1, parcels: ["ancien"], items: [] });
   await page.addInitScript((raw) => localStorage.setItem("mft-tresums-v0", raw), old);
   await page.goto("/");
+  await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
   await page.getByText("Outils V0 existants").click();
   await expect(page.getByText("Sélection de l’ancien outil", { exact: false })).toContainText("ancien");
@@ -116,6 +122,7 @@ test("sélection V0 distincte et suppression explicite", async ({ page }) => {
 test("échec du fond IGN et retour au fond initial", async ({ page }) => {
   await page.route("https://data.geopf.fr/wmts?**", (route) => route.abort());
   await page.goto("/");
+  await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
   await page.getByRole("button", { name: "Créer un projet" }).click();
   await page.getByText("Couches de la carte").click();
@@ -130,6 +137,7 @@ test("active et rétablit le fond initial", async ({ page }) => {
   const tile = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
   await page.route("https://data.geopf.fr/wmts?**", (route) => route.fulfill({ status: 200, contentType: "image/png", body: tile }));
   await page.goto("/");
+  await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
   await page.getByRole("button", { name: "Créer un projet" }).click();
   await page.getByText("Couches de la carte").click();
@@ -144,6 +152,7 @@ test("active et rétablit le fond initial", async ({ page }) => {
 
 test("insère un sommet sur le segment sans perdre le projet", async ({ page }) => {
   await page.goto("/");
+  await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
   await page.getByRole("button", { name: "Créer un projet" }).click();
   const panel = page.getByRole("region", { name: "Définir la zone du projet" });

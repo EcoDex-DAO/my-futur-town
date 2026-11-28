@@ -13,7 +13,9 @@ for (const width of [1440, 390]) {
       if (!localStorage.getItem("mft-access-reference-v1:p")) localStorage.setItem("mft-access-reference-v1:p", JSON.stringify({ version: 2, accesses: [{ id: "a", name: "Borne", position: [6.13,45.89], direction: "both", directionDetails: "ancien sens", origin: "unknown", source: "", date: "", notes: "", parking: { enabled: "yes", pedestrian: "conditional", bicycle: "unknown", vehicle: "prohibited", condition: "badge" }, street: { enabled: "unknown", pedestrian: "unknown", bicycle: "unknown", vehicle: "unknown", condition: "" } }, { id: "vehicle", name: "Entrée parking", position: [6.13,45.89], direction: "both", directionDetails: "", origin: "unknown", source: "", date: "", notes: "", parking: { enabled: "yes", pedestrian: "unknown", bicycle: "unknown", vehicle: "allowed", condition: "" }, street: { enabled: "unknown", pedestrian: "unknown", bicycle: "unknown", vehicle: "unknown", condition: "" } }] }));
     });
     await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
     await page.getByRole("button", { name: "Menu Trésums" }).click();
+    await page.getByText("Données et outils précédents").click();
     await page.getByText("Parking actuel · capacité de référence").click();
     await expect(page.getByText("Surface de la zone confirmée :", { exact: false })).toContainText("m²");
     await page.getByLabel("Nature de la donnée").selectOption("estimate");
@@ -76,8 +78,10 @@ for (const width of [1440, 390]) {
     const saved = JSON.parse((await page.evaluate(() => localStorage.getItem("mft-access-reference-v1:p")))!);
     expect(saved.accesses.find((item: { id: string }) => item.id === "a")).toMatchObject({ exitRight: true, directionDetails: "ancien sens", parking: { vehicle: "prohibited", modeConditions: { pedestrian: "badge" } } });
     await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
     const menu = page.getByRole("button", { name: "Menu Trésums" });
     if (await menu.getAttribute("aria-expanded") !== "true") await menu.click();
+    await page.getByText("Données et outils précédents").click();
     await page.getByText("Parking actuel · capacité de référence").dispatchEvent("click");
     await expect(page.getByText("Ancien résultat enregistré :", { exact: false })).toContainText(`${capacity.savedLayout.total} places`);
     await page.getByText("Dimensions du plan").click();
@@ -86,6 +90,7 @@ for (const width of [1440, 390]) {
     const zoneEditor = page.getByRole("region", { name: "Définir la zone du projet" });
     await zoneEditor.getByRole("button", { name: "Retirer le dernier sommet" }).click();
     await zoneEditor.getByRole("button", { name: "Confirmer la zone" }).click();
+    await page.getByText("Données et outils précédents").click();
     await page.getByText("Parking actuel · capacité de référence").click();
     await expect(page.getByText("Ancien résultat enregistré :", { exact: false })).toContainText("ne tient pas compte");
     expect(JSON.parse((await page.evaluate(() => localStorage.getItem("mft-parking-reference-v1:p")))!).savedLayout).toEqual(capacity.savedLayout);
@@ -97,7 +102,9 @@ test("sans accès voiture renseignés, aucune capacité n’est inventée", asyn
   await page.route("https://tiles.openfreemap.org/styles/liberty", (route) => route.fulfill({ json: { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": "#e5eee8" } }] } }));
   await page.addInitScript(() => localStorage.setItem("mft-tresums-projects-v1", JSON.stringify({ version: 1, projects: [{ id: "sans-acces", name: "Sans accès", parking: null, flows: [], zone: { kind: "polygon", points: [[6.13,45.89],[6.131,45.89],[6.131,45.891],[6.13,45.891]] } }] })));
   await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
   await page.getByRole("button", { name: "Menu Trésums" }).click();
+  await page.getByText("Données et outils précédents").click();
   await page.getByText("Parking actuel · capacité de référence").click();
   await page.getByLabel("Nature de la donnée").selectOption("estimate");
   await expect(page.getByText("Capacité inconnue : renseignez", { exact: false })).toBeVisible();
@@ -115,8 +122,10 @@ test("sans accès voiture renseignés, aucune capacité n’est inventée", asyn
   expect(saved.savedRatio.total).toBe(saved.savedRatio.ordinary + saved.savedRatio.pmr);
   expect(await page.evaluate(() => localStorage.getItem("mft-access-reference-v1:sans-acces"))).toBeNull();
   await page.reload({ waitUntil: "domcontentloaded" });
+  await expect(page.getByText("Chargement de la carte d’Annecy…")).toBeHidden({ timeout: 60000 });
   const menu = page.getByRole("button", { name: "Menu Trésums" });
   if (await menu.getAttribute("aria-expanded") !== "true") await menu.click();
+  await page.getByText("Données et outils précédents").click();
   await page.getByText("Parking actuel · capacité de référence").dispatchEvent("click");
   await expect(page.getByLabel("Méthode d’estimation")).toHaveValue("zone");
   await expect(page.getByLabel("Part de la zone utilisable (%)")).toHaveValue("50");
