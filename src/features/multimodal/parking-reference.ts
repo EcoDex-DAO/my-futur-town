@@ -25,7 +25,8 @@ export function readParkingReference(raw: string | null): ParkingReference {
   if (!value || typeof value !== "object") throw Error("Données incompatibles");
   const item = value as Record<string, unknown>;
   if ((item.version !== 1 && item.version !== 2 && item.version !== 3) || typeof item.kind !== "string" || !["unknown", "official", "manual", "estimate"].includes(item.kind) || !(["places", "area", "areaPerPlace", "source", "date", "assumptions"] as const).every((key) => typeof item[key] === "string") || (item.version !== 1 && typeof item.pmrPlaces !== "string") || (item.version === 3 && (!["legacy", "zone"].includes(item.estimateMode as string) || !["usablePercent", "pmrArea", "pmrPercent", "legacyArea", "legacyAreaPerPlace"].every((key) => typeof item[key] === "string")))) throw Error("Données incompatibles");
-  return { ...emptyReference(), ...item, version: 3, pmrPlaces: item.version === 1 ? "" : item.pmrPlaces, estimateMode: item.version === 3 ? item.estimateMode : "legacy", legacyArea: item.version === 3 ? item.legacyArea : item.area, legacyAreaPerPlace: item.version === 3 ? item.legacyAreaPerPlace : item.areaPerPlace } as ParkingReference;
+  const hasLegacyEstimate = item.kind === "estimate" && (!!(item.area as string).trim() || !!(item.areaPerPlace as string).trim());
+  return { ...emptyReference(), ...item, version: 3, pmrPlaces: item.version === 1 ? "" : item.pmrPlaces, estimateMode: item.version === 3 ? item.estimateMode : hasLegacyEstimate ? "legacy" : "zone", areaPerPlace: item.version !== 3 && !hasLegacyEstimate && !(item.areaPerPlace as string).trim() ? "25" : item.areaPerPlace, legacyArea: item.version === 3 ? item.legacyArea : item.area, legacyAreaPerPlace: item.version === 3 ? item.legacyAreaPerPlace : item.areaPerPlace } as ParkingReference;
 }
 
 export function declaredPlaces(places: string, pmrPlaces: string): { total: number; pmr: number | null; ordinary: number | null } | null {

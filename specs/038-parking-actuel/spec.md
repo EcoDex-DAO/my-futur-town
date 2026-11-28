@@ -22,3 +22,10 @@ Une capacité déclarée comporte un total et un nombre facultatif de places PMR
 La surface confirmée est calculée à partir du polygone ou de l'union des parcelles. L'estimation applique une proportion utilisable, puis répartit les places selon des surfaces unitaires distinctes et une part PMR modifiables. Les hypothèses ne démontrent pas une conformité ou une capacité réelle. Les anciennes estimations restent consultables, avec leur surface et ratio, lors de leur conversion explicite.
 
 Les cases d'entrée et de sortie peuvent être combinées ; les directions droite et gauche sont indiquées séparément pour une sortie. Pour chaque destination, les modes non renseignés restent inconnus et les conditions sont propres à chaque mode. Les interdictions, les indications de direction et les conditions communes des accès anciens restent accessibles ; la migration ne remplace pas ces informations par des permissions implicites.
+
+
+## Étude géométrique paramétrique — demande du 28 novembre 2026
+
+Après confirmation de la zone, l’utilisateur voit automatiquement une proposition de rangées de places et de voies sur la carte, ainsi que le nombre de places ordinaires et PMR. Les dimensions et la proportion PMR sont modifiables ; le dessin et les comptes se recalculent. Le plan utilise la géométrie complète de la zone, sans compter deux fois les parcelles superposées et en respectant les trous.
+
+Le calcul est une première heuristique : plusieurs orientations et décalages de rangées perpendiculaires sont comparés ; la meilleure solution parmi celles essayées est affichée. Elle ne prouve pas un optimum global. Les obstacles, le raccordement des voies aux accès, les virages, les cheminements et la faisabilité réglementaire ne sont pas calculés : ces limites sont visibles. Les paramètres du plan restent temporaires ; ils ne remplacent ni la capacité déclarée ni les références sauvegardées.

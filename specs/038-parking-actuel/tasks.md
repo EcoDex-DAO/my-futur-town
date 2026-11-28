@@ -15,3 +15,6 @@ Cette livraison est partielle ; les tâches ouvertes restent nécessaires à #59
 - [x] T010 Estimer séparément les places ordinaires et PMR, sans double comptage.
 - [x] T011 Simplifier les accès tout en préservant les règles existantes et l'inconnu.
 - [ ] T012 Vérifier les parcours complets sur ordinateur et mobile, notamment les conflits et les anciens projets.
+
+- [x] T013 Générer et afficher un plan géométrique indicatif, avec dimensions modifiables et répartition PMR sans double comptage.
+- [ ] T014 Étudier le raccordement des voies aux accès, les obstacles, virages et cheminements, puis conserver et éditer les variantes ; le prototype actuel ne les traite pas.

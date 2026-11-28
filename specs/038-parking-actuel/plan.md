@@ -9,3 +9,6 @@ Les étapes ultérieures restent hors de cette livraison : voiries et profils de
 Pour la capacité déclarée, conserver la clé et le contrôle de conflit, mais utiliser un format version 2 afin que les anciens clients ne remplacent pas silencieusement le nombre PMR. La lecture du format 1 ajoute seulement une valeur inconnue en mémoire ; l'écriture reste explicite.
 
 Pour cet ajustement, les formats de capacité et d'accès passent en version 3 dans leurs clés existantes : les anciens clients refusent leur lecture. Les formats précédents migrent en mémoire et ne sont enregistrés qu'après action explicite et contrôle de conflit. Le calcul spatial unit les géométries avant de mesurer leur surface sphérique, puis la répartition cherche le nombre entier maximal compatible avec les hypothèses et arrondit les PMR au supérieur.
+
+
+Le calcul géométrique projette localement les coordonnées en mètres, unit les parcelles, teste des modules de places et d’allées entièrement inclus dans la zone et compare quatre orientations et quatre décalages. Les places PMR regroupent si nécessaire plusieurs modules voisins, sans les compter deux fois. Un worker évite de bloquer l’interface ; la carte affiche séparément voies, places et PMR. Ce calcul n’est pas un solveur de circulation ni une validation de conformité ; il ne modifie aucun stockage existant.

@@ -13,6 +13,19 @@ for (const width of [1440, 390]) {
     await page.getByText("Parking actuel · capacité de référence").click();
     await expect(page.getByText("Surface de la zone confirmée :", { exact: false })).toContainText("m²");
     await page.getByLabel("Nature de la donnée").selectOption("estimate");
+    await expect(page.getByText("places dessinées", { exact: false })).toBeVisible({ timeout: 60000 });
+    const plan = page.getByRole("region", { name: "Plan indicatif de stationnement" });
+    const initial = await plan.getByText("places dessinées", { exact: false }).textContent();
+    await plan.getByText("Dimensions du plan").click();
+    await plan.getByLabel("Largeur de circulation (m)").fill("12");
+    await expect(plan.getByText("places dessinées", { exact: false })).not.toHaveText(initial!, { timeout: 60000 });
+    await plan.getByRole("button", { name: "Centrer la carte sur le plan" }).click();
+    await plan.getByRole("heading", { name: "Plan indicatif sur la carte" }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `/tmp/parking-plan-${width}.png` });
+    await page.getByRole("button", { name: "Fermer le menu" }).click();
+    await page.screenshot({ path: `/tmp/parking-plan-plein-${width}.png` });
+    await page.getByRole("button", { name: "Menu Trésums" }).click();
+    await page.getByText("Estimation complémentaire par ratio de surface").click();
     await expect(page.getByText("Estimation :", { exact: false })).toContainText("ordinaires");
     await page.getByLabel("Part de la zone utilisable (%)").fill("50");
     await page.getByLabel("Source ou origine de la saisie").fill("Hypothèse test");
@@ -33,8 +46,10 @@ for (const width of [1440, 390]) {
     const saved = JSON.parse((await page.evaluate(() => localStorage.getItem("mft-access-reference-v1:p")))!);
     expect(saved.accesses[0]).toMatchObject({ exitRight: true, directionDetails: "ancien sens", parking: { vehicle: "prohibited", modeConditions: { pedestrian: "badge" } } });
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.getByRole("button", { name: "Menu Trésums" }).click();
+    const menu = page.getByRole("button", { name: "Menu Trésums" });
+    if (await menu.getAttribute("aria-expanded") !== "true") await menu.click();
     await page.getByText("Parking actuel · capacité de référence").click();
+    await page.getByText("Estimation complémentaire par ratio de surface").click();
     await expect(page.getByLabel("Part de la zone utilisable (%)")).toHaveValue("50");
   });
 }

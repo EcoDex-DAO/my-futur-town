@@ -33,8 +33,13 @@ describe("capacité de référence", () => {
     const old = { ...emptyReference(), version: 1, places: "20", kind: "manual", source: "comptage", date: "2026-11-27", assumptions: "à vérifier", extra: "conservé" };
     delete (old as { pmrPlaces?: string }).pmrPlaces;
     const migrated = readParkingReference(JSON.stringify(old));
-    expect(migrated).toMatchObject({ ...old, version: 3, estimateMode: "legacy", legacyAreaPerPlace: old.areaPerPlace, pmrPlaces: "", extra: "conservé" });
+    expect(migrated).toMatchObject({ ...old, version: 3, estimateMode: "zone", legacyAreaPerPlace: old.areaPerPlace, pmrPlaces: "", extra: "conservé" });
     expect(validReference(migrated)).toBe(true);
+  });
+  it("préserve une estimation ancienne et active les valeurs automatiques si elle est vide", () => {
+    const legacy = { version: 1, kind: "estimate", places: "", area: "600", areaPerPlace: "30", source: "ancienne", date: "2026-01-01", assumptions: "test" };
+    expect(readParkingReference(JSON.stringify(legacy))).toMatchObject({ estimateMode: "legacy", legacyArea: "600", legacyAreaPerPlace: "30" });
+    expect(readParkingReference(JSON.stringify({ ...legacy, area: "", areaPerPlace: "" }))).toMatchObject({ estimateMode: "zone", areaPerPlace: "25" });
   });
   it("calcule le total et ses sous-ensembles sans dépasser la surface", () => {
     expect(estimatedBreakdown(1000, "100", "25", "33", "2")).toEqual({ total: 39, ordinary: 38, pmr: 1 });
